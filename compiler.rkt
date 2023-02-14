@@ -552,90 +552,50 @@
   (program->x64 p))
 
 
-; (module+ test
-;   (require
-;    rackunit
-;    rackunit/text-ui
-;    cpsc411/langs/v3
-;    cpsc411/langs/v2-reg-alloc
-;    cpsc411/langs/v2
-;    cpsc411/test-suite/public/v3
-;    cpsc411/test-suite/public/v2-reg-alloc)
-
-;   ;; You can modify this pass list, e.g., by adding check-assignment, or other
-;   ;; debugging and validation passes.
-;   ;; Doing this may provide additional debugging info when running the rest
-;   ;; suite.
-;   ;; If you modify, you must modify the corresponding interpreter in the
-;   ;; interp-ls, at least by interesting #f as the interpreter for the new pass.
-;   ;; See the documentation for v3-public-test-suite for details on the structure
-;   ;; of the interpreter list.
-;   (current-pass-list (list
-;                       check-values-lang
-;                       uniquify
-;                       sequentialize-let
-;                       normalize-bind
-;                       select-instructions
-;                       assign-homes-opt
-;                       flatten-begins
-;                       patch-instructions
-;                       implement-fvars
-;                       generate-x64
-;                       wrap-x64-run-time
-;                       wrap-x64-boilerplate))
-
-;   (define interp-ls (list
-;                      interp-values-lang-v3
-;                      interp-values-lang-v3
-;                      interp-values-unique-lang-v3
-;                      interp-imp-mf-lang-v3
-;                      interp-imp-cmf-lang-v3
-;                      interp-asm-lang-v2
-;                      interp-nested-asm-lang-v2
-;                      interp-para-asm-lang-v2
-;                      interp-paren-x64-fvars-v2
-;                      interp-paren-x64-v2
-;                      #f #f))
-
-;   (run-tests (v3-public-test-sutie (current-pass-list) interp-ls))
-;   (run-tests (v2-reg-alloc-public-test-suite undead-analysis conflict-analysis assign-registers)))
-
-(current-pass-list
- (list
-  check-values-lang
-  uniquify
-  sequentialize-let
-  normalize-bind
-  select-instructions
-  assign-homes
-  flatten-begins
-  patch-instructions
-  implement-fvars
-  generate-x64
-  wrap-x64-run-time
-  wrap-x64-boilerplate))
-
 (module+ test
   (require
    rackunit
    rackunit/text-ui
+   cpsc411/langs/v3
+   cpsc411/langs/v2-reg-alloc
+   cpsc411/langs/v2
    cpsc411/test-suite/public/v3
-   ;; NB: Workaround typo in shipped version of cpsc411-lib
-   (except-in cpsc411/langs/v3 values-lang-v3)
-   cpsc411/langs/v2)
+   cpsc411/test-suite/public/v2-reg-alloc)
 
-  (run-tests
-   (v3-public-test-sutie
-    (current-pass-list)
-    (list
-     interp-values-lang-v3
-     interp-values-lang-v3
-     interp-values-unique-lang-v3
-     interp-imp-mf-lang-v3
-     interp-imp-cmf-lang-v3
-     interp-asm-lang-v2
-     interp-nested-asm-lang-v2
-     interp-para-asm-lang-v2
-     interp-paren-x64-fvars-v2
-     interp-paren-x64-v2
-     #f #f))))
+  ;; You can modify this pass list, e.g., by adding check-assignment, or other
+  ;; debugging and validation passes.
+  ;; Doing this may provide additional debugging info when running the rest
+  ;; suite.
+  ;; If you modify, you must modify the corresponding interpreter in the
+  ;; interp-ls, at least by interesting #f as the interpreter for the new pass.
+  ;; See the documentation for v3-public-test-suite for details on the structure
+  ;; of the interpreter list.
+  (current-pass-list (list
+                      check-values-lang
+                      uniquify
+                      sequentialize-let
+                      normalize-bind
+                      select-instructions
+                      assign-homes-opt
+                      flatten-begins
+                      patch-instructions
+                      implement-fvars
+                      generate-x64
+                      wrap-x64-run-time
+                      wrap-x64-boilerplate))
+
+  (define interp-ls (list
+                     interp-values-lang-v3
+                     interp-values-lang-v3
+                     interp-values-unique-lang-v3
+                     interp-imp-mf-lang-v3
+                     interp-imp-cmf-lang-v3
+                     interp-asm-lang-v2
+                     interp-nested-asm-lang-v2
+                     interp-para-asm-lang-v2
+                     interp-paren-x64-fvars-v2
+                     interp-paren-x64-v2
+                     #f #f))
+
+  (run-tests (v3-public-test-sutie (current-pass-list) interp-ls))
+  (run-tests (v2-reg-alloc-public-test-suite undead-analysis conflict-analysis assign-registers)))
