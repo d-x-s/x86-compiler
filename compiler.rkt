@@ -86,36 +86,36 @@
 
 ; =============== New Passes ================
 
-; (define (assign-homes-opt p)
-;   ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
-;   ; with a physical location. This version performs graph-colouring register allocation.
+(define (assign-homes-opt p)
+  ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
+  ; with a physical location. This version performs graph-colouring register allocation.
 
-;   ; TODO
-;   p)
-
-
-; (define (undead-analysis p)
-;   ; Performs undeadness analysis, decorating the program with undead-set tree. 
-;   ; Only the info field of the program is modified.
-
-;   ; TODO
-;   p)
+  ; TODO
+  p)
 
 
-; (define (conflict-analysis p)
-;   ; Decorates a program with its conflict graph.
+(define (undead-analysis p)
+  ; Performs undeadness analysis, decorating the program with undead-set tree. 
+  ; Only the info field of the program is modified.
 
-;   ; TODO
-;   p)
+  ; TODO
+  p)
 
 
-; (define (assign-registers p)
-;   ; Performs graph-colouring register allocation. The pass attempts to fit each 
-;   ; of the abstract location declared in the locals set into a register, and if 
-;   ; one cannot be found, assigns it a frame variable instead.
+(define (conflict-analysis p)
+  ; Decorates a program with its conflict graph.
 
-;   ; TODO
-;   p)
+  ; TODO
+  p)
+
+
+(define (assign-registers p)
+  ; Performs graph-colouring register allocation. The pass attempts to fit each 
+  ; of the abstract location declared in the locals set into a register, and if 
+  ; one cannot be found, assigns it a frame variable instead.
+
+  ; TODO
+  p)
 
 
 ; =============== Old Passes ================
