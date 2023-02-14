@@ -66,8 +66,7 @@
     values
     values))
 
-;; TODO: Fill in.
-;; You'll want to merge milestone-2 code in
+; ================= Helpers =================
 
 (define (address? a)
   (match a
@@ -83,6 +82,43 @@
     (lambda (elem rest) `(,@elem ,@rest))
             '()
              list))
+
+
+; =============== New Passes ================
+
+(define (assign-homes-opt p)
+  ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
+  ; with a physical location. This version performs graph-colouring register allocation.
+
+  ; TODO
+  p)
+
+
+(define (undead-analysis p)
+  ; Performs undeadness analysis, decorating the program with undead-set tree. 
+  ; Only the info field of the program is modified.
+
+  ; TODO
+  p)
+
+
+(define (conflict-analysis p)
+  ; Decorates a program with its conflict graph.
+
+  ; TODO
+  p)
+
+
+(define (assign-registers p)
+  ; Performs graph-colouring register allocation. The pass attempts to fit each 
+  ; of the abstract location declared in the locals set into a register, and if 
+  ; one cannot be found, assigns it a frame variable instead.
+
+  ; TODO
+  p)
+
+
+; =============== Old Passes ================
 
 (define (uniquify p)
   ; Compiles Values-lang v3 to Values-unique-lang v3 by resolving 
