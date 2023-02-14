@@ -84,4 +84,35 @@
     (set! x.1 42)
     (set! w.2 46)
     (begin (set! p.1 -1) (set! t.6 (* t.6 w.2)) (halt t.6))))
+	
+>`(module
+  ((locals (x.1 y.3 w.2 p.1 t.6))
+   (undead-out
+    ((t.6 y.3)
+     (w.2 t.6 y.3)
+     ((w.2 t.6 y.3) (y.3 t.6) ((y.3 t.6) (y.3 t.6) (t.6)) ()))))
+    (begin
+		(set! x.1 42)
+		(set! w.2 46)
+		(begin
+			(set! p.1 -1)
+			(set! t.6 (* t.6 w.2))
+			(begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
+		(halt t.6))))
+(module
+  ((locals (x.1 y.3 w.2 p.1 t.6))
+   (conflicts
+    ((t.6 (w.2 x.1 y.3 p.1))
+     (p.1 (y.3 t.6 w.2))
+     (w.2 (t.6 y.3 p.1))
+     (y.3 (w.2 x.1 t.6 p.1))
+     (x.1 (t.6 y.3)))))
+  (begin
+    (set! x.1 42)
+    (set! w.2 46)
+    (begin
+      (set! p.1 -1)
+      (set! t.6 (* t.6 w.2))
+      (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
+      (halt t.6))))
 	 
