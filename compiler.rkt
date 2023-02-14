@@ -86,107 +86,103 @@
 
 ; =============== New Passes ================
 
-(define (assign-homes-opt p)
-  ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
-  ; with a physical location. This version performs graph-colouring register allocation.
+; (define (assign-homes-opt p)
+;   ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
+;   ; with a physical location. This version performs graph-colouring register allocation.
 
-  ; TODO
-  p)
-
-
-(define (undead-analysis p)
-  ; Performs undeadness analysis, decorating the program with undead-set tree. 
-  ; Only the info field of the program is modified.
-
-  ; TODO
-  p)
+;   ; TODO
+;   p)
 
 
-(define (conflict-analysis p)
-  ; Decorates a program with its conflict graph.
+; (define (undead-analysis p)
+;   ; Performs undeadness analysis, decorating the program with undead-set tree. 
+;   ; Only the info field of the program is modified.
 
-  ; TODO
-  p)
+;   ; TODO
+;   p)
 
 
-(define (assign-registers p)
-  ; Performs graph-colouring register allocation. The pass attempts to fit each 
-  ; of the abstract location declared in the locals set into a register, and if 
-  ; one cannot be found, assigns it a frame variable instead.
+; (define (conflict-analysis p)
+;   ; Decorates a program with its conflict graph.
 
-  ; TODO
-  p)
+;   ; TODO
+;   p)
+
+
+; (define (assign-registers p)
+;   ; Performs graph-colouring register allocation. The pass attempts to fit each 
+;   ; of the abstract location declared in the locals set into a register, and if 
+;   ; one cannot be found, assigns it a frame variable instead.
+
+;   ; TODO
+;   p)
 
 
 ; =============== Old Passes ================
 
-(define (uniquify p)
-  ; Compiles Values-lang v3 to Values-unique-lang v3 by resolving 
-  ; all lexical identifiers to abstract locations.
-  
-  (define (uniq-p p)
+; Input:   Values-lang-v3 (assumes a well-formed input)
+; Output:  Values-unique-lang-v3
+; Purpose: Compiles Values-lang v3 to Values-unique-lang v3 by resolving all lexical 
+;          identifiers to abstract locations
+(define (uniquify p) 
+
+  ; Input: tail, a list of possibly nested let statements
+  ; Output: Values-unique-lang-v3
+  ; Purpose: matches on p, which is a list of (nested) let statements
+  (define (uniquify-p p dict-acc)
     (match p
-      [`(module ,tail)
-          `(module ,@(uniq-t #hash() tail))]))
+      [`(module ,e ...)
+       ; map notes
+       ; utilize a lambda expression as map's proc, allowing us to bypass
+       ; map's requirement that the number of args in proc must match the number of list
+       ; this lambda takes one argument (e) and calls uniquify-e with (e) in addition
+       ; to the dictionary itself
+       ; we need to use map because a match statement returns a LIST of all matched elements
+       ; use unquote splicing on the result of the map (directly places elements of list in result)
+       `(module ,@(map (lambda (e) (uniquify-e e dict-acc)) e))]))
 
-  (define varcount 0)
-  (define (assign-alocs x)
-    ; Given a list of names, return a dictionary mapping
-    ; each name to a unique aloc.
-    (foldr (lambda (n dict) (set! varcount (+ varcount 1))
-                            (dict-set dict n (string->symbol (format "~a.~a" n varcount))))
-            #hash()
-            x))
-            
-  (define (append-dicts d1 d2)
-     ; Merge two dictionaries. Give precedence to keys in d2.
-     (foldr (lambda (k dict) (if (not (dict-has-key? dict k)) (dict-set dict k (dict-ref d1 k))
-                                                              dict))
-            d2
-            (dict-keys d1)))
+  ; Input: value, a let statement or a binary operation
+  ; Output: uniquified version of this expression
+  ; Purpose: recursively uniquify a single expression
+  (define (uniquify-e e binds)
+    (match e 
+      [`(let ([,xs ,ps] ...) ,body)
+        (define new-binds (construct-binds xs binds)) ; build binds for the current layer
+        `(let ,(for/list ([x xs][p ps])
+                        `[,(dict-ref new-binds x)     ; lookup and place freshly bound aloc'd names (i.e. the let statement at current scope)
+                          ,(uniquify-e p binds)])     
+              ,(uniquify-e body new-binds))]          ; recurse a level deeper (i.e. the are the nested let statements)
 
-  (define (uniq-t dict t)
-    ; Return a list of instructions
-    (match t
-      [`(let ([,x ,value] ...) ,tail) 
-          (let ([newDict (append-dicts dict (assign-alocs x))])
-            `((let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                     ,@(uniq-t newDict tail))))]
-      [trivOrBinop
-        `(,(uniq-v dict trivOrBinop))]))
-  
-  (define (uniq-bind parDict dict b)
-    ; Return a list of instructions
-    ; Values on RHS make use of the parent dict.
-    (match b
-      [`(,x ,triv) #:when (number? triv)
-        `(,(dict-ref dict x) ,triv)]
-      [`(,x ,triv) #:when (name? triv)
-        `(,(dict-ref dict x) ,(dict-ref parDict triv))]
-      [`(,x (,binop ,triv1 ,triv2)) #:when (and (member binop '(+ *)) #t)
-        `(,(dict-ref dict x) (,binop ,(if (name? triv1) (dict-ref parDict triv1) triv1)
-                                      ,(if (name? triv2) (dict-ref parDict triv2) triv2)))]
-      [`(,x1 (let ([,x ,value] ...) ,val))
-        (let ([newDict (append-dicts dict (assign-alocs x))])
-          `(,(dict-ref dict x1)
-            (let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                 ,(uniq-v newDict val))))]))
+      [`(,binop ,triv1 ,triv2)
+        `(,binop ,(uniquify-v triv1 binds) ,(uniquify-v triv2 binds))]
+      
+      [x (uniquify-v x binds)]))
 
-  (define (uniq-v dict v)
-    (match v
-      [value #:when (number? value)
-        value]
-      [value #:when (name? value)
-        (dict-ref dict value)]
-      [`(,binop ,triv1 ,triv2) #:when (and (member binop '(+ *)) #t)
-        `(,binop ,(if (name? triv1) (dict-ref dict triv1) triv1)
-                ,(if (name? triv2) (dict-ref dict triv2) triv2))]
-      [`(let ([,x ,value] ...) ,val) 
-        (let ([newDict (append-dicts dict (assign-alocs x))])
-          `(let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                ,@(uniq-v newDict val)))]))
+  ; Input: aloc and binding dictionary
+  ; Output: a new binding dictionary
+  ; uses fresh to assign a unique aloc? to each name? at the current scope
+  (define (construct-binds xs binds)
+    (for/fold ([new-binds binds]) ; accumulator
+              ([x xs])            ; x is an element, xs is the list
+      (dict-set new-binds x (fresh x))))
 
-  (uniq-p p))
+  ; Input: triv and binding dictionary
+  ; Output: int64 or aloc
+  ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
+  (define (uniquify-v x binds)
+    (match x
+      [(? integer?) x]
+      [(? symbol?) (lookup-bind x binds)]))
+
+  ; Input: aloc
+  ; Output: aloc
+  ; Purpose: returns the mapped binding at the current scope (if it exists in the dictionary)
+  (define (lookup-bind x binds)
+    (if (and (name? x) (dict-has-key? binds x)) ; test-expr
+        (dict-ref binds x)                      ; then-expr
+        x))                                     ; else-expr
+
+(uniquify-p p '()))
 
 
 (define (sequentialize-let p)
@@ -556,50 +552,90 @@
   (program->x64 p))
 
 
+; (module+ test
+;   (require
+;    rackunit
+;    rackunit/text-ui
+;    cpsc411/langs/v3
+;    cpsc411/langs/v2-reg-alloc
+;    cpsc411/langs/v2
+;    cpsc411/test-suite/public/v3
+;    cpsc411/test-suite/public/v2-reg-alloc)
+
+;   ;; You can modify this pass list, e.g., by adding check-assignment, or other
+;   ;; debugging and validation passes.
+;   ;; Doing this may provide additional debugging info when running the rest
+;   ;; suite.
+;   ;; If you modify, you must modify the corresponding interpreter in the
+;   ;; interp-ls, at least by interesting #f as the interpreter for the new pass.
+;   ;; See the documentation for v3-public-test-suite for details on the structure
+;   ;; of the interpreter list.
+;   (current-pass-list (list
+;                       check-values-lang
+;                       uniquify
+;                       sequentialize-let
+;                       normalize-bind
+;                       select-instructions
+;                       assign-homes-opt
+;                       flatten-begins
+;                       patch-instructions
+;                       implement-fvars
+;                       generate-x64
+;                       wrap-x64-run-time
+;                       wrap-x64-boilerplate))
+
+;   (define interp-ls (list
+;                      interp-values-lang-v3
+;                      interp-values-lang-v3
+;                      interp-values-unique-lang-v3
+;                      interp-imp-mf-lang-v3
+;                      interp-imp-cmf-lang-v3
+;                      interp-asm-lang-v2
+;                      interp-nested-asm-lang-v2
+;                      interp-para-asm-lang-v2
+;                      interp-paren-x64-fvars-v2
+;                      interp-paren-x64-v2
+;                      #f #f))
+
+;   (run-tests (v3-public-test-sutie (current-pass-list) interp-ls))
+;   (run-tests (v2-reg-alloc-public-test-suite undead-analysis conflict-analysis assign-registers)))
+
+(current-pass-list
+ (list
+  check-values-lang
+  uniquify
+  sequentialize-let
+  normalize-bind
+  select-instructions
+  assign-homes
+  flatten-begins
+  patch-instructions
+  implement-fvars
+  generate-x64
+  wrap-x64-run-time
+  wrap-x64-boilerplate))
+
 (module+ test
   (require
    rackunit
    rackunit/text-ui
-   cpsc411/langs/v3
-   cpsc411/langs/v2-reg-alloc
-   cpsc411/langs/v2
    cpsc411/test-suite/public/v3
-   cpsc411/test-suite/public/v2-reg-alloc)
+   ;; NB: Workaround typo in shipped version of cpsc411-lib
+   (except-in cpsc411/langs/v3 values-lang-v3)
+   cpsc411/langs/v2)
 
-  ;; You can modify this pass list, e.g., by adding check-assignment, or other
-  ;; debugging and validation passes.
-  ;; Doing this may provide additional debugging info when running the rest
-  ;; suite.
-  ;; If you modify, you must modify the corresponding interpreter in the
-  ;; interp-ls, at least by interesting #f as the interpreter for the new pass.
-  ;; See the documentation for v3-public-test-suite for details on the structure
-  ;; of the interpreter list.
-  (current-pass-list (list
-                      check-values-lang
-                      uniquify
-                      sequentialize-let
-                      normalize-bind
-                      select-instructions
-                      assign-homes-opt
-                      flatten-begins
-                      patch-instructions
-                      implement-fvars
-                      generate-x64
-                      wrap-x64-run-time
-                      wrap-x64-boilerplate))
-
-  (define interp-ls (list
-                     interp-values-lang-v3
-                     interp-values-lang-v3
-                     interp-values-unique-lang-v3
-                     interp-imp-mf-lang-v3
-                     interp-imp-cmf-lang-v3
-                     interp-asm-lang-v2
-                     interp-nested-asm-lang-v2
-                     interp-para-asm-lang-v2
-                     interp-paren-x64-fvars-v2
-                     interp-paren-x64-v2
-                     #f #f))
-
-  (run-tests (v3-public-test-sutie (current-pass-list) interp-ls))
-  (run-tests (v2-reg-alloc-public-test-suite undead-analysis conflict-analysis assign-registers)))
+  (run-tests
+   (v3-public-test-sutie
+    (current-pass-list)
+    (list
+     interp-values-lang-v3
+     interp-values-lang-v3
+     interp-values-unique-lang-v3
+     interp-imp-mf-lang-v3
+     interp-imp-cmf-lang-v3
+     interp-asm-lang-v2
+     interp-nested-asm-lang-v2
+     interp-para-asm-lang-v2
+     interp-paren-x64-fvars-v2
+     interp-paren-x64-v2
+     #f #f))))
