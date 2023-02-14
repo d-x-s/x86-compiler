@@ -147,73 +147,69 @@
 
 ; =============== Old Passes ================
 
-(define (uniquify p)
-  ; Compiles Values-lang v3 to Values-unique-lang v3 by resolving 
-  ; all lexical identifiers to abstract locations.
-  
-  (define (uniq-p p)
+; Input:   Values-lang-v3 (assumes a well-formed input)
+; Output:  Values-unique-lang-v3
+; Purpose: Compiles Values-lang v3 to Values-unique-lang v3 by resolving all lexical 
+;          identifiers to abstract locations
+(define (uniquify p) 
+
+  ; Input: tail, a list of possibly nested let statements
+  ; Output: Values-unique-lang-v3
+  ; Purpose: matches on p, which is a list of (nested) let statements
+  (define (uniquify-p p dict-acc)
     (match p
-      [`(module ,tail)
-          `(module ,@(uniq-t #hash() tail))]))
+      [`(module ,e ...)
+       ; map notes
+       ; utilize a lambda expression as map's proc, allowing us to bypass
+       ; map's requirement that the number of args in proc must match the number of list
+       ; this lambda takes one argument (e) and calls uniquify-e with (e) in addition
+       ; to the dictionary itself
+       ; we need to use map because a match statement returns a LIST of all matched elements
+       ; use unquote splicing on the result of the map (directly places elements of list in result)
+       `(module ,@(map (lambda (e) (uniquify-e e dict-acc)) e))]))
 
-  (define varcount 0)
-  (define (assign-alocs x)
-    ; Given a list of names, return a dictionary mapping
-    ; each name to a unique aloc.
-    (foldr (lambda (n dict) (set! varcount (+ varcount 1))
-                            (dict-set dict n (string->symbol (format "~a.~a" n varcount))))
-            #hash()
-            x))
-            
-  (define (append-dicts d1 d2)
-     ; Merge two dictionaries. Give precedence to keys in d2.
-     (foldr (lambda (k dict) (if (not (dict-has-key? dict k)) (dict-set dict k (dict-ref d1 k))
-                                                              dict))
-            d2
-            (dict-keys d1)))
+  ; Input: value, a let statement or a binary operation
+  ; Output: uniquified version of this expression
+  ; Purpose: recursively uniquify a single expression
+  (define (uniquify-e e binds)
+    (match e 
+      [`(let ([,xs ,ps] ...) ,body)
+        (define new-binds (construct-binds xs binds)) ; build binds for the current layer
+        `(let ,(for/list ([x xs][p ps])
+                        `[,(dict-ref new-binds x)     ; lookup and place freshly bound aloc'd names (i.e. the let statement at current scope)
+                          ,(uniquify-e p binds)])     
+              ,(uniquify-e body new-binds))]          ; recurse a level deeper (i.e. the are the nested let statements)
 
-  (define (uniq-t dict t)
-    ; Return a list of instructions
-    (match t
-      [`(let ([,x ,value] ...) ,tail) 
-          (let ([newDict (append-dicts dict (assign-alocs x))])
-            `((let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                     ,@(uniq-t newDict tail))))]
-      [trivOrBinop
-        `(,(uniq-v dict trivOrBinop))]))
-  
-  (define (uniq-bind parDict dict b)
-    ; Return a list of instructions
-    ; Values on RHS make use of the parent dict.
-    (match b
-      [`(,x ,triv) #:when (number? triv)
-        `(,(dict-ref dict x) ,triv)]
-      [`(,x ,triv) #:when (name? triv)
-        `(,(dict-ref dict x) ,(dict-ref parDict triv))]
-      [`(,x (,binop ,triv1 ,triv2)) #:when (and (member binop '(+ *)) #t)
-        `(,(dict-ref dict x) (,binop ,(if (name? triv1) (dict-ref parDict triv1) triv1)
-                                      ,(if (name? triv2) (dict-ref parDict triv2) triv2)))]
-      [`(,x1 (let ([,x ,value] ...) ,val))
-        (let ([newDict (append-dicts dict (assign-alocs x))])
-          `(,(dict-ref dict x1)
-            (let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                 ,(uniq-v newDict val))))]))
+      [`(,binop ,triv1 ,triv2)
+        `(,binop ,(uniquify-v triv1 binds) ,(uniquify-v triv2 binds))]
+      
+      [x (uniquify-v x binds)]))
 
-  (define (uniq-v dict v)
-    (match v
-      [value #:when (number? value)
-        value]
-      [value #:when (name? value)
-        (dict-ref dict value)]
-      [`(,binop ,triv1 ,triv2) #:when (and (member binop '(+ *)) #t)
-        `(,binop ,(if (name? triv1) (dict-ref dict triv1) triv1)
-                ,(if (name? triv2) (dict-ref dict triv2) triv2))]
-      [`(let ([,x ,value] ...) ,val) 
-        (let ([newDict (append-dicts dict (assign-alocs x))])
-          `(let [,@(map (curry uniq-bind dict newDict) (map list x value))] ; zip the x and value lists
-                ,@(uniq-v newDict val)))]))
+  ; Input: aloc and binding dictionary
+  ; Output: a new binding dictionary
+  ; uses fresh to assign a unique aloc? to each name? at the current scope
+  (define (construct-binds xs binds)
+    (for/fold ([new-binds binds]) ; accumulator
+              ([x xs])            ; x is an element, xs is the list
+      (dict-set new-binds x (fresh x))))
 
-  (uniq-p p))
+  ; Input: triv and binding dictionary
+  ; Output: int64 or aloc
+  ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
+  (define (uniquify-v x binds)
+    (match x
+      [(? integer?) x]
+      [(? symbol?) (lookup-bind x binds)]))
+
+  ; Input: aloc
+  ; Output: aloc
+  ; Purpose: returns the mapped binding at the current scope (if it exists in the dictionary)
+  (define (lookup-bind x binds)
+    (if (and (name? x) (dict-has-key? binds x)) ; test-expr
+        (dict-ref binds x)                      ; then-expr
+        x))                                     ; else-expr
+
+(uniquify-p p '()))
 
 
 (define (sequentialize-let p)
