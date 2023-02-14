@@ -68,6 +68,9 @@
 
 ; ================= Helpers =================
 
+;; TODO: Fill in.
+;; You'll want to merge milestone-2 code in
+
 (define (address? a)
   (match a
     [`(rbp ,op ,int)
@@ -109,13 +112,37 @@
   p)
 
 
+; Input: asm-lang-v2/conflicts
+; Output: asm-lang-v2/assignments
+; Purpose: Performs graph-colouring register allocation. 
+;          The pass attempts to fit each of the abstract location declared in the locals 
+;          set into a register, and if one cannot be found, assigns it a frame variable instead.
 (define (assign-registers p)
-  ; Performs graph-colouring register allocation. The pass attempts to fit each 
-  ; of the abstract location declared in the locals set into a register, and if 
-  ; one cannot be found, assigns it a frame variable instead.
 
-  ; TODO
-  p)
+  ; Defines the set of registers that can be assigned by register allocations. 
+  ; This set is derived from the current-register-set and the other parameters that reserve registers.
+  ; We use this to define a "low-degree" threshold k which is the number of registers in this set 'car
+  ; (define car (current-assignable-registers))
+
+  ; (define (assign-info i) 
+  ;   (
+  ;     ; returns a list of lists (locals, conflicts, assignments)
+  ;     (let* ([locals (first i)]     ; copy over list of locals
+  ;            [conflicts (second i)] ; copy over list of conflicts
+  ;            [assignments i]        ; do the assignments here
+  ;           )
+  ;           `(,locals ,conflicts ,assignment )
+  ;     )
+  ; )
+
+  ;   (define (assign-p p)
+  ;     (match p
+  ;       [`(module ,info ,tail)
+  ;       `(module ,(assign-info i) ,tail)]))
+  ; )
+
+  p ; stub
+)
 
 
 ; =============== Old Passes ================
