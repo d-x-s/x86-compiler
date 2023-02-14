@@ -1,0 +1,74 @@
+// Goal: create a dictionary representing a conflict graph.
+// Every key is a variable. The value is a list of the variables in conflict with the key.
+
+// The dictionary output has the form
+// dict = (
+	(key (<space-separated values>))
+	(key (<space-separated values>))
+	...
+   )
+
+// Figure out conflicts by looking at the corresponding undead-out set.
+//    - Any variable defined during a non-move instruction is in conflict with every variable 
+//      (except itself) in the undead-out set associated with the instruction.
+//    - Any variable defined during a move instruction is in conflict with every variable in 
+//      the undead-out set associated with the instruction, except itself and the variable 
+//      referenced in the move.
+
+// start with a graph that initially contains a node for every abstract location in the locals set,
+// and extend the graph with conflicts as we discover them.
+
+// Updating the dict: add conflicts from right to left, appending to the left side
+// of the dictionary value list.
+// When updating an edge, update the keys for both of the nodes involved.
+
+
+> `(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
+             (undead-out
+              ((v.1)
+               (v.1 w.2)
+               (w.2 x.3)
+               (p.1 w.2 x.3)
+               (w.2 x.3)
+               (y.4 w.2 x.3)
+               (p.1 y.4 w.2 x.3)
+               (y.4 w.2 x.3) 
+               (z.5 y.4 w.2)
+               (z.5 y.4)
+               (t.6 z.5)
+               (t.6 z.5 p.1)
+               (t.6 z.5)
+               (z.5)
+               ())))
+      (begin
+        (set! v.1 1)              ; non-move. undead:(v.1)              no conflict.
+        (set! w.2 46)             ; non-move. undead:(v.1 w.2)          conflict: w.2-v.1
+        (set! x.3 v.1)            ; move.     undead:(w.2 x.3)          conflict: x.3-w.2
+        (set! p.1 7)              ; non-move. undead:(p.1 w.2 x.3)      conflict: p.1-w.2 x.3
+        (set! x.3 (+ x.3 p.1))    ; non-move. undead:(w.2 x.3)          conflict: x.3-w.2 
+        (set! y.4 x.3)            ; move.     undead:(y.4 w.2 x.3)      conflict: y.4-w.2
+        (set! p.1 4)              ; non-move. undead:(p.1 y.4 w.2 x.3)  conflict: p.1-y.4 w.2 x.3
+        (set! y.4 (+ y.4 p.1))    ; non-move. undead:(y.4 w.2 x.3)      conflict: y.4-w.2 x.3
+        (set! z.5 x.3)            ; move.     undead:(z.5 y.4 w.2)      conflict: z.5-y.4 w.2
+        (set! z.5 (+ z.5 w.2))    ; non-move. undead:(z.5 y.4)          conflict: z.5-y.4
+        (set! t.6 y.4)            ; move.     undead:(t.6 z.5)          conflict: t.6-z.5
+        (set! p.1 -1)             ; non-move. undead:(t.6 z.5 p.1)      conflict: p.1-t.6 z.5
+        (set! t.6 (* t.6 p.1))    ; non-move. undead:(t.6 z.5)          conflict: t.6-z.5
+        (set! z.5 (+ z.5 t.6))    ; non-move. undead:(z.5)              no conflict.
+        (halt z.5)))              ; halt.     undead:()                 do nothing.
+
+dict = (
+	(p.1 (z.5 t.6 y.4 x.3 w.2))
+    (t.6 (p.1 z.5))
+    (z.5 (p.1 t.6 w.2 y.4))
+    (y.4 (z.5 x.3 p.1 w.2))
+    (x.3 (y.4 p.1 w.2))
+    (w.2 (z.5 y.4 p.1 x.3 v.1))
+    (v.1 (w.2))
+)
+  
+  
+  
+  
+  
+  
