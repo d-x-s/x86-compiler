@@ -86,6 +86,35 @@
             '()
              list))
 
+; Input: a list of key:list pairs (essentially a dictionary)
+; Output: a boolean
+; Purpose: #t if key "k" exists in dictionary "d", otherwise #f 
+(define (list-dict-has-key? d k)
+  (ormap (lambda (key) (eq? key k)) (map first d)))
+
+; Input: a list of key:list pairs 
+; Output: a list of key:list pairs
+; Purpose: returns the value associated with first occurence of key "k" 
+(define (list-dict-get d k)
+  (if (empty? d)
+      (error "Tried to lookup element with key: " k " but it does not exist in " d ".")
+      (if (eq? (first (first d)) k)
+          (second (first d))
+          (list-dict-get (rest d) k))))
+
+; Input: a list of key:list pairs
+; Output: a list of key:list pairs 
+; Purpose: appends an entry to dictionary "d" with "k" as the key and "v" as the value
+(define (list-dict-set d k v)
+  (if (list-dict-has-key? d k)
+      (error "The element with key: " k " already exists in " d ".")
+      (append d (list (list k v)))))
+
+; Input: a list of key:list pairs 
+; Output: a list of key:list pairs
+; Purpose: deletes all dictionary entries corresponding to key "k" 
+(define (list-dict-remove d k)
+  (filter (lambda (kv) (not (eq? (first kv) k))) d))
 
 ; =============== New Passes ================
 
@@ -124,6 +153,15 @@
   ; We use this to define a "low-degree" threshold k which is the number of registers in this set 'car
   ; (define car (current-assignable-registers))
 
+  ; ; Input: a list of conflicts
+  ; ; Output: a sorted list of conflicts
+  ; ; Purpose: sorts a list alocs in order of degree from low to high 
+  ; (define (sort-conflicts c) 
+  ;   (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
+
+  ; ; Input:
+  ; ; Output:
+  ; ; Purpose: 
   ; (define (assign-info i) 
   ;   (
   ;     ; returns a list of lists (locals, conflicts, assignments)
@@ -134,14 +172,17 @@
   ;           `(,locals ,conflicts ,assignment )
   ;     )
   ; )
-
-  ;   (define (assign-p p)
-  ;     (match p
-  ;       [`(module ,info ,tail)
-  ;       `(module ,(assign-info i) ,tail)]))
   ; )
 
-  p ; stub
+  ; ; Input:
+  ; ; Output:
+  ; ; Purpose: 
+  ; (define (assign-p p)
+  ;   (match p
+  ;     [`(module ,info ,tail)
+  ;      `(module ,(assign-info i) ,tail)]))
+
+  ; (assign-p p)
 )
 
 
