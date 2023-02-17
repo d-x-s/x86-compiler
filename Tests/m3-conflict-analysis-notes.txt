@@ -66,6 +66,40 @@ dict = (
     (w.2 (z.5 y.4 p.1 x.3 v.1))
     (v.1 (w.2))
 )
+
+
+
+// when nesting is involved, the nested instructions are processed first.
+>`(module
+  ((locals (x.1 y.3 w.2 p.1 t.6))
+   (undead-out
+    ((t.6 y.3)
+     (w.2 t.6 y.3)
+     (	(w.2 t.6 y.3) 
+		(y.3 t.6) 
+		(	(y.3 t.6) 
+			(y.3 t.6) 
+			(t.6)) 
+		()))))
+    (begin
+		(set! x.1 42)                     ; non-move. undead:(t.6 y.3)     conflict:x.1-t.6 y.3
+		(set! w.2 46)                     ; non-move. undead:(w.2 t.6 y.3) conflict:w.2-t.6 y.3
+		(begin                            ;
+			(set! p.1 -1)                 ; non-move. undead:(w.2 t.6 y.3) conflict:p.1-w.2 t.6 y.3
+			(set! t.6 (* t.6 w.2))        ; non-move. undead:(y.3 t.6)     conflict:t.6-y.3
+			(begin (set! x.1 42)          ; non-move. undead:(y.3 t.6)     conflict:x.1-y.3 t.6
+				   (set! w.2 46)          ; non-move. undead:(y.3 t.6)     conflict:w.2-y.3 t.6
+				   (set! y.3 (+ y.3 2)))  ; non-move. undead:(t.6)         conflict:y.3-t.6
+		(halt t.6))))                     ; halt.     undead:()            no conflict.
+ 
+dict = (
+	(t.6 (w.2 x.1 y.3 p.1))
+	(p.1 (y.3 t.6 w.2))
+	(w.2 (t.6 y.3 p.1))
+	(y.3 (w.2 x.1 t.6 p.1))
+	(x.1 (t.6 y.3))
+)
+  
   
   
   

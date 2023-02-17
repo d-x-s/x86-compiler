@@ -34,7 +34,7 @@
                 ;select-instructions
                 ;uncover-locals
                 undead-analysis
-                conflict-analysis
+                ;conflict-analysis
                 assign-registers
                 ;replace-locations
                 assign-homes-opt
@@ -54,7 +54,7 @@
     ;values
     ;values
     values
-    values
+    ;values
     values
     ;values
     values
@@ -86,35 +86,12 @@
             '()
              list))
 
-; Input: a list of key:list pairs (essentially a dictionary)
-; Output: a boolean
-; Purpose: #t if key "k" exists in dictionary "d", otherwise #f 
-(define (list-dict-has-key? d k)
-  (ormap (lambda (key) (eq? key k)) (map first d)))
-
-; Input: a list of key:list pairs 
-; Output: a list of key:list pairs
-; Purpose: returns the value associated with first occurence of key "k" 
-(define (list-dict-get d k)
-  (if (empty? d)
-      (error "Tried to lookup element with key: " k " but it does not exist in " d ".")
-      (if (eq? (first (first d)) k)
-          (second (first d))
-          (list-dict-get (rest d) k))))
-
-; Input: a list of key:list pairs
-; Output: a list of key:list pairs 
-; Purpose: appends an entry to dictionary "d" with "k" as the key and "v" as the value
-(define (list-dict-set d k v)
-  (if (list-dict-has-key? d k)
-      (error "The element with key: " k " already exists in " d ".")
-      (append d (list (list k v)))))
-
-; Input: a list of key:list pairs 
-; Output: a list of key:list pairs
-; Purpose: deletes all dictionary entries corresponding to key "k" 
-(define (list-dict-remove d k)
-  (filter (lambda (kv) (not (eq? (first kv) k))) d))
+; Convert a hashed dictionary into a list of pairs.
+; E.g. #hash((a . 1) (b . 2)) -> ((a 1) (b 2))
+(define (hash->pairlist hash)
+      (for/fold ([list '()])
+                ([k (hash-keys hash)])
+                (append list `((,k ,(hash-ref hash k))))))
 
 ; =============== New Passes ================
 
@@ -137,8 +114,74 @@
 (define (conflict-analysis p)
   ; Decorates a program with its conflict graph.
 
-  ; TODO
-  p)
+  ; Given a list of keys, create a hashed dictionary with all the values
+  ; initialized to empty lists.
+  (define (init-dict keyList)
+    (for/fold ([dict #hash()])
+              ([k keyList])
+              (dict-set dict k '())))
+  
+  ; Update a value in the dictionary by appending the given value
+  ; to the existing value list
+  ; Does nothing if the value is already in the list.
+  ; E.g. v=1   (a . (2 3)) -> (a . (1 2 3))
+  (define (update-dict dict key v)
+    (if (member v (dict-ref dict key))
+        dict
+        (dict-set dict key (cons v (dict-ref dict key)))))
+
+  ; Add a mutual conflict between k1 and k2 to the dictionary.
+  (define (add-conflict dict k1 k2)
+    (update-dict (update-dict dict k1 k2) k2 k1))
+
+  ; Find the entries of lst that are not in excludeLst. The first entry of 
+  ; excludeLst is the primary aloc with which to find conflicts.
+  ; Update the dict with the conflicts and return it.
+  (define (update-conflicts excludeLst lst dict)
+    (for/fold ([d dict])
+              ([conflict (filter (lambda (e) (not (and (member e excludeLst) #t))) 
+                                  lst)])
+              (add-conflict d (first excludeLst) conflict)))
+
+  (define (c-analysis-p p)
+    (match p
+      [`(module ((locals ,locals) (undead-out ,undead)) ,tail)
+        `(module ((locals ,locals) 
+                  (conflicts ,(hash->pairlist (c-analysis-t undead (init-dict locals) tail)))) 
+                 ,tail)]))
+  
+  ; undead : a nested list of lists of abstract locations such as x.1. 
+  ; dict   : a hashed dictionary of the conflicts found so far.
+  ; Return a dict.
+  (define (c-analysis-t undead dict t)
+    (match t
+      [`(begin ,effects ... ,tail)
+        (c-analysis-t 
+          (last undead)
+          (for/fold ([d dict])  ; pair effects with entries in the undead list and update dict recursively.
+                    ([eff effects] [currUndead undead])
+                    (c-analysis-e currUndead d eff))
+          tail)]                ; end with the tail.
+      [`(halt ,triv)
+        dict]))
+
+  ; undead : the entry in the list of undead relating to the current effect
+  ; dict   : a hashed dictionary of the conflicts found so far.
+  ; Return a dict.
+  (define (c-analysis-e undead dict e)
+    (match e
+      [`(set! ,aloc ,num) #:when (number? num)
+        (update-conflicts `(,aloc) undead dict)]
+      [`(set! ,aloc1 ,aloc2) #:when (aloc? aloc2)
+        (update-conflicts `(,aloc1 ,aloc2) undead dict)]
+      [`(set! ,aloc1 (,binop ,aloc1 ,triv))
+        (update-conflicts `(,aloc1) undead dict)]
+      [`(begin ,effects ...)
+        (for/fold ([d dict])  ; pair effects with entries in the undead list and update dict recursively.
+                  ([eff effects] [currUndead undead])
+                  (c-analysis-e currUndead d eff))]))
+
+  (c-analysis-p p))
 
 
 ; Input: asm-lang-v2/conflicts
@@ -250,7 +293,7 @@
         (dict-ref binds x)                      ; then-expr
         x))                                     ; else-expr
 
-(uniquify-p p '()))
+  (uniquify-p p '()))
 
 
 (define (sequentialize-let p)

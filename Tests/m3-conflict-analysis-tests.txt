@@ -1,4 +1,5 @@
 > `(module ((locals (v.1)) (undead-out ())) (halt v.1))
+(module ((locals (v.1)) (conflicts ((v.1 ())))) (halt v.1))
 
 > `(module ((locals (x.1))
              (undead-out ((x.1) ())))
@@ -69,17 +70,17 @@
      (set! z.5 (+ z.5 t.6))
      (halt z.5)))
 	 
-	 
->`(module ((locals (x.1 w.2 p.1 t.6)))
-      (begin
-        (set! x.1 42)
-        (set! w.2 46)
-        (begin (set! p.1 -1)
-               (set! t.6 (* t.6 w.2))
-               (halt t.6))))
+>`(module
+	((locals (x.1 w.2 p.1 t.6))
+	 (undead-out ((t.6) (w.2 t.6) ((w.2 t.6) (t.6) ()))))
+	(begin
+		(set! x.1 42)
+		(set! w.2 46)
+		(begin (set! p.1 -1) (set! t.6 (* t.6 w.2)) (halt t.6))))
 (module
   ((locals (x.1 w.2 p.1 t.6))
-   (undead-out ((t.6) (w.2 t.6) ((w.2 t.6) (t.6) ()))))
+   (conflicts
+    ((t.6 (w.2 x.1 p.1)) (p.1 (t.6 w.2)) (w.2 (t.6 p.1)) (x.1 (t.6)))))
   (begin
     (set! x.1 42)
     (set! w.2 46)
