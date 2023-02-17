@@ -22,22 +22,26 @@
  implement-fvars
  generate-x64
 
+ allocate-fvars
+ construct-registers
+
  compile-m2
  compile-m3)
 
 ;; STUBS; delete when you've begun to implement the passes or replaced them with
 ;; your own stubs.
-(define-values (check-values-lang
+(define-values (
+                check-values-lang
                 ;uniquify
                 ;sequentialize-let
                 ;normalize-bind
                 ;select-instructions
                 ;uncover-locals
-                undead-analysis
+                ;undead-analysis
                 ;conflict-analysis
-                assign-registers
+                ;assign-registers
                 ;replace-locations
-                assign-homes-opt
+                ;assign-homes-opt
                 ;assign-homes
                 ;flatten-begins
                 ;patch-instructions
@@ -53,11 +57,11 @@
     ;values
     ;values
     ;values
-    values
     ;values
-    values
     ;values
-    values
+    ;values
+    ;values
+    ;values
     ;values
     ;values
     ;values
@@ -92,6 +96,17 @@
       (for/fold ([list '()])
                 ([k (hash-keys hash)])
                 (append list `((,k ,(hash-ref hash k))))))
+
+; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
+(define car (current-assignable-registers))
+
+; generate a list of fvars from 0 to num
+(define (allocate-fvars num)
+  (map make-fvar (range num)))
+
+; allocate all registers and frame variables in order of usage
+(define (construct-registers conflicts)
+  `(,@(reverse car) ,@(allocate-fvars (length conflicts))))
 
 ; =============== New Passes ================
 
@@ -183,7 +198,7 @@
 
   (c-analysis-p p))
 
-
+ 
 ; Input: asm-lang-v2/conflicts
 ; Output: asm-lang-v2/assignments
 ; Purpose: Performs graph-colouring register allocation. 
@@ -191,42 +206,53 @@
 ;          set into a register, and if one cannot be found, assigns it a frame variable instead.
 (define (assign-registers p)
 
-  ; Defines the set of registers that can be assigned by register allocations. 
-  ; This set is derived from the current-register-set and the other parameters that reserve registers.
-  ; We use this to define a "low-degree" threshold k which is the number of registers in this set 'car
-  ; (define car (current-assignable-registers))
+  ; splice the updated info block into the language
+  (define (assign-p p)
+    (match p
+      [`(module ,info ,tail)
+      `(module ,(assign-info info) ,tail)]))
 
-  ; ; Input: a list of conflicts
-  ; ; Output: a sorted list of conflicts
-  ; ; Purpose: sorts a list alocs in order of degree from low to high 
-  ; (define (sort-conflicts c) 
-  ;   (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
+  ; update the info block with new assignments
+  (define (assign-info d)
+    (let* ([conflicts (sort-conflicts (first (dict-ref d 'conflicts)))]
+           [locals (dict-keys conflicts)]
+           [assignments (reverse (generate-assignments locals conflicts '()))])
+          (dict-set d 'assignment (list assignments))))
 
-  ; ; Input:
-  ; ; Output:
-  ; ; Purpose: 
-  ; (define (assign-info i) 
-  ;   (
-  ;     ; returns a list of lists (locals, conflicts, assignments)
-  ;     (let* ([locals (first i)]     ; copy over list of locals
-  ;            [conflicts (second i)] ; copy over list of conflicts
-  ;            [assignments i]        ; do the assignments here
-  ;           )
-  ;           `(,locals ,conflicts ,assignment )
-  ;     )
-  ; )
-  ; )
+  ; generates assignments based on the alocs and their conflicts
+  (define (generate-assignments locals conflicts assignments)
+    (define registers (construct-registers conflicts))
+    (if (empty? locals)
+        '()
+        (let* ([node            (first locals)]
+               [node-conflicts  (first (dict-ref conflicts node))]
+               [new-locals      (remove node locals)]
+               [new-conflicts   (remove node conflicts)]
+               [new-assignments (generate-assignments new-locals new-conflicts assignments)])
+              (append (list (assign-node node node-conflicts new-assignments registers)) new-assignments))))
 
-  ; ; Input:
-  ; ; Output:
-  ; ; Purpose: 
-  ; (define (assign-p p)
-  ;   (match p
-  ;     [`(module ,info ,tail)
-  ;      `(module ,(assign-info i) ,tail)]))
+  ; assigns a single aloc to a register (or a frame variable if no registers are available)
+  (define (assign-node node node-conflicts assignments registers)
+    (define register (first registers))
+    (if (ormap (lambda (x) (has-conflict node node-conflicts register x)) assignments)
+        (assign-node node node-conflicts assignments (rest registers))
+        `(,node ,register)))
 
-  ; (assign-p p)
-)
+  ; returns true if an aloc has a conflict with this specific register, otherwise false 
+  (define (has-conflict node node-conflicts register assignment)
+    (define a-aloc (first assignment))
+    (define a-reg  (second assignment))
+    (cond [(equal? a-reg register)
+          (if (member a-aloc node-conflicts)
+                #t
+                #f)]
+          [else #f]))
+
+  ; sort a list of conflicts by degree
+  (define (sort-conflicts c) 
+    (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
+
+  (assign-p p))
 
 
 ; =============== Old Passes ================
@@ -243,13 +269,6 @@
   (define (uniquify-p p dict-acc)
     (match p
       [`(module ,e ...)
-       ; map notes
-       ; utilize a lambda expression as map's proc, allowing us to bypass
-       ; map's requirement that the number of args in proc must match the number of list
-       ; this lambda takes one argument (e) and calls uniquify-e with (e) in addition
-       ; to the dictionary itself
-       ; we need to use map because a match statement returns a LIST of all matched elements
-       ; use unquote splicing on the result of the map (directly places elements of list in result)
        `(module ,@(map (lambda (e) (uniquify-e e dict-acc)) e))]))
 
   ; Input: value, a let statement or a binary operation
@@ -262,7 +281,7 @@
         `(let ,(for/list ([x xs][p ps])
                         `[,(dict-ref new-binds x)     ; lookup and place freshly bound aloc'd names (i.e. the let statement at current scope)
                           ,(uniquify-e p binds)])     
-              ,(uniquify-e body new-binds))]          ; recurse a level deeper (i.e. the are the nested let statements)
+              ,(uniquify-e body new-binds))]          ; recurse a level deeper (i.e. these are the nested let statements)
 
       [`(,binop ,triv1 ,triv2)
         `(,binop ,(uniquify-v triv1 binds) ,(uniquify-v triv2 binds))]
@@ -289,9 +308,9 @@
   ; Output: aloc
   ; Purpose: returns the mapped binding at the current scope (if it exists in the dictionary)
   (define (lookup-bind x binds)
-    (if (and (name? x) (dict-has-key? binds x)) ; test-expr
-        (dict-ref binds x)                      ; then-expr
-        x))                                     ; else-expr
+    (if (and (name? x) (dict-has-key? binds x)) 
+        (dict-ref binds x)                      
+        x))                                     
 
   (uniquify-p p '()))
 
