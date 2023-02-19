@@ -23,8 +23,8 @@
  implement-fvars
  generate-x64
 
- allocate-fvars
- construct-registers
+ ;allocate-fvars
+ ;construct-registers
 
  compile-m2
  compile-m3)
@@ -38,7 +38,7 @@
                 ;normalize-bind
                 ;select-instructions
                 ;uncover-locals
-                undead-analysis
+                ;undead-analysis
                 ;conflict-analysis
                 ;assign-registers
                 ;replace-locations
@@ -59,7 +59,7 @@
     ;values
     ;values
     ;values
-    values
+    ;values
     ;values
     ;values
     ;values
@@ -90,16 +90,7 @@
             '()
              list))
 
-; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
-(define car (current-assignable-registers))
 
-; generate a list of fvars from 0 to num
-(define (allocate-fvars num)
-  (map make-fvar (range num)))
-
-; allocate all registers and frame variables in order of usage
-(define (construct-registers conflicts)
-  `(,@(reverse car) ,@(allocate-fvars (length conflicts))))
 
 ; =============== New Passes ================
 
@@ -126,33 +117,33 @@
 ; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
 ;           Only the info field of the program is modified.
 
-; (define (undead-analysis p) p)
+(define (undead-analysis p) p)
 
-(define (undead-analysis p)
+; (define (undead-analysis p)
 
-  ; decorate the program with the undead-set tree
-  (define (undead-p) 
-    (match p
-      [`(module ,info ,tail)
-       `(module (,@info (undead-out (undead-tail tail))) 
-                 ,tail)]))
+;   ; decorate the program with the undead-set tree
+;   (define (undead-p) 
+;     (match p
+;       [`(module ,info ,tail)
+;        `(module (,@info (undead-out (undead-tail tail))) 
+;                  ,tail)]))
 
-  ; takes a tail and produces the undead-set tree fron the effects
-  (define (undead-tail t)
-    (match t
-      [`(halt ,triv)]
-      [`(begin ,effect ... ,tail)]
-      ))
+;   ; takes a tail and produces the undead-set tree fron the effects
+;   (define (undead-tail t)
+;     (match t
+;       [`(halt ,triv)]
+;       [`(begin ,effect ... ,tail)]
+;       ))
 
-  ; calculate the undead output for a single effect
-  (define (undead-effect e) 
-    (match e
-      [`(set! ,aloc ,triv)]
-      [`(set! ,aloc (,binop ,aloc ,triv))]
-      [`(begin ,effect ...)]  
-  ))
+;   ; calculate the undead output for a single effect
+;   (define (undead-effect e) 
+;     (match e
+;       [`(set! ,aloc ,triv)]
+;       [`(set! ,aloc (,binop ,aloc ,triv))]
+;       [`(begin ,effect ...)]  
+;   ))
 
-  (undead-p p))
+;   (undead-p p))
 
 ; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
@@ -213,6 +204,16 @@
 ;           The pass attempts to fit each of the abstract location declared in the locals 
 ;           set into a register, and if one cannot be found, assigns it a frame variable instead.
 (define (assign-registers p)
+  ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
+  (define car (current-assignable-registers))
+
+  ; generate a list of fvars from 0 to num
+  (define (allocate-fvars num)
+    (map make-fvar (range num)))
+
+  ; allocate all registers and frame variables in order of usage
+  (define (construct-registers conflicts)
+    `(,@(reverse car) ,@(allocate-fvars (length conflicts))))
 
   ; splice the updated info block into the language
   (define (assign-p p)
