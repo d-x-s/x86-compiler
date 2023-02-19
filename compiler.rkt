@@ -49,8 +49,9 @@
                 ;implement-fvars
                 ;generate-x64
 
-                compile-m2
-                compile-m3)
+                ;compile-m2
+                ;compile-m3
+                )
   (values ; THIS ONE IS A FUNC CALL, DO NOT COMMENT OUT
     values
     ;values
@@ -68,8 +69,9 @@
     ;values
     ;values
     ;values
-    values
-    values))
+    ;values
+    ;values
+    ))
 
 ; ================= Helpers =================
 
@@ -222,6 +224,43 @@
     (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
 
   (assign-p p))
+
+
+; Compile while assigning all abstract locations to frame variables.
+(define (compile-m2 p) 
+  (parameterize ([current-pass-list
+                  (list
+                      check-values-lang
+                      uniquify
+                      sequentialize-let
+                      normalize-bind
+                      select-instructions
+                      assign-homes  ; m2
+                      flatten-begins
+                      patch-instructions
+                      implement-fvars
+                      generate-x64
+                      wrap-x64-run-time
+                      wrap-x64-boilerplate)])
+  (compile p)))
+
+; Compile while using register allocation.
+(define (compile-m3 p)
+  (parameterize ([current-pass-list
+                  (list
+                      check-values-lang
+                      uniquify
+                      sequentialize-let
+                      normalize-bind
+                      select-instructions
+                      assign-homes-opt ; m3
+                      flatten-begins
+                      patch-instructions
+                      implement-fvars
+                      generate-x64
+                      wrap-x64-run-time
+                      wrap-x64-boilerplate)])
+  (compile p)))
 
 
 ; =============== Old Passes ================
