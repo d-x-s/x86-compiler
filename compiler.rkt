@@ -2,7 +2,8 @@
 
 (require
  cpsc411/compiler-lib
- cpsc411/2c-run-time)
+ cpsc411/2c-run-time
+ cpsc411/graph-lib)
 
 (provide
  check-values-lang
@@ -37,7 +38,7 @@
                 ;normalize-bind
                 ;select-instructions
                 ;uncover-locals
-                ;undead-analysis
+                undead-analysis
                 ;conflict-analysis
                 ;assign-registers
                 ;replace-locations
@@ -48,8 +49,9 @@
                 ;implement-fvars
                 ;generate-x64
 
-                compile-m2
-                compile-m3)
+                ;compile-m2
+                ;compile-m3
+                )
   (values ; THIS ONE IS A FUNC CALL, DO NOT COMMENT OUT
     values
     ;values
@@ -57,23 +59,21 @@
     ;values
     ;values
     ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
-    ;values
     values
-    values))
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ;values
+    ))
 
 ; ================= Helpers =================
-
-;; TODO: Fill in.
-;; You'll want to merge milestone-2 code in
 
 (define (address? a)
   (match a
@@ -89,13 +89,6 @@
     (lambda (elem rest) `(,@elem ,@rest))
             '()
              list))
-
-; Convert a hashed dictionary into a list of pairs.
-; E.g. #hash((a . 1) (b . 2)) -> ((a 1) (b 2))
-(define (hash->pairlist hash)
-      (for/fold ([list '()])
-                ([k (hash-keys hash)])
-                (append list `((,k ,(hash-ref hash k))))))
 
 ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
 (define car (current-assignable-registers))
@@ -114,8 +107,7 @@
   ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
   ; with a physical location. This version performs graph-colouring register allocation.
 
-  ; TODO
-  p)
+  (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
 ; NOTES:
 ; - a location is UNDEAD (not definitely dead) between a DEFINITION and a REFERENCE
@@ -162,76 +154,55 @@
 
   (undead-p p))
 
-
+; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
-  ; Decorates a program with its conflict graph.
-
-  ; Given a list of keys, create a hashed dictionary with all the values
-  ; initialized to empty lists.
-  (define (init-dict keyList)
-    (for/fold ([dict #hash()])
-              ([k keyList])
-              (dict-set dict k '())))
-  
-  ; Update a value in the dictionary by appending the given value
-  ; to the existing value list
-  ; Does nothing if the value is already in the list.
-  ; E.g. v=1   (a . (2 3)) -> (a . (1 2 3))
-  (define (update-dict dict key v)
-    (if (member v (dict-ref dict key))
-        dict
-        (dict-set dict key (cons v (dict-ref dict key)))))
-
-  ; Add a mutual conflict between k1 and k2 to the dictionary.
-  (define (add-conflict dict k1 k2)
-    (update-dict (update-dict dict k1 k2) k2 k1))
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
   ; excludeLst is the primary aloc with which to find conflicts.
-  ; Update the dict with the conflicts and return it.
-  (define (update-conflicts excludeLst lst dict)
-    (for/fold ([d dict])
+  ; Update the graph with the conflicts and return it.
+  (define (update-conflicts excludeLst lst graph)
+    (for/fold ([g graph])
               ([conflict (filter (lambda (e) (not (and (member e excludeLst) #t))) 
                                   lst)])
-              (add-conflict d (first excludeLst) conflict)))
+              (add-edge g (first excludeLst) conflict)))
 
   (define (c-analysis-p p)
     (match p
       [`(module ((locals ,locals) (undead-out ,undead)) ,tail)
         `(module ((locals ,locals) 
-                  (conflicts ,(hash->pairlist (c-analysis-t undead (init-dict locals) tail)))) 
+                  (conflicts ,(c-analysis-t undead (new-graph locals) tail))) 
                  ,tail)]))
   
   ; undead : a nested list of lists of abstract locations such as x.1. 
-  ; dict   : a hashed dictionary of the conflicts found so far.
-  ; Return a dict.
-  (define (c-analysis-t undead dict t)
+  ; graph   : a graph of the conflicts found so far.
+  ; Return a graph.
+  (define (c-analysis-t undead graph t)
     (match t
       [`(begin ,effects ... ,tail)
         (c-analysis-t 
           (last undead)
-          (for/fold ([d dict])  ; pair effects with entries in the undead list and update dict recursively.
+          (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                     ([eff effects] [currUndead undead])
-                    (c-analysis-e currUndead d eff))
+                    (c-analysis-e currUndead g eff))
           tail)]                ; end with the tail.
       [`(halt ,triv)
-        dict]))
+        graph]))
 
   ; undead : the entry in the list of undead relating to the current effect
-  ; dict   : a hashed dictionary of the conflicts found so far.
-  ; Return a dict.
-  (define (c-analysis-e undead dict e)
+  ; graph   : a graph of the conflicts found so far.
+  ; Return a graph.
+  (define (c-analysis-e undead graph e)
     (match e
       [`(set! ,aloc ,num) #:when (number? num)
-        (update-conflicts `(,aloc) undead dict)]
+        (update-conflicts `(,aloc) undead graph)]
       [`(set! ,aloc1 ,aloc2) #:when (aloc? aloc2)
-        (update-conflicts `(,aloc1 ,aloc2) undead dict)]
+        (update-conflicts `(,aloc1 ,aloc2) undead graph)]
       [`(set! ,aloc1 (,binop ,aloc1 ,triv))
-        (update-conflicts `(,aloc1) undead dict)]
+        (update-conflicts `(,aloc1) undead graph)]
       [`(begin ,effects ...)
-        (for/fold ([d dict])  ; pair effects with entries in the undead list and update dict recursively.
+        (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
-                  (c-analysis-e currUndead d eff))]))
+                  (c-analysis-e currUndead g eff))]))
 
   (c-analysis-p p))
 
@@ -290,6 +261,43 @@
     (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
 
   (assign-p p))
+
+
+; Compile while assigning all abstract locations to frame variables.
+(define (compile-m2 p) 
+  (parameterize ([current-pass-list
+                  (list
+                      check-values-lang
+                      uniquify
+                      sequentialize-let
+                      normalize-bind
+                      select-instructions
+                      assign-homes  ; m2
+                      flatten-begins
+                      patch-instructions
+                      implement-fvars
+                      generate-x64
+                      wrap-x64-run-time
+                      wrap-x64-boilerplate)])
+  (compile p)))
+
+; Compile while using register allocation.
+(define (compile-m3 p)
+  (parameterize ([current-pass-list
+                  (list
+                      check-values-lang
+                      uniquify
+                      sequentialize-let
+                      normalize-bind
+                      select-instructions
+                      assign-homes-opt ; m3
+                      flatten-begins
+                      patch-instructions
+                      implement-fvars
+                      generate-x64
+                      wrap-x64-run-time
+                      wrap-x64-boilerplate)])
+  (compile p)))
 
 
 ; =============== Old Passes ================
