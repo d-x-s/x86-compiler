@@ -15,6 +15,30 @@
         (set! t.6 (* t.6 p.1))
         (set! z.5 (+ z.5 t.6))
         (halt z.5)))
+	  
+// backwards (actual)
+// rules: 
+//  - if variable is referenced in binop (+ _ <var>) or (set! _ <var>) then add it to output
+//  - if variable is set e.g. (set! <var>) then remove it.
+(module
+   ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
+    (undead-out
+     ((v.1)              ; Out: (v.1). Do nothing.
+      (v.1 w.2)          ; Out: (v.1 w.2). Remove w.2.
+      (x.3 w.2)          ; Out: (x.3 w.2). Remove x.3, add v.1.
+      (p.1 x.3 w.2)      ; Out: (p.1 x.3 w.2). Remove p.1.
+      (x.3 w.2)          ; Out: (x.3 w.2). Add p.1.
+      (y.4 x.3 w.2)      ; Out: (y.4 x.3 w.2). Remove y.4.
+      (p.1 y.4 x.3 w.2)  ; Out: (p.1 y.4 x.3 w.2). Remove p.1.
+      (x.3 w.2 y.4)      ; Out: (x.3 w.2 y.4). Add p.1.
+      (w.2 z.5 y.4)      ; Out: (w.2 z.5 y.4). Remove z.5, add x.3.
+      (y.4 z.5)          ; Out: (t.6 z.5). Add w.2.
+      (t.6 z.5)          ; Out: (y.4 z.5). Set t.6. Ref y.4. Add t.6, remove y.4. 
+      (p.1 t.6 z.5)      ; Out: (p.1 t.6 z.5). Remove p.1. 
+      (t.6 z.5)          ; Out: (t.6 z.5). Add p.1.
+      (z.5)              ; Out: (z.5). Add t.6.
+      ()))))             ; Out: () (default val). Add z.5.
+	  
 // annotated the solution with the top-to-bottom sequence. Follows the reading description.
 // The actual function
 // needs to work backwards. For each line, out is on the left, in is in the comment.
@@ -36,28 +60,6 @@
       (t.6 z.5)          ; In: (p.1 t.6 z.5). Setref t.6. ref p.1. Remove p.1.
       (z.5)              ; In: (t.6 z.5). Setref z.5. ref t.6. Remove t.6.
       ()))))             ; In: (z.5). ref z.5. remove z.5.
-	  
-// backwards (actual)
-(module
-   ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
-    (undead-out
-     ((v.1)              ; Out: (v.1). Do nothing.
-      (v.1 w.2)          ; Out: (v.1 w.2). Remove w.2.
-      (x.3 w.2)          ; Out: (x.3 w.2). Remove x.3, add v.1.
-      (p.1 x.3 w.2)      ; Out: (p.1 x.3 w.2). Remove p.1.
-      (x.3 w.2)          ; Out: (x.3 w.2). Add p.1.
-      (y.4 x.3 w.2)      ; Out: (y.4 x.3 w.2). Remove y.4.
-      (p.1 y.4 x.3 w.2)  ; Out: (p.1 y.4 x.3 w.2). Remove p.1.
-      (x.3 w.2 y.4)      ; Out: (x.3 w.2 y.4). Add p.1.
-      (w.2 z.5 y.4)      ; Out: (w.2 z.5 y.4). Remove z.5, add x.3.
-      (y.4 z.5)          ; Out: (t.6 z.5). Add w.2.
-      (t.6 z.5)          ; Out: (y.4 z.5). Set t.6. Ref y.4. Add t.6, remove y.4. 
-      (p.1 t.6 z.5)      ; Out: (p.1 t.6 z.5). Remove p.1. 
-      (t.6 z.5)          ; Out: (t.6 z.5). Add p.1.
-      (z.5)              ; Out: (z.5). Add t.6.
-      ()))))             ; Out: () (default val). Add z.5.
-	  
-	  
 	  
 // Test: unreferenced variable is set
 > `(module ((locals (x.1 y.1)))
@@ -85,3 +87,36 @@
 	(x.1)     ; Out: (x.1). Can't remove y.1 so do nothing.
 	()))))    ; Out: () (default val). Add x.1.
 
+
+
+// When there is a nested instruction set, the chain carries on as if everything is
+// flattened.
+>`(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1)))
+      (begin
+        (set! v.1 1)
+        (set! w.2 46)
+        (set! x.3 v.1)
+        (set! p.1 7)
+        (set! z.5 (+ z.5 p.1))
+        (begin
+           (set! v.1 1)
+           (set! w.2 46)
+           (set! x.3 v.1)
+           (set! p.1 7)
+           (set! z.5 (+ z.5 p.1))
+           (halt z.5))))
+
+(undead-out (
+  (v.1 z.5)
+  (v.1 z.5)
+  (z.5)
+  (p.1 z.5)
+  (z.5)          Out: (z.5). Add p.1.
+  (  
+     (v.1 z.5)   Out: (v.1 z.5). Remove v.1.
+	 (v.1 z.5)   Out: (v.1 z.5). Remove w.2 (do nothing) 
+	 (z.5)       Out: (p.1). Add v.1.
+	 (p.1 z.5)   Out: (p.1 z.5). Remove p.1.
+	 (z.5)       Out: (z.5). Add p.1.
+	 ()))))      Out: (). Add z.5.
+	 

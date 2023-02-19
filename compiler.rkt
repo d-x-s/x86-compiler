@@ -92,56 +92,6 @@
             '()
              list))
 
-  ; calculate the undead output for a single effect
-  ; undead-pair = '((undead-in ...) (undead--out ...))
-  (define (undead-effect e prev-undead-in) 
-
-    (match e
-      ; TODO update to use update-in and update-out set
-      ; calculates the undead-out for this layer from the current undead-in and current undead-out
-      ; then sets that undead-out set as the undead-in set for the next layer
-      ; starts like  '((previous undead-in) (previous undead-out))
-      ; reutrns like '((next     undead-in) (next     undead-out))
-      [`(set! ,aloc (,binop ,aloc ,triv))
-        (if (aloc? triv)
-            (let* ([curr-undead-out prev-undead-in]
-                   [next-undead-in  (set-add curr-undead-out triv)])
-                  `(,next-undead-in ,curr-undead-out))
-            (let* ([curr-undead-out prev-undead-in]
-                   [next-undead-in  curr-undead-out])
-                  `(,next-undead-in ,curr-undead-out)))]
- 
-      [`(set! ,aloc ,triv)
-        (if (aloc? triv)
-            (let* ([curr-undead-out prev-undead-in]
-                   [next-undead-in (set-remove (set-add curr-undead-out triv) aloc)])
-                  `(,next-undead-in ,curr-undead-out))
-            (let* ([curr-undead-out prev-undead-in]
-                   [next-undead-in (set-remove curr-undead-out aloc)])
-                  `(,next-undead-in ,curr-undead-out)))]
-
-      ; [`(begin ,effects ...)
-      ;   (foldr (lambda (e u)
-      ;                  (let* ([calc-undead      (undead-effect e (first u))]
-      ;                         [curr-undead-out  (first  (calc-undead))]
-      ;                         [next-undead-in   (second (calc-undead))])
-      ;                       (cons `(,next-undead-in next-undead-out))))
-      ;          `(,prev-undead-in ())
-      ;           effects)]
-
-      ; [`(begin ,effects ...)
-      ;   (for/foldr ([acc '()]
-      ;               [ui prev-undead-in])
-      ;              ([e  effects]) 
-      ;              (let* ([calc-undead     (undead-effect e ui)]
-      ;                     [curr-undead-out (first  (calc-undead))]
-      ;                     [next-undead-in  (second (calc-undead))])
-      ;                    (lambda (e) 
-      ;                            (cons `(,next-undead-in ,curr-undead-out) acc)
-      ;                            (set! ui next-undead-in))))]
-     )
-  )
-
 ; =============== New Passes ================
 
 (define (assign-homes-opt p)
@@ -166,53 +116,59 @@
 ; Output:   asm-lang-v2/undead
 ; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
 ;           Only the info field of the program is modified.
-
-; (define (undead-analysis p) p)
-
 (define (undead-analysis p)
 
-  ; decorate the program with the undead-set tree
-  (define (undead-p) 
+  ; Decorate the program with the undead-out tree.
+  (define (undead-p p) 
     (match p
-      [`(module ,info ,tail)
-       `(module (,@info ('undead-out (undead-tail tail))) 
+      [`(module (,locals) ,tail)
+       `(module (,locals (undead-out ,(undead-tail tail))) 
                  ,tail)]))
+  
+  ; Helper to return the input set of a tail instruction.
+  (define (get-tail-input h tailtree)
+    (match h
+      [`(halt ,triv)
+        (if (aloc? triv)
+            `(,triv)
+            '())]
+      [`(begin ,effects ... ,tail)
+        (first tailtree)]))
 
-  ; ; takes a tail and produces the undead-set tree from the effects
-  ; (define (undead-tail t)
-  ;   (match t
-  ;     [`(halt ,triv)          
-  ;       ()
-  ;     ]                
-  ;     [`(begin ,effect ... ,tail)
-  ;       ()
-  ;     ]
-  ;   )
-  ; )
+  ; Takes a tail and produces the undead-set tree from the effects
+  (define (undead-tail t)
+    (match t
+      [`(halt ,triv)       
+        `()]
+      [`(begin ,effects ... ,tail)
+        (let* ([tailtree (undead-tail tail)]
+               [effectstree (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
+                                  `(,(get-tail-input tail tailtree)) ; invariant: first entry in tree is output of current instruction.
+                                   (rest effects))])
+              (append effectstree
+                     `(,tailtree)))]))
 
-  ; ; calculate the undead output for a single effect
-  ; (define (undead-effect undead-in e) 
-  ;   (match e
-  ;     [`(set! ,aloc ,triv)
-  ;       (if (aloc? triv)
-  ;          `(,(set-add (set-remove undead-in aloc) triv))
-  ;          `(,(set-remove undead-in aloc)))]
-
-  ;     [`(set! ,aloc (,binop ,aloc ,triv))
-  ;       (if (aloc? triv)
-  ;          `(,(set-add (set-remove (set-add undead-in aloc) aloc) triv))
-  ;          `(,(set-remove (set-add undead-in aloc) aloc)))]
-
-  ;     [`(begin ,effects ...)
-  ;       (for/foldr ([acc '()]
-  ;                   [ui undead-in])
-  ;                  ([e  effects]) 
-  ;                  (cons (undead-effect ui e) acc))
-  ;     ]
-  ;   )
-  ; )
+  ; Calculate the undead input for a single effect e,
+  ; given the output, undead-out.
+  ; This is a list of alocs in the case of a single instruction
+  ; and a list of lists in the case of a recursive (begin...). 
+  (define (undead-effect undead-out e) 
+    (match e
+      [`(set! ,aloc (,binop ,aloc ,triv))
+        (if (number? triv)
+            undead-out
+            (set-add undead-out triv))]
+      [`(set! ,aloc ,triv)
+        (if (number? triv)
+            (set-remove undead-out aloc)
+            (set-remove (set-add undead-out triv) aloc))]
+      [`(begin ,effects ...)
+        (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
+                       '()
+                        (rest effects))]))
 
   (undead-p p))
+
 
 ; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
@@ -350,6 +306,7 @@
                       wrap-x64-run-time
                       wrap-x64-boilerplate)])
   (compile p)))
+
 
 ; Compile while using register allocation.
 (define (compile-m3 p)

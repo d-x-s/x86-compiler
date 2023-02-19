@@ -69,7 +69,7 @@
    ((locals (x.1 y.1)) (undead-out (() (x.1) ())))
    (begin (set! y.1 42) (set! x.1 5) (halt x.1)))
 
-> (module ((locals (x.1 y.1)))
+> `(module ((locals (x.1 y.1)))
       (begin
         (set! x.1 5)
         (set! y.1 42)
@@ -117,3 +117,40 @@
       (set! t.6 (* t.6 w.2))
       (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
       (halt t.6))))
+
+>`(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1)))
+      (begin
+        (set! v.1 1)
+        (set! w.2 46)
+        (set! x.3 v.1)
+        (set! p.1 7)
+        (set! z.5 (+ z.5 p.1))
+        (begin
+           (set! v.1 1)
+           (set! w.2 46)
+           (set! x.3 v.1)
+           (set! p.1 7)
+           (set! z.5 (+ z.5 p.1))
+           (halt z.5))))
+(module
+  ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
+   (undead-out
+    ((v.1 z.5)
+     (v.1 z.5)
+     (z.5)
+     (p.1 z.5)
+     (z.5)
+     ((v.1 z.5) (v.1 z.5) (z.5) (p.1 z.5) (z.5) ()))))
+  (begin
+    (set! v.1 1)
+    (set! w.2 46)
+    (set! x.3 v.1)
+    (set! p.1 7)
+    (set! z.5 (+ z.5 p.1))
+    (begin
+      (set! v.1 1)
+      (set! w.2 46)
+      (set! x.3 v.1)
+      (set! p.1 7)
+      (set! z.5 (+ z.5 p.1))
+      (halt z.5))))
