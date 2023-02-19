@@ -117,33 +117,52 @@
 ; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
 ;           Only the info field of the program is modified.
 
-(define (undead-analysis p) p)
+; (define (undead-analysis p) p)
 
-; (define (undead-analysis p)
+(define (undead-analysis p)
 
-;   ; decorate the program with the undead-set tree
-;   (define (undead-p) 
-;     (match p
-;       [`(module ,info ,tail)
-;        `(module (,@info (undead-out (undead-tail tail))) 
-;                  ,tail)]))
+  ; decorate the program with the undead-set tree
+  (define (undead-p) 
+    (match p
+      [`(module ,info ,tail)
+       `(module (,@info ('undead-out (undead-tail tail))) 
+                 ,tail)]))
 
-;   ; takes a tail and produces the undead-set tree fron the effects
-;   (define (undead-tail t)
-;     (match t
-;       [`(halt ,triv)]
-;       [`(begin ,effect ... ,tail)]
-;       ))
+  ; takes a tail and produces the undead-set tree from the effects
+  (define (undead-tail t)
+    (match t
+      [`(halt ,triv)          
+        ()
+      ]                
+      [`(begin ,effect ... ,tail)
+        ()
+      ]
+    )
+  )
 
-;   ; calculate the undead output for a single effect
-;   (define (undead-effect e) 
-;     (match e
-;       [`(set! ,aloc ,triv)]
-;       [`(set! ,aloc (,binop ,aloc ,triv))]
-;       [`(begin ,effect ...)]  
-;   ))
+  ; calculate the undead output for a single effect
+  (define (undead-effect undead-in e) 
+    (match e
+      [`(set! ,aloc ,triv)
+        (if (aloc? triv)
+           `(,(set-add (set-remove undead-in aloc) triv))
+           `(,(set-remove undead-in aloc)))]
 
-;   (undead-p p))
+      [`(set! ,aloc (,binop ,aloc ,triv))
+        (if (aloc? triv)
+           `(,(set-add (set-remove (set-add undead-in aloc) aloc) triv))
+           `(,(set-remove (set-add undead-in aloc) aloc)))]
+
+      [`(begin ,effects ...)
+        ; go right to left... I.E. from bottom to top
+        (foldr (lambda (e l) (cons (undead-effect e) l))    
+              '()      
+               effects)
+      ]
+    )
+  )
+
+  (undead-p p))
 
 ; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
