@@ -125,15 +125,13 @@
        `(module (,locals (undead-out ,(undead-tail tail))) 
                  ,tail)]))
   
-  ; Helper to return the input set of a tail instruction.
-  (define (get-tail-input h tailtree)
+  ; Helper to return the input set of a halt instruction.
+  (define (get-tail-input h)
     (match h
       [`(halt ,triv)
         (if (aloc? triv)
             `(,triv)
-            '())]
-      [`(begin ,effects ... ,tail)
-        (first tailtree)]))
+            '())]))
 
   ; Takes a tail and produces the undead-set tree from the effects
   (define (undead-tail t)
@@ -141,12 +139,10 @@
       [`(halt ,triv)       
         `()]
       [`(begin ,effects ... ,tail)
-        (let* ([tailtree (undead-tail tail)]
-               [effectstree (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
-                                  `(,(get-tail-input tail tailtree)) ; invariant: first entry in tree is output of current instruction.
-                                   (rest effects))])
-              (append effectstree
-                     `(,tailtree)))]))
+        (append (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
+                       `(,(get-tail-input tail)) ; invariant: first entry in tree is output of current instruction.
+                        (rest effects))
+                `(,(undead-tail tail)))]))
 
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
