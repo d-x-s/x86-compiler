@@ -117,13 +117,50 @@
   ; TODO
   p)
 
+; NOTES:
+; - a location is UNDEAD (not definitely dead) between a DEFINITION and a REFERENCE
+; - a location is DEAD between the final reference of a definition and a new definition
+
+; - work backwards from the end of a program, looking for...
+;   > References: location is definitely alive (its value is referenced)
+;   > Definitions: "kills" a location, working backwards; the location is dead until the "previous reference"
+
+; we need to reprsent the UNDEAD locations at each instruction, for conflict analysis
+;   > Need map instruction to set
+;   > A tree of sets works well 
+
+; Input:    asm-lang-v2/locals
+; Output:   asm-lang-v2/undead
+; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
+;           Only the info field of the program is modified.
+
+; (define (undead-analysis p) p)
 
 (define (undead-analysis p)
-  ; Performs undeadness analysis, decorating the program with undead-set tree. 
-  ; Only the info field of the program is modified.
 
-  ; TODO
-  p)
+  ; decorate the program with the undead-set tree
+  (define (undead-p) 
+    (match p
+      [`(module ,info ,tail)
+       `(module (,@info (undead-out (undead-tail tail))) 
+                 ,tail)]))
+
+  ; takes a tail and produces the undead-set tree fron the effects
+  (define (undead-tail t)
+    (match t
+      [`(halt ,triv)]
+      [`(begin ,effect ... ,tail)]
+      ))
+
+  ; calculate the undead output for a single effect
+  (define (undead-effect e) 
+    (match e
+      [`(set! ,aloc ,triv)]
+      [`(set! ,aloc (,binop ,aloc ,triv))]
+      [`(begin ,effect ...)]  
+  ))
+
+  (undead-p p))
 
 
 (define (conflict-analysis p)
@@ -199,23 +236,23 @@
   (c-analysis-p p))
 
  
-; Input: asm-lang-v2/conflicts
-; Output: asm-lang-v2/assignments
-; Purpose: Performs graph-colouring register allocation. 
-;          The pass attempts to fit each of the abstract location declared in the locals 
-;          set into a register, and if one cannot be found, assigns it a frame variable instead.
+; Input:    asm-lang-v2/conflicts
+; Output:   asm-lang-v2/assignments
+; Purpose:  Performs graph-colouring register allocation. 
+;           The pass attempts to fit each of the abstract location declared in the locals 
+;           set into a register, and if one cannot be found, assigns it a frame variable instead.
 (define (assign-registers p)
 
   ; splice the updated info block into the language
   (define (assign-p p)
     (match p
       [`(module ,info ,tail)
-      `(module ,(assign-info info) ,tail)]))
+       `(module ,(assign-info info) ,tail)]))
 
   ; update the info block with new assignments
   (define (assign-info d)
-    (let* ([conflicts (sort-conflicts (first (dict-ref d 'conflicts)))]
-           [locals (dict-keys conflicts)]
+    (let* ([conflicts   (sort-conflicts (first (dict-ref d 'conflicts)))]
+           [locals      (dict-keys conflicts)]
            [assignments (reverse (generate-assignments locals conflicts '()))])
           (dict-set d 'assignment (list assignments))))
 
