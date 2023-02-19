@@ -23,6 +23,8 @@
  implement-fvars
  generate-x64
 
+ undead-effect
+
  ;allocate-fvars
  ;construct-registers
 
@@ -90,7 +92,55 @@
             '()
              list))
 
+  ; calculate the undead output for a single effect
+  ; undead-pair = '((undead-in ...) (undead--out ...))
+  (define (undead-effect e prev-undead-in) 
 
+    (match e
+      ; TODO update to use update-in and update-out set
+      ; calculates the undead-out for this layer from the current undead-in and current undead-out
+      ; then sets that undead-out set as the undead-in set for the next layer
+      ; starts like  '((previous undead-in) (previous undead-out))
+      ; reutrns like '((next     undead-in) (next     undead-out))
+      [`(set! ,aloc (,binop ,aloc ,triv))
+        (if (aloc? triv)
+            (let* ([curr-undead-out prev-undead-in]
+                   [next-undead-in  (set-add curr-undead-out triv)])
+                  `(,next-undead-in ,curr-undead-out))
+            (let* ([curr-undead-out prev-undead-in]
+                   [next-undead-in  curr-undead-out])
+                  `(,next-undead-in ,curr-undead-out)))]
+ 
+      [`(set! ,aloc ,triv)
+        (if (aloc? triv)
+            (let* ([curr-undead-out prev-undead-in]
+                   [next-undead-in (set-remove (set-add curr-undead-out triv) aloc)])
+                  `(,next-undead-in ,curr-undead-out))
+            (let* ([curr-undead-out prev-undead-in]
+                   [next-undead-in (set-remove curr-undead-out aloc)])
+                  `(,next-undead-in ,curr-undead-out)))]
+
+      ; [`(begin ,effects ...)
+      ;   (foldr (lambda (e u)
+      ;                  (let* ([calc-undead      (undead-effect e (first u))]
+      ;                         [curr-undead-out  (first  (calc-undead))]
+      ;                         [next-undead-in   (second (calc-undead))])
+      ;                       (cons `(,next-undead-in next-undead-out))))
+      ;          `(,prev-undead-in ())
+      ;           effects)]
+
+      ; [`(begin ,effects ...)
+      ;   (for/foldr ([acc '()]
+      ;               [ui prev-undead-in])
+      ;              ([e  effects]) 
+      ;              (let* ([calc-undead     (undead-effect e ui)]
+      ;                     [curr-undead-out (first  (calc-undead))]
+      ;                     [next-undead-in  (second (calc-undead))])
+      ;                    (lambda (e) 
+      ;                            (cons `(,next-undead-in ,curr-undead-out) acc)
+      ;                            (set! ui next-undead-in))))]
+     )
+  )
 
 ; =============== New Passes ================
 
@@ -128,39 +178,39 @@
        `(module (,@info ('undead-out (undead-tail tail))) 
                  ,tail)]))
 
-  ; takes a tail and produces the undead-set tree from the effects
-  (define (undead-tail t)
-    (match t
-      [`(halt ,triv)          
-        ()
-      ]                
-      [`(begin ,effect ... ,tail)
-        ()
-      ]
-    )
-  )
+  ; ; takes a tail and produces the undead-set tree from the effects
+  ; (define (undead-tail t)
+  ;   (match t
+  ;     [`(halt ,triv)          
+  ;       ()
+  ;     ]                
+  ;     [`(begin ,effect ... ,tail)
+  ;       ()
+  ;     ]
+  ;   )
+  ; )
 
-  ; calculate the undead output for a single effect
-  (define (undead-effect undead-in e) 
-    (match e
-      [`(set! ,aloc ,triv)
-        (if (aloc? triv)
-           `(,(set-add (set-remove undead-in aloc) triv))
-           `(,(set-remove undead-in aloc)))]
+  ; ; calculate the undead output for a single effect
+  ; (define (undead-effect undead-in e) 
+  ;   (match e
+  ;     [`(set! ,aloc ,triv)
+  ;       (if (aloc? triv)
+  ;          `(,(set-add (set-remove undead-in aloc) triv))
+  ;          `(,(set-remove undead-in aloc)))]
 
-      [`(set! ,aloc (,binop ,aloc ,triv))
-        (if (aloc? triv)
-           `(,(set-add (set-remove (set-add undead-in aloc) aloc) triv))
-           `(,(set-remove (set-add undead-in aloc) aloc)))]
+  ;     [`(set! ,aloc (,binop ,aloc ,triv))
+  ;       (if (aloc? triv)
+  ;          `(,(set-add (set-remove (set-add undead-in aloc) aloc) triv))
+  ;          `(,(set-remove (set-add undead-in aloc) aloc)))]
 
-      [`(begin ,effects ...)
-        ; go right to left... I.E. from bottom to top
-        (foldr (lambda (e l) (cons (undead-effect e) l))    
-              '()      
-               effects)
-      ]
-    )
-  )
+  ;     [`(begin ,effects ...)
+  ;       (for/foldr ([acc '()]
+  ;                   [ui undead-in])
+  ;                  ([e  effects]) 
+  ;                  (cons (undead-effect ui e) acc))
+  ;     ]
+  ;   )
+  ; )
 
   (undead-p p))
 
