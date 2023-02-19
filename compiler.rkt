@@ -42,7 +42,7 @@
                 ;conflict-analysis
                 ;assign-registers
                 ;replace-locations
-                assign-homes-opt
+                ;assign-homes-opt
                 ;assign-homes
                 ;flatten-begins
                 ;patch-instructions
@@ -62,7 +62,7 @@
     ;values
     ;values
     ;values
-    values
+    ;values
     ;values
     ;values
     ;values
@@ -72,9 +72,6 @@
     values))
 
 ; ================= Helpers =================
-
-;; TODO: Fill in.
-;; You'll want to merge milestone-2 code in
 
 (define (address? a)
   (match a
@@ -104,24 +101,22 @@
 
 ; =============== New Passes ================
 
-; (define (assign-homes-opt p)
-;   ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
-;   ; with a physical location. This version performs graph-colouring register allocation.
+(define (assign-homes-opt p)
+  ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
+  ; with a physical location. This version performs graph-colouring register allocation.
 
-;   ; TODO
-;   p)
-
-
-; (define (undead-analysis p)
-;   ; Performs undeadness analysis, decorating the program with undead-set tree. 
-;   ; Only the info field of the program is modified.
-
-;   ; TODO
-;   p)
+  (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
 
+(define (undead-analysis p)
+  ; Performs undeadness analysis, decorating the program with undead-set tree. 
+  ; Only the info field of the program is modified.
+
+  ; TODO
+  p)
+
+; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
-  ; Decorates a program with its conflict graph.
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
   ; excludeLst is the primary aloc with which to find conflicts.
