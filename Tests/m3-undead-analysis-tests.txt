@@ -87,7 +87,12 @@
                (halt t.6))))
 (module
   ((locals (x.1 w.2 p.1 t.6))
-   (undead-out ((t.6) (w.2 t.6) ((w.2 t.6) (t.6) ()))))
+   (undead-out 
+     ((t.6)
+	  (w.2 t.6) 
+	  ((w.2 t.6) 
+	   (t.6) 
+	   ()))))
   (begin
     (set! x.1 42)
     (set! w.2 46)
