@@ -144,31 +144,44 @@
       [`(halt ,triv)       
         `(())]
       [`(begin ,effects ... ,tail)
-        (let* ([tailtree (undead-tail tail)]
+        (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
+               [basecase `(,(get-tail-input tail tailtree))]
                [effectstree (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
-                                  `(,(get-tail-input tail tailtree)) ; invariant: first entry in tree is output of current instruction.
+                                   basecase
                                    effects)])
               (append effectstree
-                      `(,(rest tailtree))))]))
-
+                      `(,(rest tailtree))))])) ; get rid of the first entry as it's no longer needed
+  
+  ; Helper: Given a list with an unknown level of nesting, 
+  ; return the first list of alocs inside. E.g. (((x.1 y.1) (x.1)) (...)) -> (x.1 y.1)
+  (define (get-first-entry lst)
+   (match lst
+     [`(,entry) #:when (aloc? entry)
+       lst]
+     [`(,entry ...) #:when (aloc? (first entry))
+       lst]
+     [_
+       (get-first-entry (first lst))]))
+  
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
   ; This is a list of alocs in the case of a single instruction
-  ; and a list of lists in the case of a recursive (begin...). 
-  (define (undead-effect undead-out e) 
+  ; and a list of lists in the case of a recursive (begin...).
+  (define (undead-effect undead-out e)
+    (println e) (println undead-out)
     (match e
       [`(set! ,aloc (,binop ,aloc ,triv))
         (if (number? triv)
-            undead-out
+            (set-add undead-out aloc)
             (set-add undead-out triv))]
       [`(set! ,aloc ,triv)
         (if (number? triv)
             (set-remove undead-out aloc)
             (set-remove (set-add undead-out triv) aloc))]
       [`(begin ,effects ...)
-        (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
-                       '()
-                        (rest effects))]))
+        (rest (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
+                                `(,undead-out)
+                                effects))]))
 
   (undead-p p))
 
