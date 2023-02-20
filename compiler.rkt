@@ -172,7 +172,7 @@
       [`(set! ,aloc (,binop ,aloc ,triv))
         (if (number? triv)
             (set-add undead-out aloc)
-            (set-add undead-out triv))]
+            (set-add (set-add undead-out triv) aloc))]
       [`(set! ,aloc ,triv)
         (if (number? triv)
             (set-remove undead-out aloc)
