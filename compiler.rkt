@@ -135,22 +135,6 @@
             '())]
       [`(begin ,effects ... ,tail)
         (first tailtree)]))
-
-  ; Takes a tail and produces the undead-set tree from the effects
-  ; Returns a tree with an extra entry at the beginning, i.e. the input set of the first instruction.
-  ; This entry is needed as the base case for nested instructions but will otherwise be removed.
-  (define (undead-tail t)
-    (match t
-      [`(halt ,triv)       
-        `(())]
-      [`(begin ,effects ... ,tail)
-        (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
-               [basecase `(,(get-tail-input tail tailtree))]
-               [effectstree (foldr (lambda (e tree) (cons (undead-effect (first tree) e) tree))
-                                   basecase
-                                   effects)])
-              (append effectstree
-                      `(,(rest tailtree))))])) ; get rid of the first entry as it's no longer needed
   
   ; Helper: Given a list with an unknown level of nesting, 
   ; return the first list of alocs inside. E.g. (((x.1 y.1) (x.1)) (...)) -> (x.1 y.1)
@@ -162,13 +146,28 @@
        lst]
      [_
        (get-first-entry (first lst))]))
+
+  ; Takes a tail and produces the undead-set tree from the effects
+  ; Returns a tree with an extra entry at the beginning, i.e. the input set of the first instruction.
+  ; This entry is needed as the base case for nested instructions but will otherwise be removed.
+  (define (undead-tail t)
+    (match t
+      [`(halt ,triv)       
+        `(())]
+      [`(begin ,effects ... ,tail)
+        (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
+               [basecase `(,(get-tail-input tail tailtree))]
+               [effectstree (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
+                                   basecase
+                                   effects)])
+              (append effectstree
+                      `(,(rest tailtree))))])) ; get rid of the first entry as it's no longer needed
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
   ; This is a list of alocs in the case of a single instruction
   ; and a list of lists in the case of a recursive (begin...).
   (define (undead-effect undead-out e)
-    (println e) (println undead-out)
     (match e
       [`(set! ,aloc (,binop ,aloc ,triv))
         (if (number? triv)
