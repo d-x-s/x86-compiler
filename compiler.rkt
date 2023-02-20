@@ -22,12 +22,6 @@
  patch-instructions
  implement-fvars
  generate-x64
-
- undead-effect
-
- ;allocate-fvars
- ;construct-registers
-
  compile-m2
  compile-m3)
 
