@@ -140,6 +140,8 @@
   ; return the first list of alocs inside. E.g. (((x.1 y.1) (x.1)) (...)) -> (x.1 y.1)
   (define (get-first-entry lst)
    (match lst
+     ['()
+      '()]
      [`(,entry) #:when (aloc? entry)
        lst]
      [`(,entry ...) #:when (aloc? (first entry))
@@ -157,7 +159,11 @@
       [`(begin ,effects ... ,tail)
         (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
                [basecase `(,(get-tail-input tail tailtree))]
-               [effectstree (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
+               [effectstree (foldr (lambda (e tree)
+                                           (let* ([eIn (undead-effect (get-first-entry tree) e)])
+                                                  (if (and (> (length eIn) 0) (not (aloc? (first eIn))))
+                                                      `(,(first eIn) ,(rest eIn) ,@(rest tree))      ; current effect is recursive
+                                                       (cons eIn tree))))
                                    basecase
                                    effects)])
               (append effectstree
@@ -166,7 +172,7 @@
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
   ; This is a list of alocs in the case of a single instruction
-  ; and a list of lists in the case of a recursive (begin...).
+  ; and a list of lists in the case of a recursive (begin...), where the first entry is the extra info.
   (define (undead-effect undead-out e)
     (match e
       [`(set! ,aloc (,binop ,aloc ,triv))
@@ -178,9 +184,9 @@
             (set-remove undead-out aloc)
             (set-remove (set-add undead-out triv) aloc))]
       [`(begin ,effects ...)
-        (rest (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
+        (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
                                 `(,undead-out)
-                                effects))]))
+                                effects)]))
 
   (undead-p p))
 

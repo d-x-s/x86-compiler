@@ -164,3 +164,33 @@
       (set! p.1 7)
       (set! z.5 (+ z.5 p.1))
       (halt z.5))))
+	  
+>`(module ((locals (x.1 y.3 w.2 p.1 t.6)))
+      (begin
+        (set! x.1 42)
+        (set! w.2 46)
+        (begin (begin (set! x.1 42)
+                      (set! w.2 46)
+                      (set! y.3 (+ y.3 2)))
+               (set! t.6 (* t.6 w.2))
+               (begin (set! x.1 42)
+                      (set! w.2 46)
+                      (set! y.3 (+ y.3 2)))
+               (halt t.6))))
+(module
+  ((locals (x.1 y.3 w.2 p.1 t.6))
+   (undead-out
+    ((y.3 t.6)
+     (y.3 t.6)
+     (((y.3 t.6) (y.3 w.2 t.6) (w.2 t.6 y.3))
+      (y.3 t.6)
+      ((y.3 t.6) (y.3 t.6) (t.6))
+      ()))))
+  (begin
+    (set! x.1 42)
+    (set! w.2 46)
+    (begin
+      (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
+      (set! t.6 (* t.6 w.2))
+      (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
+      (halt t.6))))
