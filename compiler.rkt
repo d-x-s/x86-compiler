@@ -761,6 +761,8 @@
           `(set! ,reg ,(fvar->addr fvar))]
       [`(set! ,reg1 (,binop ...))               ; (set! reg1 (binop reg1 <int32|reg|fvar>))
           `(set! ,reg1 ,(f-binop->b binop))]
+      [`(with-label ,label ,s)                  ; (with-label label s)
+          `(with-label ,label ,(f-statement->s s))]
       [_ s]))  ; everything else
 
   (define (f-binop->b b)
