@@ -128,6 +128,14 @@
             '()
              list))
 
+(define (relop? relop)
+  (or (equal? relop '<=)
+      (equal? relop '< )
+      (equal? relop '= )
+      (equal? relop '>=)
+      (equal? relop '> )
+      (equal? relop '!=)))
+
 ; =============== M4 Passes ================
 
 ; Input:
@@ -370,38 +378,70 @@
   ; Purpose: matches on p, which is a list of (nested) let statements
   (define (uniquify-p p dict-acc)
     (match p
-      [`(module ,e ...)
-       `(module ,@(map (lambda (e) (uniquify-e e dict-acc)) e))]))
+      [`(module ,t ...)
+       `(module ,@(map (lambda (t) (uniquify-tail t dict-acc)) t))]))
 
   ; Input: value, a let statement or a binary operation
   ; Output: uniquified version of this expression
   ; Purpose: recursively uniquify a single expression
-  (define (uniquify-e e binds)
-    (match e 
-      [`(let ([,xs ,ps] ...) ,body)
-        (define new-binds (construct-binds xs binds)) ; build binds for the current layer
-        `(let ,(for/list ([x xs][p ps])
-                        `[,(dict-ref new-binds x)     ; lookup and place freshly bound aloc'd names (i.e. the let statement at current scope)
-                          ,(uniquify-e p binds)])     
-              ,(uniquify-e body new-binds))]          ; recurse a level deeper (i.e. these are the nested let statements)
-
-      [`(,binop ,triv1 ,triv2)
-        `(,binop ,(uniquify-v triv1 binds) ,(uniquify-v triv2 binds))]
+  (define (uniquify-tail t binds)
+    (match t 
+      [`(let ([,as ,vs] ...) ,body)
+        (define new-binds (construct-binds as binds)) 
+        `(let ,(for/list ([a as][v vs])
+                        `[,(dict-ref new-binds a) ,(uniquify-tail v binds)])     
+              ,(uniquify-tail body new-binds))]          
       
-      [x (uniquify-v x binds)]))
+      [`(if ,p ,t1 ,t2)
+       `(if ,(uniquify-pred p  binds)
+            ,(uniquify-tail      t1 binds) 
+            ,(uniquify-tail      t2 binds))]
+      
+      [value (uniquify-value value binds)]))
 
-  ; Input: aloc and binding dictionary
-  ; Output: a new binding dictionary
-  ; uses fresh to assign a unique aloc? to each name? at the current scope
-  (define (construct-binds xs binds)
-    (for/fold ([new-binds binds]) ; accumulator
-              ([x xs])            ; x is an element, xs is the list
-      (dict-set new-binds x (fresh x))))
+  (define (uniquify-value v binds)
+    (match v
+       [`(if ,p ,v1 ,v2)
+        `(if ,(uniquify-pred p  binds) 
+             ,(uniquify-value     v1 binds)
+             ,(uniquify-value     v2 binds))]
+
+       [`(,binop ,triv1 ,triv2)
+       `(,binop ,(update-bind triv1 binds) ,(update-bind triv2 binds))]
+
+       [triv
+        (update-bind triv binds)]
+      )
+  )
+
+  (define (uniquify-pred p binds)
+    (match p
+      [`(,relop ,triv1 ,triv2)
+      #:when (relop? relop)
+      `(,relop ,(update-bind triv1 binds) ,(update-bind triv2 binds))]
+
+      [`(true)  `(true)]
+
+      [`(false) `(false)]
+
+      [`(not ,pred)
+       `(not (uniquify-pred pred))]
+
+      [`(let ([,as ,vs] ...) ,pred)
+        (define new-binds (construct-binds as binds)) 
+        `(let ,(for/list ([a as][v vs])
+                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
+              ,(uniquify-pred pred new-binds))]         
+
+      [`(if ,p1 ,p2 ,p3)
+       `(if ,(uniquify-pred p1 binds)
+            ,(uniquify-pred p2 binds)
+            ,(uniquify-pred p3 binds))]))
 
   ; Input: triv and binding dictionary
   ; Output: int64 or aloc
   ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
-  (define (uniquify-v x binds)
+  (define (update-bind x binds)
     (match x
       [(? integer?) x]
       [(? symbol?) (lookup-bind x binds)]))
@@ -412,7 +452,15 @@
   (define (lookup-bind x binds)
     (if (and (name? x) (dict-has-key? binds x)) 
         (dict-ref binds x)                      
-        x))                                     
+        x)) 
+
+  ; Input: aloc and binding dictionary
+  ; Output: a new binding dictionary
+  ; uses fresh to assign a unique aloc? to each name? at the current scope
+  (define (construct-binds xs binds)
+    (for/fold ([new-binds binds]) ; accumulator
+              ([x xs])            ; x is an element, xs is the list
+      (dict-set new-binds x (fresh x))))                                    
 
   (uniquify-p p '()))
 
@@ -840,14 +888,6 @@
 
   (define (opand? opand)
     (or (int64? opand) (register? opand)))
-
-  (define (relop? relop)
-    (or (equal? relop '<=)
-        (equal? relop '< )
-        (equal? relop '= )
-        (equal? relop '>=)
-        (equal? relop '> )
-        (equal? relop '!=)))
 
   (define (loc->ins loc)
     (if (register? loc)
