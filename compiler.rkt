@@ -36,7 +36,6 @@
 ;; Stubs; remove or replace with your definitions.
 (define-values (check-values-lang
                 interp-values-lang
-
                 ;uniquify
                 ;sequentialize-let
                 ;normalize-bind
@@ -47,10 +46,10 @@
                 ;assign-registers
                 ;replace-locations
                 ;assign-homes-opt
-                optimize-predicates
-                expose-basic-blocks
-                resolve-predicates
-                flatten-program
+                ;optimize-predicates
+                ;expose-basic-blocks
+                ;resolve-predicates
+                ;flatten-program
                 ;patch-instructions
                 ;implement-fvars
                 ;generate-x64
@@ -69,10 +68,10 @@
    ;values
    ;values
    ;values
-   values
-   values
-   values
-   values
+   ;values
+   ;values
+   ;values
+   ;values
    ;values
    ;values
    ;values
@@ -131,6 +130,26 @@
 
 ; =============== M4 Passes ================
 
+; Input:
+; Output:
+; Purpose:
+(define (optimize-predicates p) p)
+
+; Input:
+; Output:
+; Purpose:
+(define (expose-basic-blocks p) p)
+
+; Input:
+; Output:
+; Purpose:
+(define (resolve-predicates p) p)
+
+; Input:
+; Output:
+; Purpose:
+(define (flatten-program p) p)
+
 ; =============== M3 Passes ================
 
 (define (assign-homes-opt p)
@@ -138,18 +157,6 @@
   ; with a physical location. This version performs graph-colouring register allocation.
 
   (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
-
-; NOTES:
-; - a location is UNDEAD (not definitely dead) between a DEFINITION and a REFERENCE
-; - a location is DEAD between the final reference of a definition and a new definition
-
-; - work backwards from the end of a program, looking for...
-;   > References: location is definitely alive (its value is referenced)
-;   > Definitions: "kills" a location, working backwards; the location is dead until the "previous reference"
-
-; we need to reprsent the UNDEAD locations at each instruction, for conflict analysis
-;   > Need map instruction to set
-;   > A tree of sets works well 
 
 ; Input:    asm-lang-v2/locals
 ; Output:   asm-lang-v2/undead
@@ -284,8 +291,8 @@
 ;           set into a register, and if one cannot be found, assigns it a frame variable instead.
 
 ; M3 > M4 
-; nThe allocator should run the same algorithm as before. 
-; Since the allocator doesn’t traverse programs, it shouldn’t need any changes.
+; - The allocator should run the same algorithm as before. 
+; - Since the allocator doesn’t traverse programs, it shouldn’t need any changes.
 (define (assign-registers p)
   ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
   (define car (current-assignable-registers))
