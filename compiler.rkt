@@ -129,7 +129,9 @@
             '()
              list))
 
-; =============== New Passes ================
+; =============== M4 Passes ================
+
+; =============== M3 Passes ================
 
 (define (assign-homes-opt p)
   ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
@@ -275,11 +277,15 @@
   (c-analysis-p p))
 
  
-; Input:    asm-lang-v2/conflicts
-; Output:   asm-lang-v2/assignments
+; Input:    asm-pred-lang-v4/conflicts
+; Output:   asm-pred-lang-v4/assignments
 ; Purpose:  Performs graph-colouring register allocation. 
 ;           The pass attempts to fit each of the abstract location declared in the locals 
 ;           set into a register, and if one cannot be found, assigns it a frame variable instead.
+
+; M3 > M4 
+; nThe allocator should run the same algorithm as before. 
+; Since the allocator doesn’t traverse programs, it shouldn’t need any changes.
 (define (assign-registers p)
   ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
   (define car (current-assignable-registers))
@@ -341,50 +347,15 @@
   (assign-p p))
 
 
-; Compile while assigning all abstract locations to frame variables.
-; (define (compile-m2 p) 
-;   (parameterize ([current-pass-list
-;                   (list
-;                       check-values-lang
-;                       uniquify
-;                       sequentialize-let
-;                       normalize-bind
-;                       select-instructions
-;                       assign-homes  ; m2
-;                       flatten-begins
-;                       patch-instructions
-;                       implement-fvars
-;                       generate-x64
-;                       wrap-x64-run-time
-;                       wrap-x64-boilerplate)])
-;   (compile p)))
-
-
-; ; Compile while using register allocation.
-; (define (compile-m3 p)
-;   (parameterize ([current-pass-list
-;                   (list
-;                       check-values-lang
-;                       uniquify
-;                       sequentialize-let
-;                       normalize-bind
-;                       select-instructions
-;                       assign-homes-opt ; m3
-;                       flatten-begins
-;                       patch-instructions
-;                       implement-fvars
-;                       generate-x64
-;                       wrap-x64-run-time
-;                       wrap-x64-boilerplate)])
-;   (compile p)))
-
-
-; =============== Old Passes ================
-
-; Input:   Values-lang-v3 (assumes a well-formed input)
-; Output:  Values-unique-lang-v3
-; Purpose: Compiles Values-lang v3 to Values-unique-lang v3 by resolving all lexical 
+; Input:   Values-lang v4
+; Output:  Values-unique-lang v4
+; Purpose: Compiles Values-lang v4 to Values-unique-lang v4 by resolving all lexical 
 ;          identifiers to abstract locations
+
+; M3 > M4
+; - added support for predicate expressions
+; - Values-lang v3/v4 Diff:        https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-lang-v3&lang2=Values-lang-v4
+; - Values-unique-lang v3/v4 Diff: https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-unique-lang-v3&lang2=Values-unique-lang-v4
 (define (uniquify p) 
 
   ; Input: tail, a list of possibly nested let statements
@@ -776,6 +747,9 @@
 ; Input: paren-x64-v4
 ; Output: x64-instructions
 ; Purpose: Compile the Paren-x64 v4 program into a valid sequence of x64 instructions, represented as a string.
+
+; M3 > M4
+; - extend language to deal with jumps, conditional jumps, and labels
 (define (generate-x64 p)
 
   (define (program->x64 p)
@@ -791,7 +765,6 @@
       #:when (and (address? addr) (int32? int32))
       (string-append x64 "mov " (addr->ins addr) ", " (number->string int32) "\n")]
 
-
       [`(set! ,addr ,trg)
       #:when (and (address? addr) (register? trg))
       (string-append x64 "mov " (addr->ins addr) ", " (trg->ins trg) "\n")]
@@ -800,12 +773,10 @@
       #:when (and (address? addr) (label? trg))
       (string-append x64 "lea " (addr->ins addr) ", " (trg->ins trg) "\n")]
 
-
       [`(set! ,reg ,loc)
       #:when (and (register? reg) (loc? loc))
       (string-append x64 "mov " (symbol->string reg) ", " (loc->ins loc) "\n")]
       
-
       [`(set! ,reg ,triv)
       #:when (and (register? reg) (register? triv))
       (string-append x64 "mov " (symbol->string reg) ", "(symbol->string triv) "\n")]
@@ -818,7 +789,6 @@
       #:when (and (register? reg) (int64? triv))
       (string-append x64 "mov " (symbol->string reg) ", " (number->string triv) "\n")]
       
-
       [`(set! ,reg1 (,binop ,reg1 ,int32))
       #:when (and (register? reg1) (binop? binop) (int32? int32))
       (string-append x64 (math->ins binop reg1 int32) "\n")]
@@ -842,8 +812,6 @@
       [`(jump-if ,relop ,label)
       #:when (and (relop? relop) (label? label))
       (string-append x64 (jump-if-ins relop) " " (symbol->string label) "\n")]))
-
-
 
   (define (loc? loc)
     (or (register? loc) (address? loc)))
@@ -874,8 +842,6 @@
         (equal? relop '> )
         (equal? relop '!=)))
 
-
-
   (define (loc->ins loc)
     (if (register? loc)
         (symbol->string loc)
@@ -896,19 +862,14 @@
   (define (math->ins binop reg target)
     (cond [(and (int32? target)   (equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (number->string target))]
-
           [(and (int32? target)   (equal? '+ binop)) 
            (string-append "add "  (symbol->string reg) ", " (number->string target))]
-
           [(and (register? target)(equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (symbol->string target))]
-
           [(and (address? target) (equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (addr->ins target))]
-
           [(and (register? target)(equal? '+ binop)) 
            (string-append "add "  (symbol->string reg) ", " (symbol->string target))]
-
           [(and (address? target) (equal? '+ binop)) 
            (string-append "add "  (symbol->string reg) ", " (addr->ins target))]))
   
@@ -928,9 +889,46 @@
           [(equal? relop '> ) "jg" ]
           [(equal? relop '!=) "jne"]))
 
-
-
   (program->x64 p))
+
+; =============== Removed Passes ================
+
+; Compile while assigning all abstract locations to frame variables.
+; (define (compile-m2 p) 
+;   (parameterize ([current-pass-list
+;                   (list
+;                       check-values-lang
+;                       uniquify
+;                       sequentialize-let
+;                       normalize-bind
+;                       select-instructions
+;                       assign-homes  ; m2
+;                       flatten-begins
+;                       patch-instructions
+;                       implement-fvars
+;                       generate-x64
+;                       wrap-x64-run-time
+;                       wrap-x64-boilerplate)])
+;   (compile p)))
+
+
+; ; Compile while using register allocation.
+; (define (compile-m3 p)
+;   (parameterize ([current-pass-list
+;                   (list
+;                       check-values-lang
+;                       uniquify
+;                       sequentialize-let
+;                       normalize-bind
+;                       select-instructions
+;                       assign-homes-opt ; m3
+;                       flatten-begins
+;                       patch-instructions
+;                       implement-fvars
+;                       generate-x64
+;                       wrap-x64-run-time
+;                       wrap-x64-boilerplate)])
+;   (compile p)))
 
 
 (module+ test
