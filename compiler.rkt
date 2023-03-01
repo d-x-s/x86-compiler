@@ -81,6 +81,9 @@
 ;; TODO: Fill in.
 ;; You'll want to merge milestone-3 code in
 
+; Input: paren-x64-v4
+; Output: paren-x64-rt-v4
+; Purpose: Compiles Paren-x64 v4 to Paren-x64-rt v4 by resolving all labels to their position in the instruction sequence.
 (define (link-paren-x64 p)
   (TODO "Design and implement link-paren-x64 for Exercise 2."))
 
@@ -768,37 +771,162 @@
        
   (f-program->p p))
 
-
+; Input: paren-x64-v4
+; Output: x64-instructions
+; Purpose: Compile the Paren-x64 v4 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
-  ; Paren-x64-v2 -> x64-instruction-sequence
-  ; Given a paren-x64-v2 program, return a string of x64 instructions with each
-  ; instruction on a new line.
+
   (define (program->x64 p)
     (match p
-      [`(begin ,s ...)
-       (foldr string-append "" (map statement->x64 s))]))
+    [`(begin ,s ...)
+      (for/fold ([acc ""])
+                ([str s]) 
+                (statement->x64 str acc))]))
 
-  (define (statement->x64 s)
-    ; Given a statement, convert it into an x64 instruction string.
+  (define (statement->x64 s x64)
     (match s
-      [`(set! (,addr ...) ,triv) (format "mov QWORD [~a], ~a\n" (loc->x64 addr) triv)]   ; (set! addr _ )
-      [`(set! ,r1 ,r2) #:when (or (register? r2) (number? r2)) ; 	(set! reg triv)
-        (format "mov ~a, ~a\n" r1 r2)]
-      [`(set! ,r1 (,addr ...)) #:when (address? addr)
-        (format "mov ~a, QWORD [~a]\n" r1 (loc->x64 addr))]
-      [`(set! ,r1 ,r2) (binop->ins r2)]))
+      [`(set! ,addr ,int32)
+      #:when (and (address? addr) (int32? int32))
+      (string-append x64 "mov " (addr->ins addr) ", " (number->string int32) "\n")]
 
-  (define (binop->ins b)
-    (match b
-      [`(,binop ,r1 ,r2) #:when (or (register? r2) (number? r2))
-        (format "~a ~a, ~a\n" (if (equal? binop '+) "add" "imul") r1 r2)]
-      [`(,binop ,r1 (,addr ...))
-        (format "~a ~a, QWORD [~a]\n" (if (equal? binop '+) "add" "imul") r1 (loc->x64 addr))]))
 
-  (define (loc->x64 loc)
-    ; Convert an address (list) into a string.
-    (match loc
-      [`(,reg ,op ,off) (format "~a ~a ~a" reg op off)]))
+      [`(set! ,addr ,trg)
+      #:when (and (address? addr) (register? trg))
+      (string-append x64 "mov " (addr->ins addr) ", " (trg->ins trg) "\n")]
+
+      [`(set! ,addr ,trg)
+      #:when (and (address? addr) (label? trg))
+      (string-append x64 "lea " (addr->ins addr) ", " (trg->ins trg) "\n")]
+
+
+      [`(set! ,reg ,loc)
+      #:when (and (register? reg) (loc? loc))
+      (string-append x64 "mov " (symbol->string reg) ", " (loc->ins loc) "\n")]
+      
+
+      [`(set! ,reg ,triv)
+      #:when (and (register? reg) (register? triv))
+      (string-append x64 "mov " (symbol->string reg) ", "(symbol->string triv) "\n")]
+
+      [`(set! ,reg ,triv)
+      #:when (and (register? reg) (label? triv))
+      (string-append x64 "lea " (symbol->string reg) ", " (trg->ins triv) "\n")]
+
+      [`(set! ,reg ,triv)
+      #:when (and (register? reg) (int64? triv))
+      (string-append x64 "mov " (symbol->string reg) ", " (number->string triv) "\n")]
+      
+
+      [`(set! ,reg1 (,binop ,reg1 ,int32))
+      #:when (and (register? reg1) (binop? binop) (int32? int32))
+      (string-append x64 (math->ins binop reg1 int32) "\n")]
+
+      [`(set! ,reg1 (,binop ,reg1 ,addr))
+      #:when (and (register? reg1) (binop? binop) (loc? addr))
+      (string-append x64 (math->ins binop reg1 addr) "\n")]
+
+      [`(with-label ,label ,s)
+      #:when (label? label)
+      (string-append x64 (label->ins label) "\n" (statement->x64 s ""))]
+
+      [`(jump ,trg)
+      #:when (trg? trg)
+      (string-append x64 "jmp " (symbol->string trg) "\n")]
+
+      [`(compare ,reg ,opand)
+      #:when (and (register? reg) (opand? opand))
+      (string-append x64 "cmp " (symbol->string reg) ", " (opand->ins opand) "\n")]
+
+      [`(jump-if ,relop ,label)
+      #:when (and (relop? relop) (label? label))
+      (string-append x64 (jump-if-ins relop) " " (symbol->string label) "\n")]))
+
+
+
+  (define (loc? loc)
+    (or (register? loc) (address? loc)))
+
+  (define (trg? trg)
+    (or (register? trg) (label? trg)))
+
+  (define (address? addr)
+    (and (list? addr)
+         (frame-base-pointer-register? (first addr))
+         (equal? '- (second addr))
+         (dispoffset? (third addr))))
+  
+  (define (triv? triv)
+    (or (trg? triv) (int64? triv)))
+
+  (define (binop? b)
+    (or (equal? b '*) (equal? b '+)))
+
+  (define (opand? opand)
+    (or (int64? opand) (register? opand)))
+
+  (define (relop? relop)
+    (or (equal? relop '<=)
+        (equal? relop '< )
+        (equal? relop '= )
+        (equal? relop '>=)
+        (equal? relop '> )
+        (equal? relop '!=)))
+
+
+
+  (define (loc->ins loc)
+    (if (register? loc)
+        (symbol->string loc)
+        (addr->ins loc)))
+
+  (define (trg->ins trg)
+    (if (register? trg)
+        (symbol->string trg)
+        (string-append "[rel " (symbol->string trg) "]")))
+
+  (define (addr->ins addr)
+    (string-append "QWORD [" 
+                   (symbol->string(first addr)) 
+                   " - " 
+                   (number->string(third addr))
+                   "]"))
+
+  (define (math->ins binop reg target)
+    (cond [(and (int32? target)   (equal? '* binop)) 
+           (string-append "imul " (symbol->string reg) ", " (number->string target))]
+
+          [(and (int32? target)   (equal? '+ binop)) 
+           (string-append "add "  (symbol->string reg) ", " (number->string target))]
+
+          [(and (register? target)(equal? '* binop)) 
+           (string-append "imul " (symbol->string reg) ", " (symbol->string target))]
+
+          [(and (address? target) (equal? '* binop)) 
+           (string-append "imul " (symbol->string reg) ", " (addr->ins target))]
+
+          [(and (register? target)(equal? '+ binop)) 
+           (string-append "add "  (symbol->string reg) ", " (symbol->string target))]
+
+          [(and (address? target) (equal? '+ binop)) 
+           (string-append "add "  (symbol->string reg) ", " (addr->ins target))]))
+  
+  (define (label->ins label) 
+    (string-append (symbol->string label) ":"))
+
+  (define (opand->ins opand)
+    (if (register? opand)
+        (symbol->string opand)
+        (number->string opand)))
+
+  (define (jump-if-ins relop)
+    (cond [(equal? relop '< ) "jl" ]
+          [(equal? relop '<=) "jle"]
+          [(equal? relop '= ) "je" ]
+          [(equal? relop '>=) "jge"]
+          [(equal? relop '> ) "jg" ]
+          [(equal? relop '!=) "jne"]))
+
+
 
   (program->x64 p))
 
