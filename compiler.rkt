@@ -115,8 +115,8 @@
   ; Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
-      [`(module (,locals) ,tail)
-       `(module (,locals (undead-out ,(rest (undead-tail tail))))  ; remove the undead-effect evaluation of the first effect
+      [`(module ,locals ,tail)
+       `(module ,(info-set locals 'undead-out (rest (undead-tail tail)))  ; remove the undead-effect evaluation of the first effect
                  ,tail)]))
   
   ; Helper to return the input set of a tail instruction, i.e.
@@ -184,7 +184,8 @@
 
   (undead-p p))
 
-
+; Input: asm-lang-v2/undead
+; Output: asm-lang-v2/conflicts
 ; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
 
@@ -224,12 +225,10 @@
   ; Return a graph.
   (define (c-analysis-e undead graph e)
     (match e
-      [`(set! ,aloc ,num) #:when (number? num)
-        (update-conflicts `(,aloc) undead graph)]
       [`(set! ,aloc1 ,aloc2) #:when (aloc? aloc2)
         (update-conflicts `(,aloc1 ,aloc2) undead graph)]
-      [`(set! ,aloc1 (,binop ,aloc1 ,triv))
-        (update-conflicts `(,aloc1) undead graph)]
+      [`(set! ,aloc ,binopOrAloc)
+        (update-conflicts `(,aloc) undead graph)]
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
