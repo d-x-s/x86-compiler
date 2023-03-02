@@ -194,3 +194,13 @@
       (set! t.6 (* t.6 w.2))
       (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
       (halt t.6))))
+	  
+> `(module
+    ((locals (x.1 x.2)) )
+    (begin (set! x.1 5) 
+           (set! x.2 10) 
+           (set! x.1 (+ x.1 x.2)) 
+           (halt x.2)))
+(module
+  ((locals (x.1 x.2)) (undead-out ((x.1) (x.1 x.2) (x.2) ())))
+  (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))
