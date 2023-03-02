@@ -736,13 +736,12 @@
   ; no x64 analogue into a sequence of instructions.
   (define (patch-p p)
     (match p
-      [`(begin ,e ... (halt ,triv))
+      [`(begin ,e ...)
        `(begin 
           ,@(foldr ; splice things when an instruction is replaced by multiple instructions.
             (lambda (elem rest) (if (list? (first elem)) `(,@elem ,@rest) `(,elem ,@rest)))
             '()
-            (map patch-effect e))
-          (set! ,(current-return-value-register) ,triv))]))
+            (map patch-effect e)))]))
 
   (define (patch-effect e)
     (match e
@@ -756,6 +755,28 @@
           `((set! ,(first (current-patch-instructions-registers)) ,fvar)
             (set! ,(first (current-patch-instructions-registers)) ,(patch-binop binop))
             (set! ,fvar ,(first (current-patch-instructions-registers))))]
+      [`(halt ,opand)
+          `((set! ,(current-return-value-register) ,opand)
+            (jump done))]
+      [`(with-label ,label (halt ,opand))
+          `((with-label ,label (set! ,(current-return-value-register) ,opand))
+            (jump done))]
+      [`(with-label ,label ,s)
+          `(with-label ,label ,(patch-effect s))]
+      [`(jump ,trg) #:when (fvar? trg)
+          `((set! ,(first (current-patch-instructions-registers)) ,trg)
+            (jump ,(first (current-patch-instructions-registers))))]
+      [`(compare ,fvar1 ,fvar2) #:when (and (fvar? fvar1) (fvar? fvar2))
+          `((set! ,(second (current-patch-instructions-registers)) ,fvar2)
+            (set! ,(first (current-patch-instructions-registers)) ,fvar1)
+            (compare ,(first (current-patch-instructions-registers)) ,(second (current-patch-instructions-registers))))]
+      [`(compare ,reg ,fvar1) #:when (fvar? fvar1)
+          `((set! ,(first (current-patch-instructions-registers)) ,fvar1)
+            (compare ,reg ,(first (current-patch-instructions-registers))))]
+      [`(jump-if ,relop ,trg) #:when (not (label? trg))
+          `((jump-if ,(patch-relop relop) L.tmp.1)
+            (jump ,trg)
+            (with-label L.tmp.1 (set! ,(first (current-patch-instructions-registers)) ,(first (current-patch-instructions-registers)))))]
       [_ e]))  ; everything else
 
   (define (patch-binop b)
@@ -763,6 +784,14 @@
       [`(,binop ,fvar ,val) #:when (fvar? fvar)
           `(,binop ,(first (current-patch-instructions-registers)) ,val)]
       [_ b]))  ; everything else
+    
+  (define (patch-relop r)
+    (cond [(equal? r '<) '>=]
+          [(equal? r '<=) '>]
+          [(equal? r '=) '!=]
+          [(equal? r '>=) '<]
+          [(equal? r '>) '<=]
+          [(equal? r '!=) '=]))
   
   (patch-p p))
 
