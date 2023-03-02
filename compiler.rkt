@@ -148,10 +148,44 @@
 ; Purpose:
 (define (expose-basic-blocks p) p)
 
-; Input:
-; Output:
-; Purpose:
-(define (resolve-predicates p) p)
+; Input: block-pred-lang-v4?
+; Output: block-asm-lang-v4?
+; Purpose: Compile the Block-pred-lang v4 to Block-asm-lang v4 by manipulating the branches of if statements to resolve branches.
+(define (resolve-predicates p)
+  (define (resolve-p p) 
+    (match p
+      [`(module ,bs ...)
+       `(module ,@(resolve-bs bs))]))
+
+  (define (resolve-bs bs)
+    (map (lambda (e) (resolve-b e)) bs))
+
+  (define (resolve-b b)
+    (let* ([label (second b)]
+           [tail  (third  b)])
+         `(define ,label ,(resolve-t tail))))
+
+  (define (resolve-t t)
+    (match t 
+      [`(halt ,opand)
+       `(halt ,opand)]
+
+      [`(jump ,trg)
+       `(jump ,trg)]
+
+      [`(begin ,effects ... ,tail)
+       `(begin ,@effects ,(resolve-t tail))]
+
+      [`(if ,pred (jump ,trg1) (jump ,trg2))
+        (match pred
+          [`(,relop ,loc ,opand) `(if ,pred (jump ,trg1) (jump ,trg2))]
+          [`(true)               `(jump ,trg1)]
+          [`(false)              `(jump ,trg2)]
+          [`(not ,npred)          (resolve-t `(if ,npred (jump ,trg2) (jump ,trg1)))])]))
+
+  (resolve-p p)
+)
+
 
 ; Input: block-asm-lang-v4
 ; Output: para-asm-lang-v4
@@ -169,10 +203,10 @@
               (flatten-b b flt)))
   
   (define (flatten-b b acc)
-  (let* ([label (second b)]
-         [tail  (third b)]
-         [ft    (flatten-t tail)])
-        (append acc `((with-label ,label ,(first ft))) (rest ft))))
+    (let* ([label (second b)]
+           [tail  (third b)]
+           [ft    (flatten-t tail)])
+          (append acc `((with-label ,label ,(first ft))) (rest ft))))
 
   (define (flatten-t t)
      (match t
