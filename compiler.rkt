@@ -153,10 +153,48 @@
 ; Purpose:
 (define (resolve-predicates p) p)
 
-; Input:
-; Output:
-; Purpose:
-(define (flatten-program p) p)
+; Input: block-asm-lang-v4
+; Output: para-asm-lang-v4
+; Purpose: Compile Block-asm-lang v4 to Para-asm-lang v4 by flattening basic blocks into labeled instructions.
+(define (flatten-program p)
+
+  (define (flatten-p p)
+    (match p
+     [`(module ,bs ...)
+      `(begin ,@(flatten-b bs '()))]))
+
+  (define (flatten-bs bs acc)
+    (match bs
+     [`(define ,label ,tail)
+       (for/fold ([flt acc])
+                 ([b   bs])
+                 (flatten-b b flt))]))
+  
+  (define (flatten-b b acc)
+    (match b
+     [`(define ,label ,tail)
+       
+       (append acc `(with-label ,label ,(flatten-t tail acc)))]))
+
+  (define (flatten-t t acc)
+     (match t
+      [`(halt ,opand)
+       `((with-label ,label (halt ,opand)))]
+
+      [`(jump ,trg)
+       `((with-label ,label (jump ,trg)))]
+
+      [`(begin ,effects ...  ,tail)
+
+      ]
+
+      [`(if (,relop, loc ,opand) (jump ,trg1) (jump ,trg2))
+       `((compare ,loc   ,opand)
+         (jump-if ,relop ,trg1)
+         (jump    ,trg2))]))
+
+  (flatten-p p)
+)
 
 ; =============== M3 Passes ================
 
