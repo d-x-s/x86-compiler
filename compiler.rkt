@@ -921,7 +921,10 @@
 
       [`(jump ,trg)
       #:when (trg? trg)
-      (string-append x64 "jmp " (symbol->string trg) "\n")]
+      (let ([trgStr (if (register? trg)
+                        (symbol->string trg)
+                        (sanitize-label trg))])
+        (string-append x64 "jmp " trgStr "\n"))]
 
       [`(compare ,reg ,opand)
       #:when (and (register? reg) (opand? opand))
@@ -929,7 +932,7 @@
 
       [`(jump-if ,relop ,label)
       #:when (and (relop? relop) (label? label))
-      (string-append x64 (jump-if-ins relop) " " (symbol->string label) "\n")]))
+      (string-append x64 (jump-if-ins relop) " " (sanitize-label label) "\n")]))
 
   (define (loc? loc)
     (or (register? loc) (address? loc)))
@@ -960,7 +963,7 @@
   (define (trg->ins trg)
     (if (register? trg)
         (symbol->string trg)
-        (string-append "[rel " (symbol->string trg) "]")))
+        (string-append "[rel " (sanitize-label trg) "]")))
 
   (define (addr->ins addr)
     (string-append "QWORD [" 
@@ -984,7 +987,7 @@
            (string-append "add "  (symbol->string reg) ", " (addr->ins target))]))
   
   (define (label->ins label) 
-    (string-append (symbol->string label) ":"))
+    (string-append (sanitize-label label) ":"))
 
   (define (opand->ins opand)
     (if (register? opand)
