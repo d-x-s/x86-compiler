@@ -161,40 +161,36 @@
   (define (flatten-p p)
     (match p
      [`(module ,bs ...)
-      `(begin ,@(flatten-b bs '()))]))
+      `(begin ,@(flatten-bs bs '()))]))
 
   (define (flatten-bs bs acc)
-    (match bs
-     [`(define ,label ,tail)
-       (for/fold ([flt acc])
-                 ([b   bs])
-                 (flatten-b b flt))]))
+    (for/fold ([flt acc])
+              ([b   bs])
+              (flatten-b b flt)))
   
   (define (flatten-b b acc)
-    (match b
-     [`(define ,label ,tail)
-       
-       (append acc `(with-label ,label ,(flatten-t tail acc)))]))
+  (let* ([label (second b)]
+         [tail  (third b)]
+         [ft    (flatten-t tail)])
+        (append acc `((with-label ,label ,(first ft))) (rest ft))))
 
-  (define (flatten-t t acc)
+  (define (flatten-t t)
      (match t
       [`(halt ,opand)
-       `((with-label ,label (halt ,opand)))]
+      `((halt ,opand))]
 
       [`(jump ,trg)
-       `((with-label ,label (jump ,trg)))]
-
+      `((jump ,trg))]
+      
       [`(begin ,effects ...  ,tail)
-
-      ]
+       `(,@effects ,@(flatten-t tail))]
 
       [`(if (,relop, loc ,opand) (jump ,trg1) (jump ,trg2))
        `((compare ,loc   ,opand)
          (jump-if ,relop ,trg1)
          (jump    ,trg2))]))
 
-  (flatten-p p)
-)
+  (flatten-p p))
 
 ; =============== M3 Passes ================
 
