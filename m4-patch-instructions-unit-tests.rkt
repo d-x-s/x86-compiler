@@ -5,84 +5,7 @@
  rackunit "compiler.rkt"
 )
 
-; (test-case "patch 1"
-;    (check-equal?
-;    (patch-instructions
-;       '(begin
-;       (set! fv0 0)
-;       (halt fv0)))
-;       '(begin
-;         (set! fv0 0)
-;         (set! rax fv0))
-;     )
-;  )
-
-;  (test-case "patch 2"
-;    (check-equal?
-;    (patch-instructions
-;         '(begin
-;       (set! fv0 0)
-;       (set! fv1 42)
-;       (set! fv0 fv1)
-;       (halt fv0)))   
-;       '(begin
-;         (set! fv0 0)
-;         (set! fv1 42)
-;         (set! r10 fv1)
-;         (set! fv0 r10)
-;         (set! rax fv0))
-;     )
-;  )
-
-;   (test-case "patch 3"
-;    (check-equal?
-;    (patch-instructions
-;    '(begin
-;       (set! rbx 0)
-;       (set! rcx 0)
-;       (set! r9 42)
-;       (set! rbx rcx)
-;       (set! rbx (+ rbx r9))
-;       (halt rbx)))  
-;       '(begin
-
-;    (set! rbx 0)
-
-;    (set! rcx 0)
-
-;    (set! r9 42)
-
-;    (set! rbx rcx)
-
-;    (set! rbx (+ rbx r9))
-
-;    (set! rax rbx))
-;     )
-;  )
- 
-; (test-case "patch 4"
-;    (check-equal?
-;    (patch-instructions
-;    '(begin
-;       (set! rbx 0)
-;       (set! rcx 0)
-;       (set! r9 42)
-;       (set! rbx rcx)
-;       (set! fv1 (+ fv1 r9))
-;       (halt rbx)))
-;       '(begin
-;   (set! rbx 0)
-;   (set! rcx 0)
-;   (set! r9 42)
-;   (set! rbx rcx)
-;   (set! r10 fv1)
-;   (set! r10 (+ r10 r9))
-;   (set! fv1 r10)
-;   (set! rax rbx))
-;     )
-;  )
-
- (test-case "patch 5"
+ (test-case "patch 1"
    (check-equal?
    (patch-instructions
       '(begin
@@ -93,7 +16,7 @@
     )
  )
 
- (test-case "patch 6"
+ (test-case "patch 2"
    (check-equal?
    (patch-instructions
    ' (begin 
@@ -117,7 +40,7 @@
     )
  )
 
-  (test-case "patch 7"
+  (test-case "patch 3"
    (check-equal?
    (patch-instructions
    '(begin 
@@ -145,7 +68,7 @@
  )
 
 
- (test-case "patch 8"
+ (test-case "patch 4"
    (check-equal?
    (patch-instructions
       '(begin

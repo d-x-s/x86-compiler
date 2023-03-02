@@ -734,6 +734,11 @@
 (define (patch-instructions p)
   ; Compiles Para-asm-lang v2 to Paren-x64-fvars v2 by patching instructions that have 
   ; no x64 analogue into a sequence of instructions.
+
+  (define i-reg1 (first (current-patch-instructions-registers)))
+  (define i-reg2 (second (current-patch-instructions-registers)))
+  (define ret-reg (current-return-value-register))
+
   (define (patch-p p)
     (match p
       [`(begin ,e ...)
@@ -746,43 +751,43 @@
   (define (patch-effect e)
     (match e
       [`(set! ,fvar1 ,fvar2) #:when (and (fvar? fvar1) (fvar? fvar2))
-          `((set! ,(first (current-patch-instructions-registers)) ,fvar2)
-            (set! ,fvar1 ,(first (current-patch-instructions-registers))))]
+          `((set! ,i-reg1 ,fvar2)
+            (set! ,fvar1 ,i-reg1))]
       [`(set! ,fvar1 ,int64) #:when (and (not (int32? int64)) (int64? int64) )
-          `((set! ,(first (current-patch-instructions-registers)) ,int64)
-            (set! ,fvar1 ,(first (current-patch-instructions-registers))))]
+          `((set! ,i-reg1 ,int64)
+            (set! ,fvar1 ,i-reg1))]
       [`(set! ,fvar (,binop ...)) #:when (fvar? fvar)
-          `((set! ,(first (current-patch-instructions-registers)) ,fvar)
-            (set! ,(first (current-patch-instructions-registers)) ,(patch-binop binop))
-            (set! ,fvar ,(first (current-patch-instructions-registers))))]
+          `((set! ,i-reg1 ,fvar)
+            (set! ,i-reg1 ,(patch-binop binop))
+            (set! ,fvar ,i-reg1))]
       [`(halt ,opand)
-          `((set! ,(current-return-value-register) ,opand)
+          `((set! ,ret-reg ,opand)
             (jump done))]
       [`(with-label ,label (halt ,opand))
-          `((with-label ,label (set! ,(current-return-value-register) ,opand))
+          `((with-label ,label (set! ,ret-reg ,opand))
             (jump done))]
       [`(with-label ,label ,s)
           `(with-label ,label ,(patch-effect s))]
       [`(jump ,trg) #:when (fvar? trg)
-          `((set! ,(first (current-patch-instructions-registers)) ,trg)
-            (jump ,(first (current-patch-instructions-registers))))]
+          `((set! ,i-reg1 ,trg)
+            (jump ,i-reg1))]
       [`(compare ,fvar1 ,fvar2) #:when (and (fvar? fvar1) (fvar? fvar2))
-          `((set! ,(second (current-patch-instructions-registers)) ,fvar2)
-            (set! ,(first (current-patch-instructions-registers)) ,fvar1)
-            (compare ,(first (current-patch-instructions-registers)) ,(second (current-patch-instructions-registers))))]
+          `((set! ,i-reg2 ,fvar2)
+            (set! ,i-reg1 ,fvar1)
+            (compare ,i-reg1 ,i-reg2))]
       [`(compare ,reg ,fvar1) #:when (fvar? fvar1)
-          `((set! ,(first (current-patch-instructions-registers)) ,fvar1)
-            (compare ,reg ,(first (current-patch-instructions-registers))))]
+          `((set! ,i-reg1 ,fvar1)
+            (compare ,reg ,i-reg1))]
       [`(jump-if ,relop ,trg) #:when (not (label? trg))
           `((jump-if ,(patch-relop relop) L.tmp.1)
             (jump ,trg)
-            (with-label L.tmp.1 (set! ,(first (current-patch-instructions-registers)) ,(first (current-patch-instructions-registers)))))]
+            (with-label L.tmp.1 (set! ,i-reg1 ,i-reg1)))]
       [_ e]))  ; everything else
 
   (define (patch-binop b)
     (match b
       [`(,binop ,fvar ,val) #:when (fvar? fvar)
-          `(,binop ,(first (current-patch-instructions-registers)) ,val)]
+          `(,binop ,i-reg1 ,val)]
       [_ b]))  ; everything else
     
   (define (patch-relop r)
