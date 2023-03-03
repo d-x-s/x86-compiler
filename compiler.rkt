@@ -77,15 +77,14 @@
    ;values
    ))
 
-;; TODO: Fill in.
-;; You'll want to merge milestone-3 code in
-
+; (Optional)
 ; Input: paren-x64-v4
 ; Output: paren-x64-rt-v4
 ; Purpose: Compiles Paren-x64 v4 to Paren-x64-rt v4 by resolving all labels to their position in the instruction sequence.
 (define (link-paren-x64 p)
   (TODO "Design and implement link-paren-x64 for Exercise 2."))
 
+; (Optional)
 ;; Exercise 3
 ;; paren-x64-rt-v4 -> int64
 (define (interp-paren-x64 p)
