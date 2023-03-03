@@ -734,6 +734,13 @@
   (assignf-p p))
 
 
+; Input: asm-pred-lang-v4
+; Output: asm-pred-lang-v4/locals
+; Purpose: Compiles Asm-pred-lang v4 to Asm-pred-lang v4/locals, analysing which abstract locations are used in the module and decorating the module with the set of variables in an info field.
+
+; M2 > M4
+; - extend language to deal with control flow
+
 (define (uncover-locals p)
   ; Convert asm-lang-v2 into Asm-lang-v2/locals, analysing which 
   ; abstract locations are used in the program and decorating the
@@ -754,7 +761,13 @@
             acc 
             (foldl append '() (map uloc-e effect))))]
       [`(halt ,triv)
-        (if (aloc? triv) (set-add acc triv) acc)]))
+        (if (aloc? triv) (set-add acc triv) acc)]
+      [`(if ,pred ,tail1 ,tail2)
+        (set-union 
+        (uloc-pred pred)
+        (uloc-t tail1 acc)
+        (uloc-t tail2 acc)
+        )]))
 
   (define (uloc-e e)
     ; return: list of all alocs found in effect
@@ -763,8 +776,34 @@
         (if (aloc? triv) `(,aloc ,triv) `(,aloc))]    
       [`(set! ,aloc (,binop ...))
         (uloc-b binop)]
+      [`(if ,pred ,effect1 ,effect2)
+       (set-union
+        (uloc-pred pred)
+        (uloc-e effect1)
+        (uloc-e effect2))]
       [`(begin ,effects ...)
-        (foldl append '() (map uloc-e effects))]))
+        (foldl append '() (map uloc-e effects))]
+        ))
+
+  (define (uloc-pred p)
+    (match p
+      [`(begin ,effect ... ,pred)
+        (set-union
+        (uloc-pred pred)
+        (foldl set-union '() (map uloc-e effect)))]
+      [`(if ,pred1 ,pred2 ,pred3)
+        (set-union
+        (uloc-pred pred1)
+        (uloc-pred pred2)
+        (uloc-pred pred3))]
+      [`(not ,pred)
+        (uloc-pred pred)]
+      [`(,relop ,aloc ,triv)
+        (if (aloc? triv) `(,aloc ,triv) `(,aloc))]
+      [`(true)
+        `()]
+      [`(false)
+        `()]))
 
   (define (uloc-b b)
     ; return: list of all alocs found in binop
@@ -798,6 +837,13 @@
 
   (flatten-p p))
 
+
+; Input: para-asm-lang-v4
+; Output: paren-x64-fvars-v4
+; Purpose: Compiles Para-asm-lang v4 to Paren-x64-fvars v4 by patching each instruction that has no x64 analogue into a sequence of instructions using auxiliary register from current-patch-instructions-registers.
+
+; M2 > M4
+; - extend language to deal with control flow
 
 (define (patch-instructions p)
   ; Compiles Para-asm-lang v2 to Paren-x64-fvars v2 by patching instructions that have 
@@ -868,6 +914,13 @@
   
   (patch-p p))
 
+
+; Input: paren-x64-fvars-v4
+; Output: paren-x64-v4
+; Purpose: Compile the Paren-x64-fvars v4 to Paren-x64 v4 by reifying fvars into displacement mode operands.
+
+; M2 > M4
+; - extend language to deal with control flow
 
 (define (implement-fvars p)
   ; Compiles the Paren-x64-fvars v2 to Paren-x64 v2 by reifying fvars into displacement mode operands. 
