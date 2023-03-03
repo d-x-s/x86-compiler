@@ -148,15 +148,83 @@
 ; Purpose:
 (define (expose-basic-blocks p) p)
 
-; Input:
-; Output:
-; Purpose:
-(define (resolve-predicates p) p)
+; Input: block-pred-lang-v4?
+; Output: block-asm-lang-v4?
+; Purpose: Compile the Block-pred-lang v4 to Block-asm-lang v4 by manipulating the branches of if statements to resolve branches.
+(define (resolve-predicates p)
+  (define (resolve-p p) 
+    (match p
+      [`(module ,bs ...)
+       `(module ,@(resolve-bs bs))]))
 
-; Input:
-; Output:
-; Purpose:
-(define (flatten-program p) p)
+  (define (resolve-bs bs)
+    (map (lambda (e) (resolve-b e)) bs))
+
+  (define (resolve-b b)
+    (let* ([label (second b)]
+           [tail  (third  b)])
+         `(define ,label ,(resolve-t tail))))
+
+  (define (resolve-t t)
+    (match t 
+      [`(halt ,opand)
+       `(halt ,opand)]
+
+      [`(jump ,trg)
+       `(jump ,trg)]
+
+      [`(begin ,effects ... ,tail)
+       `(begin ,@effects ,(resolve-t tail))]
+
+      [`(if ,pred (jump ,trg1) (jump ,trg2))
+        (match pred
+          [`(,relop ,loc ,opand) `(if ,pred (jump ,trg1) (jump ,trg2))]
+          [`(true)               `(jump ,trg1)]
+          [`(false)              `(jump ,trg2)]
+          [`(not ,npred)          (resolve-t `(if ,npred (jump ,trg2) (jump ,trg1)))])]))
+
+  (resolve-p p)
+)
+
+
+; Input: block-asm-lang-v4
+; Output: para-asm-lang-v4
+; Purpose: Compile Block-asm-lang v4 to Para-asm-lang v4 by flattening basic blocks into labeled instructions.
+(define (flatten-program p)
+
+  (define (flatten-p p)
+    (match p
+     [`(module ,bs ...)
+      `(begin ,@(flatten-bs bs '()))]))
+
+  (define (flatten-bs bs acc)
+    (for/fold ([flt acc])
+              ([b   bs])
+              (flatten-b b flt)))
+  
+  (define (flatten-b b acc)
+    (let* ([label (second b)]
+           [tail  (third b)]
+           [ft    (flatten-t tail)])
+          (append acc `((with-label ,label ,(first ft))) (rest ft))))
+
+  (define (flatten-t t)
+     (match t
+      [`(halt ,opand)
+      `((halt ,opand))]
+
+      [`(jump ,trg)
+      `((jump ,trg))]
+      
+      [`(begin ,effects ...  ,tail)
+       `(,@effects ,@(flatten-t tail))]
+
+      [`(if (,relop, loc ,opand) (jump ,trg1) (jump ,trg2))
+       `((compare ,loc   ,opand)
+         (jump-if ,relop ,trg1)
+         (jump    ,trg2))]))
+
+  (flatten-p p))
 
 ; =============== M3 Passes ================
 
@@ -892,7 +960,10 @@
 
       [`(jump ,trg)
       #:when (trg? trg)
-      (string-append x64 "jmp " (symbol->string trg) "\n")]
+      (let ([trgStr (if (register? trg)
+                        (symbol->string trg)
+                        (sanitize-label trg))])
+        (string-append x64 "jmp " trgStr "\n"))]
 
       [`(compare ,reg ,opand)
       #:when (and (register? reg) (opand? opand))
@@ -900,7 +971,7 @@
 
       [`(jump-if ,relop ,label)
       #:when (and (relop? relop) (label? label))
-      (string-append x64 (jump-if-ins relop) " " (symbol->string label) "\n")]))
+      (string-append x64 (jump-if-ins relop) " " (sanitize-label label) "\n")]))
 
   (define (loc? loc)
     (or (register? loc) (address? loc)))
@@ -931,7 +1002,7 @@
   (define (trg->ins trg)
     (if (register? trg)
         (symbol->string trg)
-        (string-append "[rel " (symbol->string trg) "]")))
+        (string-append "[rel " (sanitize-label trg) "]")))
 
   (define (addr->ins addr)
     (string-append "QWORD [" 
@@ -955,7 +1026,7 @@
            (string-append "add "  (symbol->string reg) ", " (addr->ins target))]))
   
   (define (label->ins label) 
-    (string-append (symbol->string label) ":"))
+    (string-append (sanitize-label label) ":"))
 
   (define (opand->ins opand)
     (if (register? opand)
