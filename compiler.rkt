@@ -681,7 +681,7 @@
   (define (replace-loc-p p)
     (match p
       [`(module ((locals ,l) (assignment ,as)) ,tail)
-       (replace-loc-t tail as)]))
+       `(module ,(replace-loc-t tail as))]))
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
@@ -695,7 +695,9 @@
       [`(begin ,effects ... ,tail)
         `(begin ,@(map (curry replace-loc-e as) effects) ,(replace-loc-t tail as))]
       [`(halt ,triv)
-        (if (aloc? triv) `(halt ,(get-repl triv as)) `(halt ,triv))]))
+        (if (aloc? triv) `(halt ,(get-repl triv as)) `(halt ,triv))]
+      [`(if ,pred ,tail1 ,tail2)
+        `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]))
 
   (define (replace-loc-e as e)
     (match e
@@ -704,7 +706,24 @@
       [`(set! ,aloc (,binop ...))
         `(set! ,(get-repl aloc as) ,(replace-loc-b binop as))]
       [`(begin ,effects ...)
-        `(begin ,@(map (curry replace-loc-e as) effects))]))
+        `(begin ,@(map (curry replace-loc-e as) effects))]
+      [`(if ,pred ,effect1 ,effect2)
+        `(if ,(replace-loc-pred as pred) ,(replace-loc-e as effect1) ,(replace-loc-e as effect2))]))
+
+  (define (replace-loc-pred as p)
+    (match p
+      [`(if ,pred1 ,pred2 ,pred3)
+        `(if ,(replace-loc-pred as pred1) ,(replace-loc-pred as pred2) ,(replace-loc-pred as pred3))]
+      [`(not ,pred)
+        `(not ,(replace-loc-pred as pred))]
+      [`(begin ,effect ... ,pred)
+        `(begin ,@(map (curry replace-loc-e as) effect) ,(replace-loc-pred as pred))]
+      [`(,relop ,aloc ,triv)
+        `(,relop ,(get-repl aloc as) ,(if (aloc? triv) (get-repl triv as) triv))]
+      [`(true)
+        `(true)]
+      [`(false)
+        `(false)]))
 
   (define (replace-loc-b b as)
     (match b
