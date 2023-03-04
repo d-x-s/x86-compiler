@@ -194,10 +194,10 @@
   (define (flatten-p p)
     (match p
      [`(module ,bs ...)
-      `(begin ,@(flatten-bs bs '()))]))
+      `(begin ,@(flatten-bs bs))]))
 
-  (define (flatten-bs bs acc)
-    (for/fold ([flt acc])
+  (define (flatten-bs bs)
+    (for/fold ([flt '()])
               ([b   bs])
               (flatten-b b flt)))
   
@@ -299,6 +299,7 @@
         (values (rest ust) undead-o)]))
   
   (undead-p p))
+
 
 ; Input: asm-lang-v2/undead
 ; Output: asm-lang-v2/conflicts
