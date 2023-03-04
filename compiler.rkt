@@ -675,7 +675,11 @@
   (define (replace-loc-p p)
     (match p
       [`(module ((locals ,l) (assignment ,as)) ,tail)
-       `(module ,(replace-loc-t tail as))]))
+       `(module ,(replace-loc-t tail as))]
+      [`(module ((locals ,l) (conflicts ,cs) (assignment ,as)) ,tail)
+       `(module ,(replace-loc-t tail as))]
+       ))
+
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
