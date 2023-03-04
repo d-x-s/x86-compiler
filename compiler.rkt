@@ -674,18 +674,17 @@
 
   (define (replace-loc-p p)
     (match p
-      [`(module ((locals ,l) (assignment ,as)) ,tail)
-       `(module ,(replace-loc-t tail as))]
-      [`(module ((locals ,l) (conflicts ,cs) (assignment ,as)) ,tail)
-       `(module ,(replace-loc-t tail as))]
+      [`(module ,info ,tail)
+       `(module ,(replace-loc-t tail info))]
        ))
 
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
     ; in the list of assignments 'as'.
-    (second (first (filter (lambda (elem) (equal? (first elem) aloc))
-                    as))))
+    (info-ref
+    (info-ref as 'assignment)
+    aloc))
 
   (define (replace-loc-t t as)
     ; return a tail with locations replaced.
