@@ -157,12 +157,12 @@
        `(module ,@(resolve-bs bs))]))
 
   (define (resolve-bs bs)
-    (map (lambda (e) (resolve-b e)) bs))
+    (map resolve-b bs))
 
   (define (resolve-b b)
-    (let* ([label (second b)]
-           [tail  (third  b)])
-         `(define ,label ,(resolve-t tail))))
+    (match b 
+      [`(define ,label ,tail)
+        `(define ,label ,(resolve-t tail))]))
 
   (define (resolve-t t)
     (match t 
