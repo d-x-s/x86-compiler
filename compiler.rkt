@@ -487,7 +487,7 @@
       [`(false) `(false)]
 
       [`(not ,pred)
-       `(not (uniquify-pred pred))]
+       `(not ,(uniquify-pred pred binds))]
 
       [`(let ([,as ,vs] ...) ,pred)
         (define new-binds (construct-binds as binds)) 
