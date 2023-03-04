@@ -77,15 +77,14 @@
    ;values
    ))
 
-;; TODO: Fill in.
-;; You'll want to merge milestone-3 code in
-
+; (Optional)
 ; Input: paren-x64-v4
 ; Output: paren-x64-rt-v4
 ; Purpose: Compiles Paren-x64 v4 to Paren-x64-rt v4 by resolving all labels to their position in the instruction sequence.
 (define (link-paren-x64 p)
   (TODO "Design and implement link-paren-x64 for Exercise 2."))
 
+; (Optional)
 ;; Exercise 3
 ;; paren-x64-rt-v4 -> int64
 (define (interp-paren-x64 p)
@@ -158,12 +157,12 @@
        `(module ,@(resolve-bs bs))]))
 
   (define (resolve-bs bs)
-    (map (lambda (e) (resolve-b e)) bs))
+    (map resolve-b bs))
 
   (define (resolve-b b)
-    (let* ([label (second b)]
-           [tail  (third  b)])
-         `(define ,label ,(resolve-t tail))))
+    (match b 
+      [`(define ,label ,tail)
+        `(define ,label ,(resolve-t tail))]))
 
   (define (resolve-t t)
     (match t 
@@ -195,18 +194,18 @@
   (define (flatten-p p)
     (match p
      [`(module ,bs ...)
-      `(begin ,@(flatten-bs bs '()))]))
+      `(begin ,@(flatten-bs bs))]))
 
-  (define (flatten-bs bs acc)
-    (for/fold ([flt acc])
+  (define (flatten-bs bs)
+    (for/fold ([flt '()])
               ([b   bs])
               (flatten-b b flt)))
   
   (define (flatten-b b acc)
-    (let* ([label (second b)]
-           [tail  (third b)]
-           [ft    (flatten-t tail)])
-          (append acc `((with-label ,label ,(first ft))) (rest ft))))
+    (match b
+      [`(define ,label ,tail)
+        (let ([ft (flatten-t tail)])
+          (append acc `((with-label ,label ,(first ft))) (rest ft)))]))
 
   (define (flatten-t t)
      (match t
@@ -243,70 +242,67 @@
   ; Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
-      [`(module (,locals) ,tail)
-       `(module (,locals (undead-out ,(rest (undead-tail tail))))  ; remove the undead-effect evaluation of the first effect
+      [`(module ,locals ,tail)
+        (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
+       `(module ,(info-set locals `undead-out ust)
                  ,tail)]))
-  
-  ; Helper to return the input set of a tail instruction, i.e.
-  ; the output set of the instruction prior to the tail.
-  (define (get-tail-input h tailtree)
-    (match h
-      [`(halt ,triv)
-        (if (aloc? triv)
-            `(,triv)
-            '())]
-      [`(begin ,effects ... ,tail)
-        (first tailtree)]))
-  
-  ; Helper: Given a list with an unknown level of nesting, 
-  ; return the first list of alocs inside. E.g. (((x.1 y.1) (x.1)) (...)) -> (x.1 y.1)
-  (define (get-first-entry lst)
-   (match lst
-     [`(,entry) #:when (aloc? entry)
-       lst]
-     [`(,entry ...) #:when (aloc? (first entry))
-       lst]
-     [_
-       (get-first-entry (first lst))]))
 
   ; Takes a tail and produces the undead-set tree from the effects
-  ; Returns a tree with an extra entry at the beginning, i.e. the input set of the first instruction.
-  ; This entry is needed as the base case for nested instructions but will otherwise be removed.
+  ; Return: (values undead-set-tree? undead-set?)
+  ; i.e. (<tree for tail> <set for next effect>)
   (define (undead-tail t)
     (match t
       [`(halt ,triv)       
-        `(())]
+        (if (aloc? triv)
+            (values '() `(,triv))
+            (values '() '()))]
       [`(begin ,effects ... ,tail)
-        (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
-               [basecase `(,(get-tail-input tail tailtree))]
-               [effectstree (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
-                                   basecase
-                                   effects)])
-              (append effectstree
-                      `(,(rest tailtree))))])) ; get rid of the first entry as it's no longer needed
+        (define-values (tailUst tIn) (undead-tail tail))
+ 
+        (define-values (ust undead-o)
+          (for/foldr ([ust `(,tIn ,tailUst)]   ; ust represents the undead-set-tree for this begin.
+                      [nextIn tIn])  ; nextIn: initialized as the input to the first effect we process
+                     ([e effects])
+                     (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
+                                    (undead-effect nextIn e))
+                     (if (and (> (length new-ust) 0) (not (aloc? (first new-ust))))  ; if current effect is recursive
+                         (values `(,undead-in ,new-ust ,@(rest ust)) undead-in) ; need to remove redundant tail entry and add undead-in to beginning
+                         (values (cons new-ust ust) undead-in))))
+
+        (values (rest ust) undead-o)]))
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
-  ; This is a list of alocs in the case of a single instruction
-  ; and a list of lists in the case of a recursive (begin...).
+  ; Return: (values undead-set-tree? undead-set?)
+  ; i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
       [`(set! ,aloc (,binop ,aloc ,triv))
-        (if (number? triv)
-            (set-add undead-out aloc)
-            (set-add undead-out triv))]
+        (let ([newSet (if (number? triv)
+                          (set-add undead-out aloc)
+                          (set-add (set-add undead-out triv) aloc))])
+          (values newSet newSet))]
       [`(set! ,aloc ,triv)
-        (if (number? triv)
-            (set-remove undead-out aloc)
-            (set-remove (set-add undead-out triv) aloc))]
-      [`(begin ,effects ...)
-        (rest (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
-                                `(,undead-out)
-                                effects))]))
-
+        (let ([newSet (if (number? triv)
+                      (set-remove undead-out aloc)
+                      (set-remove (set-add undead-out triv) aloc))])
+          (values newSet newSet))]
+      [`(begin ,effects ...)        
+        (define-values (ust undead-o)
+          (for/foldr ([ust `(,undead-out)]  ; ust represents the undead-set-tree for this begin.
+                      [nextIn undead-out])  ; nextIn: initialized as the input to the first effect we process
+                     ([e effects])
+                     (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
+                                    (undead-effect nextIn e))
+                     (values (cons new-ust ust) undead-in)))
+                     
+        (values (rest ust) undead-o)]))
+  
   (undead-p p))
 
 
+; Input: asm-lang-v2/undead
+; Output: asm-lang-v2/conflicts
 ; Decorates a program with its conflict graph.
 (define (conflict-analysis p)
 
@@ -346,12 +342,10 @@
   ; Return a graph.
   (define (c-analysis-e undead graph e)
     (match e
-      [`(set! ,aloc ,num) #:when (number? num)
-        (update-conflicts `(,aloc) undead graph)]
       [`(set! ,aloc1 ,aloc2) #:when (aloc? aloc2)
         (update-conflicts `(,aloc1 ,aloc2) undead graph)]
-      [`(set! ,aloc1 (,binop ,aloc1 ,triv))
-        (update-conflicts `(,aloc1) undead graph)]
+      [`(set! ,aloc ,binopOrAloc)
+        (update-conflicts `(,aloc) undead graph)]
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
@@ -942,7 +936,6 @@
 ; - extend language to deal with control flow
 
 (define (implement-fvars p)
-  ; Compiles the Paren-x64-fvars v2 to Paren-x64 v2 by reifying fvars into displacement mode operands. 
   (define (f-program->p p)
     (match p
       [`(begin ,s ...)
