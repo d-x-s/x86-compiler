@@ -116,72 +116,61 @@
   (define (undead-p p) 
     (match p
       [`(module ,locals ,tail)
-       `(module ,(info-set locals 'undead-out (rest (undead-tail tail)))  ; remove the undead-effect evaluation of the first effect
+        (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
+       `(module ,(info-set locals `undead-out ust)
                  ,tail)]))
-  
-  ; Helper to return the input set of a tail instruction, i.e.
-  ; the output set of the instruction prior to the tail.
-  (define (get-tail-input h tailtree)
-    (match h
-      [`(halt ,triv)
-        (if (aloc? triv)
-            `(,triv)
-            '())]
-      [`(begin ,effects ... ,tail)
-        (first tailtree)]))
-  
-  ; Helper: Given a list with an unknown level of nesting, 
-  ; return the first list of alocs inside. E.g. (((x.1 y.1) (x.1)) (...)) -> (x.1 y.1)
-  (define (get-first-entry lst)
-   (match lst
-     ['()
-      '()]
-     [`(,entry) #:when (aloc? entry)
-       lst]
-     [`(,entry ...) #:when (aloc? (first entry))
-       lst]
-     [_
-       (get-first-entry (first lst))]))
 
   ; Takes a tail and produces the undead-set tree from the effects
-  ; Returns a tree with an extra entry at the beginning, i.e. the input set of the first instruction.
-  ; This entry is needed as the base case for nested instructions but will otherwise be removed.
+  ; Return: (values undead-set-tree? undead-set?)
+  ; i.e. (<tree for tail> <set for next effect>)
   (define (undead-tail t)
     (match t
       [`(halt ,triv)       
-        `(())]
+        (if (aloc? triv)
+            (values '() `(,triv))
+            (values '() '()))]
       [`(begin ,effects ... ,tail)
-        (let* ([tailtree (undead-tail tail)]   ; invariant: first entry in tree is output of current instruction.
-               [basecase `(,(get-tail-input tail tailtree))]
-               [effectstree (foldr (lambda (e tree)
-                                           (let* ([eIn (undead-effect (get-first-entry tree) e)])
-                                                  (if (and (> (length eIn) 0) (not (aloc? (first eIn))))
-                                                      `(,(first eIn) ,(rest eIn) ,@(rest tree))      ; current effect is recursive
-                                                       (cons eIn tree))))
-                                   basecase
-                                   effects)])
-              (append effectstree
-                      `(,(rest tailtree))))])) ; get rid of the first entry as it's no longer needed
+        (define-values (tailUst tIn) (undead-tail tail))
+ 
+        (define-values (ust undead-o)
+          (for/foldr ([ust `(,tIn ,tailUst)]   ; ust represents the undead-set-tree for this begin.
+                      [nextIn tIn])  ; nextIn: initialized as the input to the first effect we process
+                     ([e effects])
+                     (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
+                                    (undead-effect nextIn e))
+                     (if (and (> (length new-ust) 0) (not (aloc? (first new-ust))))  ; if current effect is recursive
+                         (values `(,undead-in ,new-ust ,@(rest ust)) undead-in) ; need to remove redundant tail entry and add undead-in to beginning
+                         (values (cons new-ust ust) undead-in))))
+
+        (values (rest ust) undead-o)]))
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
-  ; This is a list of alocs in the case of a single instruction
-  ; and a list of lists in the case of a recursive (begin...), where the first entry is the extra info.
+  ; Return: (values undead-set-tree? undead-set?)
+  ; i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
       [`(set! ,aloc (,binop ,aloc ,triv))
-        (if (number? triv)
-            (set-add undead-out aloc)
-            (set-add (set-add undead-out triv) aloc))]
+        (let ([newSet (if (number? triv)
+                          (set-add undead-out aloc)
+                          (set-add (set-add undead-out triv) aloc))])
+          (values newSet newSet))]
       [`(set! ,aloc ,triv)
-        (if (number? triv)
-            (set-remove undead-out aloc)
-            (set-remove (set-add undead-out triv) aloc))]
-      [`(begin ,effects ...)
-        (foldr (lambda (e tree) (cons (undead-effect (get-first-entry tree) e) tree))
-                                `(,undead-out)
-                                effects)]))
-
+        (let ([newSet (if (number? triv)
+                      (set-remove undead-out aloc)
+                      (set-remove (set-add undead-out triv) aloc))])
+          (values newSet newSet))]
+      [`(begin ,effects ...)        
+        (define-values (ust undead-o)
+          (for/foldr ([ust `(,undead-out)]  ; ust represents the undead-set-tree for this begin.
+                      [nextIn undead-out])  ; nextIn: initialized as the input to the first effect we process
+                     ([e effects])
+                     (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
+                                    (undead-effect nextIn e))
+                     (values (cons new-ust ust) undead-in)))
+                     
+        (values (rest ust) undead-o)]))
+  
   (undead-p p))
 
 ; Input: asm-lang-v2/undead

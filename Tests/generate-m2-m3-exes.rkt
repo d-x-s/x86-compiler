@@ -2,7 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "compiler.rkt"
+ rackunit "../compiler.rkt"
 )
 
 (define (system/exit-code! str [success? zero?])
