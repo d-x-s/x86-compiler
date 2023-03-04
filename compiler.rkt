@@ -202,10 +202,10 @@
               (flatten-b b flt)))
   
   (define (flatten-b b acc)
-    (let* ([label (second b)]
-           [tail  (third b)]
-           [ft    (flatten-t tail)])
-          (append acc `((with-label ,label ,(first ft))) (rest ft))))
+    (match b
+      [`(define ,label ,tail)
+        (let ([ft (flatten-t tail)])
+          (append acc `((with-label ,label ,(first ft))) (rest ft)))]))
 
   (define (flatten-t t)
      (match t
