@@ -237,7 +237,7 @@
 ; Output:   asm-pred-lang-v4/undead
 ; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
 ;           Only the info field of the program is modified.
-; M3 > M4   Handle the case when a statement branches at an if-statement.
+; M3 > M4   Handle the new pred syntax. Undead-analysis tree needs to process branches and integrate.
 (define (undead-analysis p)
 
   ; Decorate the program with the undead-out tree.
@@ -341,9 +341,10 @@
   (undead-p p))
 
 
-; Input: asm-lang-v2/undead
-; Output: asm-lang-v2/conflicts
+; Input: asm-pred-lang-v4/undead
+; Output: asm-pred-lang-v4/conflicts
 ; Decorates a program with its conflict graph.
+; M3 > M4   Handle the new pred syntax. No significant changes; just in traversal logic.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
@@ -375,7 +376,31 @@
                     (c-analysis-e currUndead g eff))
           tail)]                ; end with the tail.
       [`(halt ,triv)
-        graph]))
+        graph]
+      [`(if ,pred ,tail1 ,tail2)
+        (define predGraph (c-analysis-pr (first undead) graph pred))
+        (define tail1Graph (c-analysis-t (second undead) predGraph tail1))
+        (c-analysis-t (third undead) tail1Graph tail2)]))
+
+  ; undead : a nested list of lists of abstract locations such as x.1. 
+  ; graph   : a graph of the conflicts found so far.
+  ; Return a graph.
+  (define (c-analysis-pr undead graph pr)
+    (match pr
+      [`(not ,pred)
+        (c-analysis-pr undead graph pr)]
+      [`(begin ,effects ... ,pred)
+        (c-analysis-pr 
+          (last undead)
+          (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
+                    ([eff effects] [currUndead undead])
+                    (c-analysis-e currUndead g eff))
+          pred)]
+      [`(if ,preds ...)
+        (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
+                  ([p preds] [currUndead undead])
+                  (c-analysis-pr currUndead g p))]
+      [_ graph])) ; everything else
 
   ; undead : the entry in the list of undead relating to the current effect
   ; graph   : a graph of the conflicts found so far.
@@ -389,7 +414,11 @@
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
-                  (c-analysis-e currUndead g eff))]))
+                  (c-analysis-e currUndead g eff))]
+      [`(if ,pred ,effect1 ,effect2)
+        (define predGraph (c-analysis-pr (first undead) graph pred))
+        (define e1Graph (c-analysis-e (second undead) predGraph effect1))
+        (c-analysis-e (third undead) e1Graph effect2)]))
 
   (c-analysis-p p))
 
@@ -715,9 +744,7 @@
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,tail)
-       `(module ,(replace-loc-t tail info))]
-       ))
-
+       `(module ,(replace-loc-t tail info))]))
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
