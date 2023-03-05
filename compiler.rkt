@@ -233,10 +233,11 @@
 
   (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
-; Input:    asm-lang-v2/locals
-; Output:   asm-lang-v2/undead
+; Input:    asm-pred-lang-v4/locals
+; Output:   asm-pred-lang-v4/undead
 ; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
 ;           Only the info field of the program is modified.
+; M3 > M4   Handle the case when a statement branches at an if-statement.
 (define (undead-analysis p)
 
   ; Decorate the program with the undead-out tree.
@@ -260,16 +261,51 @@
         (define-values (tailUst tIn) (undead-tail tail))
  
         (define-values (ust undead-o)
-          (for/foldr ([ust `(,tIn ,tailUst)]   ; ust represents the undead-set-tree for this begin.
+          (for/foldr ([ust `(,tailUst)]   ; ust represents the undead-set-tree for this begin.
                       [nextIn tIn])  ; nextIn: initialized as the input to the first effect we process
                      ([e effects])
                      (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
                                     (undead-effect nextIn e))
-                     (if (and (> (length new-ust) 0) (not (aloc? (first new-ust))))  ; if current effect is recursive
-                         (values `(,undead-in ,new-ust ,@(rest ust)) undead-in) ; need to remove redundant tail entry and add undead-in to beginning
-                         (values (cons new-ust ust) undead-in))))
+                     (values (cons new-ust ust) undead-in)))
 
-        (values (rest ust) undead-o)]))
+        (values ust undead-o)]
+      [`(if ,pred ,tail1 ,tail2)
+        (define-values (tail2Ust t2In) (undead-tail tail2)) ; process tail1 and tail2 separately
+        (define-values (tail1Ust t1In) (undead-tail tail1))
+        (define-values (predUst predIn) (undead-pred (set-union t1In t2In) pred)) ; pass their combined result into pred
+        (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]))
+
+  ; Given a pred, return the corresponding undead-out tree.
+  ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.
+  ; Return: (values undead-set-tree? undead-set?)
+  ; i.e. (<tree for pred> <set for next effect>)
+  (define (undead-pred undead-out pr)
+    (match pr
+      [`(,relop ,aloc ,triv) #:when (relop? relop)
+        (define add-aloc (set-add undead-out aloc))
+        (if (number? triv)
+          (values undead-out add-aloc)
+          (values undead-out (set-add add-aloc triv)))]
+      [`(,bool) #:when (and (member bool '(true false)) #t)
+        (values undead-out undead-out)]
+      [`(not ,pred)
+        (undead-pred undead-out pred)]
+      [`(if ,pred1 ,pred2 ,pred3)
+        (define-values (pred3Ust pred3In) (undead-pred undead-out pred3)) ; process the 2nd and 3rd pred separately
+        (define-values (pred2Ust pred2In) (undead-pred undead-out pred2)) ; pass their combined results into 1st pred
+        (define-values (pred1Ust pred1In) (undead-pred (set-union pred2In pred3In) pred1))
+        (values `(,pred1Ust ,pred2Ust ,pred3Ust) pred1In)]
+      [`(begin ,effects ... ,pred)
+        (define-values (predUst predIn) (undead-pred undead-out pred))
+        (define-values (ust undead-o)
+          (for/foldr ([ust `(,predUst)]   ; ust represents the undead-set-tree for this begin.
+                      [nextIn predIn])  ; nextIn: initialized as the input to the first effect we process
+                     ([e effects])
+                     (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
+                                    (undead-effect nextIn e))
+                     (values (cons new-ust ust) undead-in)))
+
+        (values ust undead-o)]))
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
@@ -281,22 +317,26 @@
         (let ([newSet (if (number? triv)
                           (set-add undead-out aloc)
                           (set-add (set-add undead-out triv) aloc))])
-          (values newSet newSet))]
+          (values undead-out newSet))]
       [`(set! ,aloc ,triv)
         (let ([newSet (if (number? triv)
                       (set-remove undead-out aloc)
                       (set-remove (set-add undead-out triv) aloc))])
-          (values newSet newSet))]
+          (values undead-out newSet))]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
-          (for/foldr ([ust `(,undead-out)]  ; ust represents the undead-set-tree for this begin.
+          (for/foldr ([ust `()]  ; ust represents the undead-set-tree for this begin.
                       [nextIn undead-out])  ; nextIn: initialized as the input to the first effect we process
                      ([e effects])
                      (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
                                     (undead-effect nextIn e))
                      (values (cons new-ust ust) undead-in)))
-                     
-        (values (rest ust) undead-o)]))
+        (values ust undead-o)]
+      [`(if ,pred ,effect1 ,effect2)
+        (define-values (eff2Ust e2In) (undead-effect undead-out effect2)) ; process effects separately
+        (define-values (eff1Ust e1In) (undead-effect undead-out effect1)) ; pass their combined results into pred
+        (define-values (predUst predIn) (undead-pred (set-union (set-union e1In e2In) undead-out) pred))
+        (values `(,predUst ,eff1Ust ,eff2Ust) predIn)]))
   
   (undead-p p))
 
