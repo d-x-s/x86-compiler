@@ -596,26 +596,42 @@
   (uniquify-p p '()))
 
 
+; Input:   values-unique-lang-v4
+; Output:  imp-mf-lang-v4
+; Compiles Values-unique-lang v4 to Imp-mf-lang v4 by picking a
+; particular order to implement let expressions using set!.
+; M2 > M4  Handle the new pred syntax. No significant changes; just in traversal logic.
 (define (sequentialize-let p)
-  ; Compiles Values-unique-lang v3 to Imp-mf-lang v3 by picking a 
-  ; particular order to implement let expressions using set!.
-
+  
   (define (seq-p p)
     (match p
       [`(module ,tail)
-          `(module ,@(seq-t tail))]))
+          `(module ,(seq-t tail))]))
 
+  ; Return an instruction
   (define (seq-t t)
-    ; Return a list of instructions
     (match t
       [`(let ([,aloc ,value] ...) ,tail) 
-        `((begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
-                ,@(seq-t tail)))]
-      [trivOrBinop
-        `(,(seq-v trivOrBinop))]))
-  
+       `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
+                ,(seq-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+       `(if ,(seq-pr pred) ,(seq-t tail1) ,(seq-t tail2))]
+      [value
+        (seq-v value)]))
+    
+  (define (seq-pr pr)
+    (match pr
+      [`(not ,pred)
+       `(not ,(seq-pr pred))]
+      [`(if ,pred1 ,pred2 ,pred3)
+       `(if ,(seq-pr pred1) ,(seq-pr pred2) ,(seq-pr pred3))]
+      [`(let ([,aloc ,value] ...) ,pred)
+       `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
+               ,(seq-pr pred))]
+      [_ pr])) ; relop or bool
+
+  ; Return an instruction, given a pair of an aloc and its value.
   (define (seq-bind b)
-    ; Return an instruction
     (match b
       [`(,aloc ,triv) #:when (or (number? triv) (aloc? triv))
         `(set! ,aloc ,triv)]
@@ -628,13 +644,12 @@
 
   (define (seq-v v)
     (match v
-      [value #:when (or (number? value) (aloc? value))
-        value]
-      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
-        binop]
       [`(let ([,aloc ,value] ...) ,val) 
-        `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
-                      ,@(seq-v val))]))
+       `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
+               ,@(seq-v val))]
+      [`(if ,pred ,val1 ,val2)
+       `(if ,(seq-pr pred) ,(seq-v val1) ,(seq-v val2))]
+      [_ v])) ; triv or binop
 
   (seq-p p))
 
