@@ -639,39 +639,59 @@
   (seq-p p))
 
 
+; Input:   imp-mf-lang-v4
+; Output:  imp-cmf-lang-v4
+; Compiles Imp-mf-lang v4 to Imp-cmf-lang v4, pushing set! under begin and if so that
+; the right-hand-side of each set! is a simple value-producing operation.
+; M3 > M4 : handle predicates. Push if above set.
 (define (normalize-bind p)
-  ; Compiles Imp-mf-lang v3 to Imp-cmf-lang v3, pushing set! under begin so 
-  ; that the right-hand-side of each set! is simple value-producing operation.
 
   (define (n-bind-p p)
     (match p
       [`(module ,tail)
-          `(module ,@(n-bind-t tail))]))
+          `(module ,(n-bind-t tail))]))
   
+  ; Return an instruction
   (define (n-bind-t t)
-    ; Return a list of instructions
     (match t
       [`(begin ,eff ... ,tail)
-       `((begin ,@(map n-bind-e eff) ,@(n-bind-t tail)))]
-      [trivOrBinop
-        `(,(n-bind-v trivOrBinop))]))
+       `(begin ,@(map n-bind-e eff) ,(n-bind-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+       `(if ,(n-bind-pr pred) ,(n-bind-t tail1) ,(n-bind-t tail2))]
+      [value
+        (n-bind-v value)]))
   
+  ; Return an instruction
   (define (n-bind-v v)
     (match v
-      [value #:when (or (number? value) (aloc? value))
-        value]
-      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
-        binop]
       [`(begin ,eff ... ,val) 
-        `(begin ,@(map n-bind-e eff) ,@(n-bind-v val))]))
+        `(begin ,@(map n-bind-e eff) ,(n-bind-v val))]
+      [`(if ,pred ,value1 ,value2)
+       `(if ,(n-bind-pr pred) ,(n-bind-v value1) ,(n-bind-v value2))]
+      [_ v])) ; triv or binop
+
+  ; Return an instruction
+  (define (n-bind-pr pr)
+    (match pr
+      [`(not ,pred)
+        (n-bind-pr pred)]
+      [`(if ,pred1 ,pred2 ,pred3)
+       `(if ,(n-bind-pr pred1) ,(n-bind-pr pred2) ,(n-bind-pr pred3))]
+      [`(begin ,eff ... ,pred)
+       `(begin ,@(map n-bind-e eff) ,(n-bind-pr pred))]
+      [_ pr])) ; relop or bool
   
+  ; Return an instruction
   (define (n-bind-e e)
-    ; Return a list of instructions
     (match e
       [`(set! ,aloc (begin ,eff ... ,val)) ; normalize so that begin is above set.
         `(begin ,@(map n-bind-e eff) ,(n-bind-e `(set! ,aloc ,(n-bind-v val))))]
+      [`(set! ,aloc (if ,pred ,val1 ,val2)) ; normalize so that if is above set.
+        `(if ,(n-bind-pr pred) ,(n-bind-e `(set! ,aloc ,(n-bind-v val1))) ,(n-bind-e `(set! ,aloc ,(n-bind-v val2))))]
       [`(set! ,aloc ,trivOrBinop) 
         `(set! ,aloc ,trivOrBinop)]
+      [`(if ,pred ,eff1 ,eff2)
+       `(if ,(n-bind-pr pred) ,(n-bind-e eff1) ,(n-bind-e eff2))]
       [`(begin ,eff ...)
         `(begin ,@(map n-bind-e eff))]))
 
