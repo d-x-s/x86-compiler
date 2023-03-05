@@ -677,30 +677,34 @@
 
   (n-bind-p p))
 
-
+; Input:   imp-cmf-lang-v4
+; Output:  asm-pred-lang-v4
+; Purpose: Compiles Imp-cmf-lang v4 to Asm-pred-lang v4, selecting appropriate sequences of 
+;          abstract assembly instructions to implement the operations of the source language.
 (define (select-instructions p)
-  ; Compiles Imp-cmf-lang v3 to Asm-lang v2, selecting appropriate sequences 
-  ; of abstract assembly instructions to implement the operations of the source language.
 
   (define (sel-ins-p p)
     (match p
       [`(module ,tail)
-        (if (or (number? tail) (aloc? tail))
+        (if (or (number? tail) (aloc? tail) (equal? (first tail) 'if))
           `(module () ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
-          `(module () (begin ,@(sel-ins-t tail)))
-          )]))
+          `(module () (begin ,@(sel-ins-t tail))))]))
   
+  ; Return a list of instructions
   (define (sel-ins-t t)
-    (define getfresh (if (and (list? t) (and (member (first t) '(+ *)) #t)) (fresh) '_))
-    ; Return a list of instructions
     (match t
-      [`(begin ,eff ... ,tail)
-       `(,@(splice-mapped-list (map sel-ins-e eff))
-        ,@(sel-ins-t tail))] ; flattens nested begins
+      [`(begin ,effects ... ,tail) ; flattens nested begins
+       `(,@(splice-mapped-list (map sel-ins-e effects)) ,@(sel-ins-t tail))]
       [value #:when (or (number? value) (aloc? value))
         (sel-ins-v value '_)]
-      [`(,binop ...) ; tail binop: need to create a temporary aloc
-        `(,@(sel-ins-v binop getfresh) (halt ,getfresh))]))
+      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
+        ; tail binop: need to create a temporary aloc
+        (define getfresh (fresh))
+        `(,@(sel-ins-v binop getfresh) (halt ,getfresh))]
+      [`(if ,pred ,tail1 ,tail2)
+        (define tailRes1 (wrap (sel-ins-t tail1)))
+        (define tailRes2 (wrap (sel-ins-t tail2)))
+       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]))
   
   (define (sel-ins-v v aloc)
     (match v
@@ -708,25 +712,60 @@
         `((halt ,value))]
       [`(,binop ...)
         (sel-ins-b binop aloc)]))
+
+  (define (sel-ins-pr pr)
+    (match pr
+      [`(,bool) #:when (and (member bool '(true false)) #t)
+        pr]
+      [`(not ,pred)
+       `(not ,(sel-ins-pr pred))]
+      [`(,relop ,triv1 ,triv2) #:when (relop? relop)
+        (define getfresh (fresh))
+       `(begin (set! ,getfresh ,triv1) 
+               (,relop ,getfresh ,triv2))]
+      [`(begin ,effects ... ,pred)
+       `(begin ,@(map wrap (map sel-ins-e effects)) ,(sel-ins-pr pred))]
+      [`(if ,preds ...)
+       `(if ,@(map sel-ins-pr preds))]))
   
+  ; Return a sequence of instructions dealing with a binop,
+  ; Given an aloc to use.
+  ; e.g. sel-ins-b (+ 2 4) tmp.1 ->
+  ; ((set! tmp.1 2) (set! tmp.1 (+ tmp.1 4)))
   (define (sel-ins-b b aloc)
-    ; Return a sequence of instructions dealing with a binop,
-    ; Given an aloc to use.
-    ; e.g. sel-ins-b (+ 2 4) tmp.1 ->
-    ; ((set! tmp.1 2) (set! tmp.1 (+ tmp.1 4)))
     (match b
       [`(,binop ,triv1 ,triv2)
            `((set! ,aloc ,triv1)
              (set! ,aloc (,binop ,aloc ,triv2)))]))
   
+  ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
-    ; Return a list of instructions
     (match e
       [`(set! ,aloc (,binop ...))
         (sel-ins-b binop aloc)]
-      [`(begin ,eff ...)  ; collapse nesting
+      [`(begin ,eff ...)  ; flatten nested begins
         `(,@(splice-mapped-list (map sel-ins-e eff)))]
-      [`(set! ,aloc ,triv) `((set! ,aloc ,triv))])) ; do nothing
+      [`(set! ,aloc ,triv) `(,e)]
+      [`(if ,pred ,effect1 ,effect2)
+        ; wrap the effect result in (begin ) if it is multiple instructions.
+        ; do NOT flatten begins if the effect was already a (begin ).
+        (define effRes1 (if (equal? (first effect1) 'begin) 
+                           `(begin ,@(sel-ins-e effect1)) 
+                            (wrap (sel-ins-e effect1))))
+        (define effRes2 (if (equal? (first effect2) 'begin) 
+                           `(begin ,@(sel-ins-e effect2)) 
+                            (wrap (sel-ins-e effect2))))
+       `((if ,(sel-ins-pr pred) ,effRes1 ,effRes2))]))
+
+  ; Helper for sel-ins-e and sel-ins-t. Wrap a list of instructions in begin.
+  ; If it's a single instruction return that instruction.
+  (define (wrap lst)
+    (match lst
+      [`(,e ...) #:when (and (> (length e) 1) (list? (first e))) ; e.g. ((set 1 2) (set 1 2))
+       `(begin ,@e)]
+      [`(,x) ; e.g. ((halt 1))
+        `(,@x)]
+      [_ lst])) ; e.g. (halt 1)
 
   (sel-ins-p p))
 
