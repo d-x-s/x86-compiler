@@ -133,16 +133,14 @@
         (define-values (tailUst tIn) (undead-tail tail))
  
         (define-values (ust undead-o)
-          (for/foldr ([ust `(,tIn ,tailUst)]   ; ust represents the undead-set-tree for this begin.
+          (for/foldr ([ust `(,tailUst)]   ; ust represents the undead-set-tree for this begin.
                       [nextIn tIn])  ; nextIn: initialized as the input to the first effect we process
                      ([e effects])
                      (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
                                     (undead-effect nextIn e))
-                     (if (and (> (length new-ust) 0) (not (aloc? (first new-ust))))  ; if current effect is recursive
-                         (values `(,undead-in ,new-ust ,@(rest ust)) undead-in) ; need to remove redundant tail entry and add undead-in to beginning
-                         (values (cons new-ust ust) undead-in))))
+                     (values (cons new-ust ust) undead-in)))
 
-        (values (rest ust) undead-o)]))
+        (values ust undead-o)]))
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
@@ -154,22 +152,21 @@
         (let ([newSet (if (number? triv)
                           (set-add undead-out aloc)
                           (set-add (set-add undead-out triv) aloc))])
-          (values newSet newSet))]
+          (values undead-out newSet))]
       [`(set! ,aloc ,triv)
         (let ([newSet (if (number? triv)
                       (set-remove undead-out aloc)
                       (set-remove (set-add undead-out triv) aloc))])
-          (values newSet newSet))]
+          (values undead-out newSet))]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
-          (for/foldr ([ust `(,undead-out)]  ; ust represents the undead-set-tree for this begin.
+          (for/foldr ([ust `()]  ; ust represents the undead-set-tree for this begin.
                       [nextIn undead-out])  ; nextIn: initialized as the input to the first effect we process
                      ([e effects])
                      (define-values (new-ust undead-in)    ; new-ust represents the undead-set-tree for e
                                     (undead-effect nextIn e))
                      (values (cons new-ust ust) undead-in)))
-                     
-        (values (rest ust) undead-o)]))
+        (values ust undead-o)]))
   
   (undead-p p))
 
