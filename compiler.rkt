@@ -140,7 +140,88 @@
 ; Input:
 ; Output:
 ; Purpose:
-(define (optimize-predicates p) p)
+(define (optimize-predicates p)
+  (define env (make-hash))
+
+  (define (optimize-p p)
+    (match p
+      [`(module ,tail)
+        `(module ,(optimize-t tail))]))
+
+  (define (optimize-t t)
+    (match t
+      [`(halt ,triv)
+        `(halt 
+        ,(if (int64? triv) 
+          triv 
+          (if (and (dict-has-key? env triv) (int64? (dict-ref env triv))) 
+            (dict-ref env triv)
+             triv)))]
+      [`(begin ,effect ... ,tail)
+        `(begin ,@(map optimize-e effect) ,(optimize-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+        (optimize-pred pred tail1 tail2)]))
+
+  (define (optimize-e e)
+    (match e
+      [`(set! ,loc ,triv)
+        (if (dict-has-key? env triv) 
+          (dict-set! env loc (dict-ref env triv)) 
+          (dict-set! env loc triv))
+        `(set! ,loc ,triv)]
+      [`(set! ,loc_1 (,binop ,loc_1 ,triv))
+        `(set! ,loc_1 (,binop ,loc_1 ,triv))]
+      [`(begin ,effects ...)
+        `(begin ,@(map optimize-e effects))]
+      [`(if ,pred ,effect1 ,effect2)
+        (optimize-pred
+          pred
+          (optimize-e effect1)
+          (optimize-e effect2))]))
+
+  (define (optimize-pred p t1 t2)
+    (match p
+      [`(begin ,effect ... ,pred)
+        `(begin ,@(map optimize-e effect) ,(optimize-pred pred t1 t2))]
+      [`(if ,pred1 ,pred2 ,pred3)
+       (optimize-pred
+        pred1
+        (optimize-pred pred2 t1 t2)
+        (optimize-pred pred3 t1 t2))]
+      [`(not ,pred)
+        (optimize-pred p t2 t1)]
+      [`(,relop ,loc ,triv)
+        (optimize-relop relop loc triv t1 t2)]
+      [`(false)
+        t2]
+      [`(true)
+        t1]))
+
+  (define (optimize-relop r l triv t1 t2)
+    (define (interp-relop relop)
+      (match relop
+        ['< <]
+        ['<= <=]
+        ['= =]
+        ['!= (compose not =)]
+        ['> >]
+        ['>= >=]))
+    
+    (if (and (dict-has-key? env l) (int64? (dict-ref env l))) 
+      (if (int64? triv)
+        (if ((interp-relop r) (dict-ref env l) triv)
+              t1
+              t2)
+        (if (and (dict-has-key? env triv) (int64? (dict-ref env triv)))
+          (if ((interp-relop r) (dict-ref env l) (dict-ref env triv))
+              t1
+              t2)
+          `(,r ,l ,triv))) 
+      `(,r ,l ,triv))
+  )
+  (optimize-p p))
+
+
 
 ; Input:
 ; Output:
