@@ -151,3 +151,23 @@
                 (begin (set! y.2 (+ x.1 17)) (set! x.5 12))
                 (begin (set! x.5 15)))
                 x.5))))
+
+(test-case "normalize 13"
+   (check-equal?
+        (normalize-bind
+            `(module (begin 
+                        (set! x.37 20) 
+                        (set! y.38 21) 
+                        (if (not (> x.37 12)) 
+                            (if (if (begin (set! z.39 x.37) (< y.38 z.39)) 
+                                    (true) (false)) 
+                                10 12) 
+                            (+ x.37 y.38)))))
+        
+        `(module
+            (begin
+                (set! x.37 20)
+                (set! y.38 21)
+                (if (not (> x.37 12))
+                (if (if (begin (set! z.39 x.37) (< y.38 z.39)) (true) (false)) 10 12)
+                (+ x.37 y.38))))))

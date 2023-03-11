@@ -770,7 +770,7 @@
   (define (n-bind-pr pr)
     (match pr
       [`(not ,pred)
-        (n-bind-pr pred)]
+        `(not ,(n-bind-pr pred))]
       [`(if ,pred1 ,pred2 ,pred3)
        `(if ,(n-bind-pr pred1) ,(n-bind-pr pred2) ,(n-bind-pr pred3))]
       [`(begin ,eff ... ,pred)
