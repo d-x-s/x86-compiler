@@ -141,63 +141,96 @@
 ; Output: nested-asm-lang-v4
 ; Purpose: Optimize Nested-asm-lang v4 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
-  (define env (make-hash))
 
   (define (optimize-p p)
     (match p
       [`(module ,tail)
-        `(module ,(optimize-t tail))]))
+       `(module ,(optimize-t tail #hash()))]))
 
-  (define (optimize-t t)
+  (define (optimize-t t env)
     (match t
-      [`(halt ,triv)
-        `(halt 
-        ,(if (int64? triv) 
-          triv 
-          (if (and (dict-has-key? env triv) (int64? (dict-ref env triv))) 
-            (dict-ref env triv)
-             triv)))]
-      [`(begin ,effect ... ,tail)
-        `(begin ,@(map optimize-e effect) ,(optimize-t tail))]
+      [`(halt ,triv) #:when (number? triv)
+        t]
+      [`(halt ,triv) ; triv is reg or fvar
+       `(halt ,(if (and (dict-has-key? env triv) (number? (dict-ref env triv))) 
+                    (dict-ref env triv)
+                    triv))]
+      [`(begin ,effects ... ,tail)
+        (define-values (effRes new-env)
+          (for/fold ([acc '()] ; list of processed effects
+                     [currEnv env]) 
+                    ([e effects])
+                    (define-values (new-eff eff-env) ; process the effect and get updated environment
+                                   (optimize-e e currEnv))
+                    (values (append acc `(,new-eff)) eff-env)))
+
+       `(begin ,@effRes ,(optimize-t tail new-env))]
       [`(if ,pred ,tail1 ,tail2)
-        (optimize-pred pred tail1 tail2)]))
+        (optimize-pred pred (optimize-t tail1 env) (optimize-t tail2 env) env)]))
 
-  (define (optimize-e e)
+  (define (optimize-e e env)
     (match e
-      [`(set! ,loc ,triv)
-        (if (dict-has-key? env triv) 
-          (dict-set! env loc (dict-ref env triv)) 
-          (dict-set! env loc triv))
-        `(set! ,loc ,triv)]
       [`(set! ,loc_1 (,binop ,loc_1 ,triv))
-        `(set! ,loc_1 (,binop ,loc_1 ,triv))]
+        (define (interp-binop binop)
+          (match binop
+            ['* *]
+            ['+ +]))
+        (define new-env (if (dict-has-key? env loc_1)
+                             (if (number? triv)
+                                 (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) triv))
+                                 (if (dict-has-key? env triv)
+                                     (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) (dict-ref env triv)))
+                                     env))
+                             env))
+        
+        
+        (values e new-env)]
+      [`(set! ,loc ,triv)
+        (define new-env (if (dict-has-key? env triv) 
+                            (dict-set env loc (dict-ref env triv)) 
+                            (dict-set env loc triv)))
+        (values `(set! ,loc ,triv) new-env)]
       [`(begin ,effects ...)
-        `(begin ,@(map optimize-e effects))]
+        (define-values (effRes new-env)
+          (for/fold ([acc '()] ; list of processed effects
+                     [currEnv env]) 
+                    ([e effects])
+                    (define-values (new-eff eff-env) ; process the effect and get updated environment
+                                   (optimize-e e currEnv))
+                    (values (append acc `(,new-eff)) eff-env)))
+        (values `(begin ,@effRes) new-env)]
       [`(if ,pred ,effect1 ,effect2)
-        (optimize-pred
-          pred
-          (optimize-e effect1)
-          (optimize-e effect2))]))
+        (define-values (e1 env1) (optimize-e effect1 env))
+        (define-values (e2 env2) (optimize-e effect2 env))
+        (values (optimize-pred pred e1 e2 env) env)])) ;??? pass in env of chosen effect?
 
-  (define (optimize-pred p t1 t2)
+  (define (optimize-pred p t1 t2 env)
     (match p
-      [`(begin ,effect ... ,pred)
-        `(begin ,@(map optimize-e effect) ,(optimize-pred pred t1 t2))]
+      [`(begin ,effects ... ,pred)
+        (define-values (effRes new-env)
+          (for/fold ([acc '()] ; list of processed effects
+                     [currEnv env]) 
+                    ([e effects])
+                    (define-values (new-eff eff-env) ; process the effect and get updated environment
+                                   (optimize-e e currEnv))
+                    (values (append acc `(,new-eff)) eff-env)))
+        `(begin ,@effRes ,(optimize-pred pred t1 t2 new-env))]
       [`(if ,pred1 ,pred2 ,pred3)
-       (optimize-pred
-        pred1
-        (optimize-pred pred2 t1 t2)
-        (optimize-pred pred3 t1 t2))]
+        (optimize-pred
+          pred1
+          (optimize-pred pred2 t1 t2 env)
+          (optimize-pred pred3 t1 t2 env)
+          env)]
       [`(not ,pred)
-        (optimize-pred p t2 t1)]
+        (optimize-pred pred t2 t1 env)]
       [`(,relop ,loc ,triv)
-        (optimize-relop relop loc triv t1 t2)]
+        (optimize-relop relop loc triv t1 t2 env)]
       [`(false)
         t2]
       [`(true)
         t1]))
 
-  (define (optimize-relop r l triv t1 t2)
+  (define (optimize-relop r l triv t1 t2 env)
       (define (interp-relop relop)
         (match relop
           ['< <]
@@ -216,8 +249,8 @@
             (if ((interp-relop r) (dict-ref env l) (dict-ref env triv))
                 t1
                 t2)
-            `(,r ,l ,triv))) 
-        `(,r ,l ,triv)))
+            `(if (,r ,l ,triv) ,t1 ,t2))) 
+        `(if (,r ,l ,triv) ,t1 ,t2)))
 
   (optimize-p p))
 
