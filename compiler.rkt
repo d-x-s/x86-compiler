@@ -2,7 +2,8 @@
 
 (require
  cpsc411/compiler-lib
- cpsc411/2c-run-time)
+ cpsc411/2c-run-time
+ cpsc411/graph-lib)
 
 (provide
  check-values-lang
@@ -26,45 +27,47 @@
  generate-x64)
 
 ;; Stubs; remove or replace with your definitions.
-(define-values (check-values-lang
-                uniquify
-                sequentialize-let
-                normalize-bind
+(define-values (check-values-lang   ;optional
+                ;uniquify
+                ;sequentialize-let
+                ;normalize-bind
                 impose-calling-conventions
-                select-instructions
-                assign-homes-opt
-                uncover-locals
-                undead-analysis
-                conflict-analysis
-                assign-registers
-                replace-locations
-                optimize-predicates
-                expose-basic-blocks
-                resolve-predicates
-                flatten-program
-                patch-instructions
-                implement-fvars
-                generate-x64)
+                ;select-instructions
+                ;assign-homes-opt
+                ;uncover-locals
+                ;undead-analysis
+                ;conflict-analysis
+                ;assign-registers
+                ;replace-locations
+                ;optimize-predicates
+                ;expose-basic-blocks
+                ;resolve-predicates
+                ;flatten-program
+                ;patch-instructions
+                ;implement-fvars
+                ;generate-x64
+                )
   (values ; do not comment this one out
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values
-   values))
+   values ;c
+   ;values ;u
+   ;values ;s
+   ;values ;n
+   values ;i
+   ;values ;s
+   ;values ;a
+   ;values ;u
+   ;values ;u
+   ;values ;c
+   ;values ;a
+   ;values ;r
+   ;values ;o
+   ;values ;e
+   ;values ;r
+   ;values ;f
+   ;values ;p
+   ;values ;i
+   ;values ;g
+   ))
 
 ; ================= Helpers =================
 
