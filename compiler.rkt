@@ -1178,7 +1178,6 @@
 
 ; M2 > M4
 ; - extend language to deal with control flow
-
 (define (patch-instructions p)
   ; Compiles Para-asm-lang v2 to Paren-x64-fvars v2 by patching instructions that have 
   ; no x64 analogue into a sequence of instructions.
@@ -1255,7 +1254,6 @@
 
 ; M2 > M4
 ; - extend language to deal with control flow
-
 (define (implement-fvars p)
   (define (f-program->p p)
     (match p
@@ -1428,45 +1426,6 @@
           [(equal? relop '!=) "jne"]))
 
   (program->x64 p))
-
-; =============== Removed Passes ================
-
-; Compile while assigning all abstract locations to frame variables.
-; (define (compile-m2 p) 
-;   (parameterize ([current-pass-list
-;                   (list
-;                       check-values-lang
-;                       uniquify
-;                       sequentialize-let
-;                       normalize-bind
-;                       select-instructions
-;                       assign-homes  ; m2
-;                       flatten-begins
-;                       patch-instructions
-;                       implement-fvars
-;                       generate-x64
-;                       wrap-x64-run-time
-;                       wrap-x64-boilerplate)])
-;   (compile p)))
-
-
-; ; Compile while using register allocation.
-; (define (compile-m3 p)
-;   (parameterize ([current-pass-list
-;                   (list
-;                       check-values-lang
-;                       uniquify
-;                       sequentialize-let
-;                       normalize-bind
-;                       select-instructions
-;                       assign-homes-opt ; m3
-;                       flatten-begins
-;                       patch-instructions
-;                       implement-fvars
-;                       generate-x64
-;                       wrap-x64-run-time
-;                       wrap-x64-boilerplate)])
-;   (compile p)))
 
 
 (module+ test
