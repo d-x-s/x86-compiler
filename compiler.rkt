@@ -768,7 +768,7 @@
   
   (define (seq-p p)
     (match p
-      [`(module ,tail)
+      [`(module ,defines ... ,tail)
           `(module ,(seq-t tail))]))
 
   ; Return an instruction
@@ -798,14 +798,12 @@
   ; Return an instruction, given a pair of an aloc and its value.
   (define (seq-bind b)
     (match b
-      [`(,aloc ,triv) #:when (or (number? triv) (aloc? triv))
-        `(set! ,aloc ,triv)]
-      [`(,aloc (,binop ...)) #:when (and (member (first binop) '(+ *)) #t)
-        `(set! ,aloc ,binop)]
       [`(,aloc1 (let ([,aloc ,value] ...) ,val))
         `(set! ,aloc1
                (begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
-                      ,(seq-v val)))]))
+                      ,(seq-v val)))]
+      [`(,aloc ,value)
+        `(set! ,aloc ,(seq-v value))]))
 
   (define (seq-v v)
     (match v
@@ -828,7 +826,7 @@
 
   (define (n-bind-p p)
     (match p
-      [`(module ,tail)
+      [`(module ,defines ... ,tail)
           `(module ,(n-bind-t tail))]))
   
   ; Return an instruction
@@ -877,15 +875,15 @@
 
   (n-bind-p p))
 
-; Input:   imp-cmf-lang-v4
-; Output:  asm-pred-lang-v4
-; Purpose: Compiles Imp-cmf-lang v4 to Asm-pred-lang v4, selecting appropriate sequences of 
+; Input:   imp-cmf-lang-v5
+; Output:  asm-pred-lang-v5
+; Purpose: Compiles Imp-cmf-lang v5 to Asm-pred-lang v5, selecting appropriate sequences of
 ;          abstract assembly instructions to implement the operations of the source language.
 (define (select-instructions p)
 
   (define (sel-ins-p p)
     (match p
-      [`(module ,tail)
+      [`(module ,defines ... ,tail)
         (if (or (number? tail) (aloc? tail) (equal? (first tail) 'if))
           `(module () ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
           `(module () (begin ,@(sel-ins-t tail))))]))
@@ -904,7 +902,8 @@
       [`(if ,pred ,tail1 ,tail2)
         (define tailRes1 (wrap (sel-ins-t tail1)))
         (define tailRes2 (wrap (sel-ins-t tail2)))
-       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]))
+       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]
+      [_ t])) ; (jump trg loc ...)
   
   (define (sel-ins-v v aloc)
     (match v
@@ -915,18 +914,17 @@
 
   (define (sel-ins-pr pr)
     (match pr
-      [`(,bool) #:when (and (member bool '(true false)) #t)
-        pr]
       [`(not ,pred)
        `(not ,(sel-ins-pr pred))]
-      [`(,relop ,triv1 ,triv2) #:when (relop? relop)
+      [`(,relop ,opand1 ,opand2) #:when (relop? relop)
         (define getfresh (fresh))
-       `(begin (set! ,getfresh ,triv1) 
-               (,relop ,getfresh ,triv2))]
+       `(begin (set! ,getfresh ,opand1) 
+               (,relop ,getfresh ,opand2))]
       [`(begin ,effects ... ,pred)
        `(begin ,@(map wrap (map sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
-       `(if ,@(map sel-ins-pr preds))]))
+       `(if ,@(map sel-ins-pr preds))]
+      [_ pr])) ; bool
   
   ; Return a sequence of instructions dealing with a binop,
   ; Given an aloc to use.
@@ -941,11 +939,11 @@
   ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
     (match e
-      [`(set! ,aloc (,binop ...))
-        (sel-ins-b binop aloc)]
+      [`(set! ,loc (,binop ...))
+        (sel-ins-b binop loc)]
       [`(begin ,eff ...)  ; flatten nested begins
         `(,@(splice-mapped-list (map sel-ins-e eff)))]
-      [`(set! ,aloc ,triv) `(,e)]
+      [`(set! ,loc ,triv) `(,e)]
       [`(if ,pred ,effect1 ,effect2)
         ; wrap the effect result in (begin ) if it is multiple instructions.
         ; do NOT flatten begins if the effect was already a (begin ).
