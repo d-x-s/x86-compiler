@@ -409,7 +409,14 @@
       [`(module ,locals ,defines ... ,tail)
         (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
        `(module ,(info-set locals `undead-out ust)
-                 ,tail)]))
+                ,@(map undead-def defines)
+                ,tail)]))
+
+  (define (undead-def d)
+    (match d
+      [`(define ,label ,locals ,tail)
+        (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
+       `(define ,label ,(info-set locals `undead-out ust) ,tail)]))
 
   ; Takes a tail and produces the undead-set tree from the effects
   ; Return: (values undead-set-tree? undead-set?)
@@ -437,7 +444,8 @@
         (define-values (tail1Ust t1In) (undead-tail tail1))
         (define-values (predUst predIn) (undead-pred (set-union t1In t2In) pred)) ; pass their combined result into pred
         (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]
-      [_ t])) ; (jump trg loc ...)
+      [`(jump ,trg ,loc ...)
+        (values '() loc)]))
 
   ; Given a pred, return the corresponding undead-out tree.
   ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.
@@ -769,7 +777,12 @@
   (define (seq-p p)
     (match p
       [`(module ,defines ... ,tail)
-          `(module ,(seq-t tail))]))
+          `(module ,@(map seq-def defines) ,(seq-t tail))]))
+
+  (define (seq-def d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,tail))
+       `(define ,label (lambda (,aloc ...) ,(seq-t tail)))]))
 
   ; Return an instruction
   (define (seq-t t)
@@ -827,7 +840,12 @@
   (define (n-bind-p p)
     (match p
       [`(module ,defines ... ,tail)
-          `(module ,(n-bind-t tail))]))
+          `(module ,@(map n-bind-def defines) ,(n-bind-t tail))]))
+
+  (define (n-bind-def d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,tail))
+       `(define ,label (lambda (,aloc ...) ,(n-bind-t tail)))]))
   
   ; Return an instruction
   (define (n-bind-t t)
@@ -885,9 +903,14 @@
     (match p
       [`(module ,defines ... ,tail)
         (if (or (number? tail) (aloc? tail) (equal? (first tail) 'if))
-          `(module () ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
-          `(module () (begin ,@(sel-ins-t tail))))]))
+          `(module () ,@(map sel-ins-def defines) ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
+          `(module () ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
   
+  (define (sel-ins-def d)
+    (match d
+      [`(define ,label ,tail)
+       `(define ,label ,@(sel-ins-t tail))]))
+
   ; Return a list of instructions
   (define (sel-ins-t t)
     (match t
