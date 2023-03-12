@@ -137,9 +137,9 @@
 
 ; =============== M4 Passes ================
 
-; Input:
-; Output:
-; Purpose:
+; Input: nested-asm-lang-v4
+; Output: nested-asm-lang-v4
+; Purpose: Optimize Nested-asm-lang v4 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
   (define env (make-hash))
 
