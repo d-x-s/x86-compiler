@@ -2,7 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
+ rackunit "../../compiler.rkt"
 )
 
 (test-case "uncover 1"
