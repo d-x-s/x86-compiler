@@ -2,7 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
+ rackunit "../../compiler.rkt"
 )
 
 (test-case "sequentialize 1"
@@ -140,26 +140,3 @@
                 (begin 
                     (set! z.56 12) 
                     (begin (set! z.57 15) (set! y.58 1) (+ z.57 y.58)))))))
-
-; M5 tests
-
-(test-case "sequentialize 13"
-   (check-equal?
-        (sequentialize-let
-            `(module (let ((foo.1 1)) (+ foo.1 foo.1))))
-        
-        `(module (begin (set! foo.1 1) (+ foo.1 foo.1)))))
-
-(test-case "sequentialize 14"
-   (check-equal?
-        (sequentialize-let
-            `(module (let ((x.5 10)) x.5)))
-        
-        `(module (begin (set! x.5 10) x.5))))
-
-(test-case "sequentialize 15"
-   (check-equal?
-        (sequentialize-let
-            `(module (let ((x.5 10)) (call x.5 2 3 4))))
-        
-        `(module (begin (set! x.5 10) (call x.5 2 3 4)))))
