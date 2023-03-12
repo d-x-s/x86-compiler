@@ -565,7 +565,7 @@
   (define (c-analysis-pr undead graph pr)
     (match pr
       [`(not ,pred)
-        (c-analysis-pr undead graph pr)]
+        (c-analysis-pr undead graph pred)]
       [`(begin ,effects ... ,pred)
         (c-analysis-pr 
           (last undead)

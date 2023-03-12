@@ -194,3 +194,46 @@
                 (set! c.4 b.3)
                 (if (= c.4 b.3) (halt c.4) (begin (set! x.1 c.4) (halt c.4))))))))
 
+(test-case "conflict 8"
+   (check-equal?
+        (conflict-analysis
+            `(module 
+                ((locals (tmp.83 z.39 tmp.82 y.38 x.37 tmp.84)) 
+                 (undead-out 
+                    ((x.37) 
+                     (x.37 y.38) 
+                     (((tmp.84 x.37 y.38) (x.37 y.38)) 
+                      ((((y.38 z.39) ((z.39 tmp.82) ())) () ()) () ()) 
+                      ((y.38 tmp.83) (tmp.83) ()))))) 
+                (begin 
+                    (set! x.37 20) 
+                    (set! y.38 21) 
+                    (if (not (begin (set! tmp.84 x.37) (> tmp.84 12))) 
+                        (if (if (begin (set! z.39 x.37) (begin (set! tmp.82 y.38) (< tmp.82 z.39))) 
+                                (true) 
+                                (false)) 
+                            (halt 10) 
+                            (halt 12)) 
+                        (begin (set! tmp.83 x.37) (set! tmp.83 (+ tmp.83 y.38)) (halt tmp.83)))))
+        )
+        `(module
+            ((locals (tmp.83 z.39 tmp.82 y.38 x.37 tmp.84))
+             (conflicts
+                ((tmp.84 (y.38))
+                (x.37 (y.38))
+                (y.38 (tmp.83 z.39 tmp.84 x.37))
+                (tmp.82 (z.39))
+                (z.39 (tmp.82 y.38))
+                (tmp.83 (y.38)))))
+            (begin
+                (set! x.37 20)
+                (set! y.38 21)
+                (if (not (begin (set! tmp.84 x.37) (> tmp.84 12)))
+                (if (if (begin
+                            (set! z.39 x.37)
+                            (begin (set! tmp.82 y.38) (< tmp.82 z.39)))
+                        (true)
+                        (false))
+                    (halt 10)
+                    (halt 12))
+                (begin (set! tmp.83 x.37) (set! tmp.83 (+ tmp.83 y.38)) (halt tmp.83)))))))

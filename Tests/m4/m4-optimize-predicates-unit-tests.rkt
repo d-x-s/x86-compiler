@@ -109,10 +109,3 @@
 
      `(module (begin (begin (set! r15 14) (set! r15 12)) (halt r15)))))
 
-; (test-case "optimize-predicates "
-;     (check-match
-;         (optimize-predicates
-;             `.
-;         )
-
-;      `.))
