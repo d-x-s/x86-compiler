@@ -397,17 +397,16 @@
 
   (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
-; Input:    asm-pred-lang-v4/locals
-; Output:   asm-pred-lang-v4/undead
-; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
-;           Only the info field of the program is modified.
-; M3 > M4   Handle the new pred syntax. Undead-analysis tree needs to process branches and integrate.
+; Input:    asm-pred-lang-v5/locals
+; Output:   asm-pred-lang-v5/undead
+; Purpose:  Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
+;           by decorating programs with their undead-set trees.
 (define (undead-analysis p)
 
   ; Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
-      [`(module ,locals ,tail)
+      [`(module ,locals ,defines ... ,tail)
         (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
        `(module ,(info-set locals `undead-out ust)
                  ,tail)]))
@@ -417,10 +416,10 @@
   ; i.e. (<tree for tail> <set for next effect>)
   (define (undead-tail t)
     (match t
-      [`(halt ,triv)       
-        (if (aloc? triv)
-            (values '() `(,triv))
-            (values '() '()))]
+      [`(halt ,opand)       
+        (if (number? opand)
+            (values '() '())
+            (values '() `(,opand)))]
       [`(begin ,effects ... ,tail)
         (define-values (tailUst tIn) (undead-tail tail))
  
@@ -437,7 +436,8 @@
         (define-values (tail2Ust t2In) (undead-tail tail2)) ; process tail1 and tail2 separately
         (define-values (tail1Ust t1In) (undead-tail tail1))
         (define-values (predUst predIn) (undead-pred (set-union t1In t2In) pred)) ; pass their combined result into pred
-        (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]))
+        (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]
+      [_ t])) ; (jump trg loc ...)
 
   ; Given a pred, return the corresponding undead-out tree.
   ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.
@@ -445,11 +445,11 @@
   ; i.e. (<tree for pred> <set for next effect>)
   (define (undead-pred undead-out pr)
     (match pr
-      [`(,relop ,aloc ,triv) #:when (relop? relop)
-        (define add-aloc (set-add undead-out aloc))
-        (if (number? triv)
-          (values undead-out add-aloc)
-          (values undead-out (set-add add-aloc triv)))]
+      [`(,relop ,loc ,opand) #:when (relop? relop)
+        (define add-loc (set-add undead-out loc))
+        (if (number? opand)
+          (values undead-out add-loc)
+          (values undead-out (set-add add-loc opand)))]
       [`(,bool) #:when (and (member bool '(true false)) #t)
         (values undead-out undead-out)]
       [`(not ,pred)
@@ -477,15 +477,15 @@
   ; i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
-      [`(set! ,aloc (,binop ,aloc ,triv))
-        (let ([newSet (if (number? triv)
-                          (set-add undead-out aloc)
-                          (set-add (set-add undead-out triv) aloc))])
+      [`(set! ,loc (,binop ,loc ,opand))
+        (let ([newSet (if (number? opand)
+                          (set-add undead-out loc)
+                          (set-add (set-add undead-out opand) loc))])
           (values undead-out newSet))]
-      [`(set! ,aloc ,triv)
+      [`(set! ,loc ,triv)
         (let ([newSet (if (number? triv)
-                      (set-remove undead-out aloc)
-                      (set-remove (set-add undead-out triv) aloc))])
+                      (set-remove undead-out loc)
+                      (set-remove (set-add undead-out triv) loc))])
           (values undead-out newSet))]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
