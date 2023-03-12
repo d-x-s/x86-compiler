@@ -760,11 +760,10 @@
   (uniquify-p p '()))
 
 
-; Input:   values-unique-lang-v4
-; Output:  imp-mf-lang-v4
-; Compiles Values-unique-lang v4 to Imp-mf-lang v4 by picking a
+; Input:   values-unique-lang-v5
+; Output:  imp-mf-lang-v5
+; Compiles Values-unique-lang v5 to Imp-mf-lang v5 by picking a 
 ; particular order to implement let expressions using set!.
-; M2 > M4  Handle the new pred syntax. No significant changes; just in traversal logic.
 (define (sequentialize-let p)
   
   (define (seq-p p)
@@ -780,6 +779,8 @@
                 ,(seq-t tail))]
       [`(if ,pred ,tail1 ,tail2)
        `(if ,(seq-pr pred) ,(seq-t tail1) ,(seq-t tail2))]
+      [`(call ,triv ,opand ...)
+       t]
       [value
         (seq-v value)]))
     
