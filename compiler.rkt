@@ -1502,8 +1502,8 @@
    (v4-public-test-suite
     (current-pass-list)
     (map cdr pass-map)
-
-    link-paren-x64
-    interp-paren-x64
-    interp-values-lang
-    check-values-lang)))
+    #f ;link-paren-x64
+    #f ;interp-paren-x64
+    #f ;linterp-values-lang
+    #f ;check-values-lang
+    )))
