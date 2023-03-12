@@ -198,35 +198,127 @@
         t1]))
 
   (define (optimize-relop r l triv t1 t2)
-    (define (interp-relop relop)
-      (match relop
-        ['< <]
-        ['<= <=]
-        ['= =]
-        ['!= (compose not =)]
-        ['> >]
-        ['>= >=]))
-    
-    (if (and (dict-has-key? env l) (int64? (dict-ref env l))) 
-      (if (int64? triv)
-        (if ((interp-relop r) (dict-ref env l) triv)
-              t1
-              t2)
-        (if (and (dict-has-key? env triv) (int64? (dict-ref env triv)))
-          (if ((interp-relop r) (dict-ref env l) (dict-ref env triv))
-              t1
-              t2)
-          `(,r ,l ,triv))) 
-      `(,r ,l ,triv))
-  )
+      (define (interp-relop relop)
+        (match relop
+          ['< <]
+          ['<= <=]
+          ['= =]
+          ['!= (compose not =)]
+          ['> >]
+          ['>= >=]))
+      
+      (if (and (dict-has-key? env l) (int64? (dict-ref env l))) 
+        (if (int64? triv)
+          (if ((interp-relop r) (dict-ref env l) triv)
+                t1
+                t2)
+          (if (and (dict-has-key? env triv) (int64? (dict-ref env triv)))
+            (if ((interp-relop r) (dict-ref env l) (dict-ref env triv))
+                t1
+                t2)
+            `(,r ,l ,triv))) 
+        `(,r ,l ,triv)))
+
   (optimize-p p))
 
+; Input: nested-asm-lang-v4
+; Output: block-pred-lang-v4
+; Purpose: Compile the Nested-asm-lang v4 to Block-pred-lang v4,
+; eliminating all nested expressions by generating fresh basic blocks and jumps.
+(define (expose-basic-blocks p)
 
+  ; a list of basic blocks to return (a mutable variable)
+  (define result-acc '())
+  
+  ; Helper: adds a new basic block to the front of result-acc
+  ;   label: the label to add to the block
+  ;   body: the list of instructions to add to the block.
+  (define (add-new-block! label body)
+    (define corrected-body (if (equal? (length body) 1) (first body) `(begin ,@body)))
+    (set! result-acc `((define ,label ,corrected-body) ,@result-acc)))
 
-; Input:
-; Output:
-; Purpose:
-(define (expose-basic-blocks p) p)
+  (define (expose-p p)
+    (match p
+      [`(module ,tail)
+        (define tailRes (expose-t tail))
+        (add-new-block! (fresh-label '__main) tailRes)
+       `(module ,@result-acc)]))
+
+  ; Given a tail, recursively generate blocks. 
+  ; Returns the tail block instructions to be used to make a block by the caller
+  ; of this function. 
+  (define (expose-t t)
+    (match t
+      [`(halt ,triv) `(,t)]
+      [`(begin ,effects ... ,tail)
+        (expose-effects effects (expose-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+        (define tailBody1 (expose-t tail1))
+        (define tailBody2 (expose-t tail2))
+        (define true_label (fresh-label '__nested))
+        (define false_label (fresh-label '__nested))
+        (add-new-block! false_label tailBody2)
+        (add-new-block! true_label tailBody1)
+        `(,(expose-pred pred true_label false_label))]))
+
+  ; Walk through a list of effects until a predicate
+  ; is encountered, then create a block and continue walking.
+  ;    tail: the instruction at the end of the list of effects from whence this effect came
+  ; Returns the list of block instructions to be used to make a block by the caller
+  ; of this function.
+  (define (expose-effects effects tail)
+    (match effects
+      ['() tail]
+      [(cons effect effects)
+       (expose-e effect effects tail)]))
+
+  ; Process an effect.
+  ; tail: the processed instruction at the end of the list of effects from whence this effect came
+  ; effRest: the rest of the parent effect list after the current effect
+  ; Returns a list of instructions.
+  (define (expose-e e effRest tail)
+    (match e
+      [`(begin ,effects ...) ; flatten nested effects
+        (expose-effects (append effects effRest) tail)]
+      [`(if ,pred ,effect1 ,effect2)
+        (define restResult (expose-effects effRest tail))
+        
+        (define true_label (fresh-label 'tmp))
+        (define false_label (fresh-label 'tmp))
+        (define join-label (fresh-label 'tmp))  ; join label: the block where effect1 and effect2 will converge
+        
+        (define eff1Res (expose-e effect1 '() `((jump ,join-label))))
+        (define eff2Res (expose-e effect2 '() `((jump ,join-label))))
+        
+        (add-new-block! join-label restResult)
+        (add-new-block! false_label eff2Res)
+        (add-new-block! true_label eff1Res)
+        
+       `(,(expose-pred pred true_label false_label))]
+      [`(set! ,loc ,trivOrBinop)
+        (cons e (expose-effects effRest tail))]))
+
+  ; Given a pred, return an instruction.
+  ; Add blocks for recursive preds.
+  (define (expose-pred pr k-true k-false)
+    (match pr
+      [`(not ,pred)
+        (expose-pred pred k-false k-true)] ; switch true and false
+      [`(if ,pred ,pred1 ,pred2)
+        (define tailbody1 `(,(expose-pred pred1 k-true k-false)))
+        (define tailbody2 `(,(expose-pred pred2 k-true k-false)))
+        (define true_label (fresh-label 'tmp))
+        (define false_label (fresh-label 'tmp))
+        (add-new-block! false_label tailbody2)
+        (add-new-block! true_label tailbody1)
+        (expose-pred pred true_label false_label)]
+      [`(begin ,effects ... ,pred)
+       `(begin ,@(expose-effects effects `(,(expose-pred pred k-true k-false))))]
+      [_ ; relop or bool. Note: This is a tail
+       `(if ,pr (jump ,k-true) (jump ,k-false))]))
+
+  (expose-p p))
+  
 
 ; Input: block-pred-lang-v4?
 ; Output: block-asm-lang-v4?
@@ -263,8 +355,7 @@
           [`(false)              `(jump ,trg2)]
           [`(not ,npred)          (resolve-t `(if ,npred (jump ,trg2) (jump ,trg1)))])]))
 
-  (resolve-p p)
-)
+  (resolve-p p))
 
 
 ; Input: block-asm-lang-v4
