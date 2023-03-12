@@ -819,10 +819,11 @@
   (seq-p p))
 
 
-; Input:   imp-mf-lang-v5
-; Output:  proc-imp-cmf-lang-v5
-; Compiles Imp-mf-lang v5 to Proc-imp-cmf-lang v5, pushing set! under begin 
-; so that the right-hand-side of each set! is simple value-producing operation.
+; Input:   imp-mf-lang-v4
+; Output:  imp-cmf-lang-v4
+; Compiles Imp-mf-lang v4 to Imp-cmf-lang v4, pushing set! under begin and if so that
+; the right-hand-side of each set! is a simple value-producing operation.
+; M3 > M4 : handle predicates. Push if above set.
 (define (normalize-bind p)
 
   (define (n-bind-p p)
@@ -837,8 +838,6 @@
        `(begin ,@(map n-bind-e eff) ,(n-bind-t tail))]
       [`(if ,pred ,tail1 ,tail2)
        `(if ,(n-bind-pr pred) ,(n-bind-t tail1) ,(n-bind-t tail2))]
-      [`(call ,triv ,opand ...)
-        t]
       [value
         (n-bind-v value)]))
   
@@ -1072,7 +1071,14 @@
   (define (uloc-p p acc)
     (match p
       [`(module ,info ,tail)
-       `(module ((locals ,(uloc-t tail acc))) ,tail)]))
+       `(module ((locals ,(uloc-t tail acc))) ,tail)]
+      [`(module ,info ,d ... ,tail)
+       `(module ((locals ,(uloc-t tail acc))) ,@(map uloc-def d) ,tail)]))
+
+  (define (uloc-def d)
+    (match d
+      [`(define ,label ,info ,tail)
+       `(define ,label ((locals ,(uloc-t tail '()))) ,tail)]))
 
   (define (uloc-t t acc)
     ; return a set of alocs.
@@ -1083,22 +1089,24 @@
           (foldl (lambda (elem rest) (set-add rest elem)) 
             acc 
             (foldl append '() (map uloc-e effect))))]
-      [`(halt ,triv)
-        (if (aloc? triv) (set-add acc triv) acc)]
+      [`(halt ,opand)
+        (if (aloc? opand) (set-add acc opand) acc)]
       [`(if ,pred ,tail1 ,tail2)
         (set-union 
         (uloc-pred pred)
         (uloc-t tail1 acc)
         (uloc-t tail2 acc)
-        )]))
+        )]
+      [`(jump ,trg ,loc ...)
+        (if (aloc? trg) (set-add acc trg) acc)]))
 
   (define (uloc-e e)
     ; return: list of all alocs found in effect
-    (match e
-      [`(set! ,aloc ,triv) #:when (or (number? triv) (aloc? triv))
-        (if (aloc? triv) `(,aloc ,triv) `(,aloc))]    
-      [`(set! ,aloc (,binop ...))
-        (uloc-b binop)]
+    (match e  
+      [`(set! ,loc_1 (,binop ,loc_1 ,opand))
+        (aloc-truth loc_1 opand)]
+      [`(set! ,loc ,triv)
+        (aloc-truth loc triv)]  
       [`(if ,pred ,effect1 ,effect2)
        (set-union
         (uloc-pred pred)
@@ -1121,21 +1129,21 @@
         (uloc-pred pred3))]
       [`(not ,pred)
         (uloc-pred pred)]
-      [`(,relop ,aloc ,triv)
-        (if (aloc? triv) `(,aloc ,triv) `(,aloc))]
+      [`(,relop ,loc ,opand)
+        (aloc-truth loc opand)]
       [`(true)
         `()]
       [`(false)
         `()]))
 
-  (define (uloc-b b)
-    ; return: list of all alocs found in binop
-    (match b
-      [`(,binop ,aloc1 ,triv)
-          (if (aloc? triv) `(,aloc1 ,triv) `(,aloc1))]))
+  (define (aloc-truth a1 a2)
+     (cond
+        [(and (aloc? a1) (aloc? a2)) `(,a2 ,a1)]
+        [(aloc? a1) `(,a1)]
+        [(aloc? a2) `(,a2)]
+        [else `()]))
 
   (uloc-p p '()))
-
 
 (define (flatten-begins p)
   ; Convert from nested-asm-lang-v2 to para-asm-lang-v2 by flattening all
