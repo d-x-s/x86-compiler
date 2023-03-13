@@ -513,14 +513,14 @@
   (undead-p p))
 
 
-; Input: asm-pred-lang-v4/undead
-; Output: asm-pred-lang-v4/conflicts
-; Decorates a program with its conflict graph.
-; M3 > M4   Handle the new pred syntax. No significant changes; just in traversal logic.
+; Input: asm-pred-lang-v5/undead
+; Output: asm-pred-lang-v5/conflicts
+; Performs conflict analysis, compiling Asm-pred-lang v5/undead to 
+; Asm-pred-lang v5/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
-  ; excludeLst is the primary aloc with which to find conflicts.
+  ; excludeLst is the primary loc with which to find conflicts.
   ; Update the graph with the conflicts and return it.
   (define (update-conflicts excludeLst lst graph)
     (for/fold ([g graph])
@@ -530,11 +530,21 @@
 
   (define (c-analysis-p p)
     (match p
-      [`(module ((locals ,locals) (undead-out ,undead)) ,tail)
+      [`(module ((locals ,locals) (undead-out ,undead)) ,defines ... ,tail)
         `(module ((locals ,locals) 
-                  (conflicts ,(c-analysis-t undead (new-graph locals) tail))) 
+                  (conflicts ,(c-analysis-t undead (new-graph locals) tail)))
+                 ,@(c-analysis-def defines)
                  ,tail)]))
   
+  (define (c-analysis-def d)
+    (match d
+      [`(define ,label ((locals ,locals) (undead-out ,undead)) ,tail)
+       `(define ,label 
+                ((locals ,locals) 
+                 (conflicts ,(c-analysis-t undead (new-graph locals) tail))) 
+                ,tail)]
+      [_ '()]))
+
   ; undead : a nested list of lists of abstract locations such as x.1. 
   ; graph   : a graph of the conflicts found so far.
   ; Return a graph.
@@ -547,12 +557,11 @@
                     ([eff effects] [currUndead undead])
                     (c-analysis-e currUndead g eff))
           tail)]                ; end with the tail.
-      [`(halt ,triv)
-        graph]
       [`(if ,pred ,tail1 ,tail2)
         (define predGraph (c-analysis-pr (first undead) graph pred))
         (define tail1Graph (c-analysis-t (second undead) predGraph tail1))
-        (c-analysis-t (third undead) tail1Graph tail2)]))
+        (c-analysis-t (third undead) tail1Graph tail2)]
+      [_ graph])) ; halt or jump
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
   ; graph   : a graph of the conflicts found so far.
@@ -579,10 +588,10 @@
   ; Return a graph.
   (define (c-analysis-e undead graph e)
     (match e
-      [`(set! ,aloc1 ,aloc2) #:when (aloc? aloc2)
-        (update-conflicts `(,aloc1 ,aloc2) undead graph)]
-      [`(set! ,aloc ,binopOrAloc)
-        (update-conflicts `(,aloc) undead graph)]
+      [`(set! ,loc1 ,loc2) #:when (or (aloc? loc2) (register? loc2) (fvar? loc2))
+        (update-conflicts `(,loc1 ,loc2) undead graph)]
+      [`(set! ,loc ,binopOrInt)
+        (update-conflicts `(,loc) undead graph)]
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
