@@ -1004,7 +1004,14 @@
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,tail)
-       `(module ,(replace-loc-t tail info))]))
+       `(module ,(replace-loc-t tail info))]
+      [`(module ,info ,label ... ,tail)
+       `(module ,@(map replace-loc-l label) ,(replace-loc-t tail info))]))
+
+  (define (replace-loc-l l)
+    (match l
+      [`(define ,label ,info ,tail)
+       `(define ,label ,(replace-loc-t tail info))]))
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
@@ -1018,17 +1025,19 @@
     (match t
       [`(begin ,effects ... ,tail)
         `(begin ,@(map (curry replace-loc-e as) effects) ,(replace-loc-t tail as))]
-      [`(halt ,triv)
-        (if (aloc? triv) `(halt ,(get-repl triv as)) `(halt ,triv))]
+      [`(halt ,opand)
+        `(halt ,(replace-loc opand as))]
       [`(if ,pred ,tail1 ,tail2)
-        `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]))
+        `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]
+      [`(jump ,trg ,loc ...)
+        `(jump ,(replace-loc trg as))]))
 
   (define (replace-loc-e as e)
     (match e
-      [`(set! ,aloc ,triv) #:when (or (number? triv) (aloc? triv))
-        `(set! ,(get-repl aloc as) ,(if (aloc? triv) (get-repl triv as) triv))]
-      [`(set! ,aloc (,binop ...))
-        `(set! ,(get-repl aloc as) ,(replace-loc-b binop as))]
+      [`(set! ,loc_1 (,binop ,loc_1 ,opand))
+        `(set! ,(replace-loc loc_1 as) (,binop ,(replace-loc loc_1 as) ,(replace-loc opand as)))]
+      [`(set! ,loc ,triv)
+        `(set! ,(replace-loc loc as) ,(replace-loc triv as))]
       [`(begin ,effects ...)
         `(begin ,@(map (curry replace-loc-e as) effects))]
       [`(if ,pred ,effect1 ,effect2)
@@ -1042,17 +1051,15 @@
         `(not ,(replace-loc-pred as pred))]
       [`(begin ,effect ... ,pred)
         `(begin ,@(map (curry replace-loc-e as) effect) ,(replace-loc-pred as pred))]
-      [`(,relop ,aloc ,triv)
-        `(,relop ,(get-repl aloc as) ,(if (aloc? triv) (get-repl triv as) triv))]
+      [`(,relop ,loc ,opand)
+        `(,relop ,(replace-loc loc as) ,(replace-loc opand as))]
       [`(true)
         `(true)]
       [`(false)
         `(false)]))
 
-  (define (replace-loc-b b as)
-    (match b
-      [`(,binop ,aloc1 ,triv)
-          `(,binop ,(get-repl aloc1 as) ,(if (aloc? triv) (get-repl triv as) triv))]))
+  (define (replace-loc loc as)
+    (if (aloc? loc) (get-repl loc as) loc))
 
   (replace-loc-p p))
 
