@@ -397,36 +397,30 @@
 
   (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
-; Input:    asm-pred-lang-v5/locals
-; Output:   asm-pred-lang-v5/undead
-; Purpose:  Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
-;           by decorating programs with their undead-set trees.
+; Input:    asm-pred-lang-v4/locals
+; Output:   asm-pred-lang-v4/undead
+; Purpose:  Performs undeadness analysis, decorating the program with undead-set tree. 
+;           Only the info field of the program is modified.
+; M3 > M4   Handle the new pred syntax. Undead-analysis tree needs to process branches and integrate.
 (define (undead-analysis p)
 
   ; Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
-      [`(module ,locals ,defines ... ,tail)
+      [`(module ,locals ,tail)
         (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
        `(module ,(info-set locals `undead-out ust)
-                ,@(map undead-def defines)
-                ,tail)]))
-
-  (define (undead-def d)
-    (match d
-      [`(define ,label ,locals ,tail)
-        (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
-       `(define ,label ,(info-set locals `undead-out ust) ,tail)]))
+                 ,tail)]))
 
   ; Takes a tail and produces the undead-set tree from the effects
   ; Return: (values undead-set-tree? undead-set?)
   ; i.e. (<tree for tail> <set for next effect>)
   (define (undead-tail t)
     (match t
-      [`(halt ,opand)       
-        (if (number? opand)
-            (values '() '())
-            (values '() `(,opand)))]
+      [`(halt ,triv)       
+        (if (aloc? triv)
+            (values '() `(,triv))
+            (values '() '()))]
       [`(begin ,effects ... ,tail)
         (define-values (tailUst tIn) (undead-tail tail))
  
@@ -443,9 +437,7 @@
         (define-values (tail2Ust t2In) (undead-tail tail2)) ; process tail1 and tail2 separately
         (define-values (tail1Ust t1In) (undead-tail tail1))
         (define-values (predUst predIn) (undead-pred (set-union t1In t2In) pred)) ; pass their combined result into pred
-        (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]
-      [`(jump ,trg ,loc ...)
-        (values '() loc)]))
+        (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]))
 
   ; Given a pred, return the corresponding undead-out tree.
   ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.
@@ -453,11 +445,11 @@
   ; i.e. (<tree for pred> <set for next effect>)
   (define (undead-pred undead-out pr)
     (match pr
-      [`(,relop ,loc ,opand) #:when (relop? relop)
-        (define add-loc (set-add undead-out loc))
-        (if (number? opand)
-          (values undead-out add-loc)
-          (values undead-out (set-add add-loc opand)))]
+      [`(,relop ,aloc ,triv) #:when (relop? relop)
+        (define add-aloc (set-add undead-out aloc))
+        (if (number? triv)
+          (values undead-out add-aloc)
+          (values undead-out (set-add add-aloc triv)))]
       [`(,bool) #:when (and (member bool '(true false)) #t)
         (values undead-out undead-out)]
       [`(not ,pred)
@@ -485,15 +477,15 @@
   ; i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
-      [`(set! ,loc (,binop ,loc ,opand))
-        (let ([newSet (if (number? opand)
-                          (set-add undead-out loc)
-                          (set-add (set-add undead-out opand) loc))])
-          (values undead-out newSet))]
-      [`(set! ,loc ,triv)
+      [`(set! ,aloc (,binop ,aloc ,triv))
         (let ([newSet (if (number? triv)
-                      (set-remove undead-out loc)
-                      (set-remove (set-add undead-out triv) loc))])
+                          (set-add undead-out aloc)
+                          (set-add (set-add undead-out triv) aloc))])
+          (values undead-out newSet))]
+      [`(set! ,aloc ,triv)
+        (let ([newSet (if (number? triv)
+                      (set-remove undead-out aloc)
+                      (set-remove (set-add undead-out triv) aloc))])
           (values undead-out newSet))]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
@@ -776,13 +768,8 @@
   
   (define (seq-p p)
     (match p
-      [`(module ,defines ... ,tail)
-          `(module ,@(map seq-def defines) ,(seq-t tail))]))
-
-  (define (seq-def d)
-    (match d
-      [`(define ,label (lambda (,aloc ...) ,tail))
-       `(define ,label (lambda (,aloc ...) ,(seq-t tail)))]))
+      [`(module ,tail)
+          `(module ,(seq-t tail))]))
 
   ; Return an instruction
   (define (seq-t t)
@@ -811,12 +798,14 @@
   ; Return an instruction, given a pair of an aloc and its value.
   (define (seq-bind b)
     (match b
+      [`(,aloc ,triv) #:when (or (number? triv) (aloc? triv))
+        `(set! ,aloc ,triv)]
+      [`(,aloc (,binop ...)) #:when (and (member (first binop) '(+ *)) #t)
+        `(set! ,aloc ,binop)]
       [`(,aloc1 (let ([,aloc ,value] ...) ,val))
         `(set! ,aloc1
                (begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
-                      ,(seq-v val)))]
-      [`(,aloc ,value)
-        `(set! ,aloc ,(seq-v value))]))
+                      ,(seq-v val)))]))
 
   (define (seq-v v)
     (match v
@@ -839,13 +828,8 @@
 
   (define (n-bind-p p)
     (match p
-      [`(module ,defines ... ,tail)
-          `(module ,@(map n-bind-def defines) ,(n-bind-t tail))]))
-
-  (define (n-bind-def d)
-    (match d
-      [`(define ,label (lambda (,aloc ...) ,tail))
-       `(define ,label (lambda (,aloc ...) ,(n-bind-t tail)))]))
+      [`(module ,tail)
+          `(module ,(n-bind-t tail))]))
   
   ; Return an instruction
   (define (n-bind-t t)
@@ -893,24 +877,19 @@
 
   (n-bind-p p))
 
-; Input:   imp-cmf-lang-v5
-; Output:  asm-pred-lang-v5
-; Purpose: Compiles Imp-cmf-lang v5 to Asm-pred-lang v5, selecting appropriate sequences of
+; Input:   imp-cmf-lang-v4
+; Output:  asm-pred-lang-v4
+; Purpose: Compiles Imp-cmf-lang v4 to Asm-pred-lang v4, selecting appropriate sequences of 
 ;          abstract assembly instructions to implement the operations of the source language.
 (define (select-instructions p)
 
   (define (sel-ins-p p)
     (match p
-      [`(module ,defines ... ,tail)
+      [`(module ,tail)
         (if (or (number? tail) (aloc? tail) (equal? (first tail) 'if))
-          `(module () ,@(map sel-ins-def defines) ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
-          `(module () ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
+          `(module () ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
+          `(module () (begin ,@(sel-ins-t tail))))]))
   
-  (define (sel-ins-def d)
-    (match d
-      [`(define ,label ,tail)
-       `(define ,label ,@(sel-ins-t tail))]))
-
   ; Return a list of instructions
   (define (sel-ins-t t)
     (match t
@@ -925,8 +904,7 @@
       [`(if ,pred ,tail1 ,tail2)
         (define tailRes1 (wrap (sel-ins-t tail1)))
         (define tailRes2 (wrap (sel-ins-t tail2)))
-       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]
-      [_ t])) ; (jump trg loc ...)
+       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]))
   
   (define (sel-ins-v v aloc)
     (match v
@@ -937,17 +915,18 @@
 
   (define (sel-ins-pr pr)
     (match pr
+      [`(,bool) #:when (and (member bool '(true false)) #t)
+        pr]
       [`(not ,pred)
        `(not ,(sel-ins-pr pred))]
-      [`(,relop ,opand1 ,opand2) #:when (relop? relop)
+      [`(,relop ,triv1 ,triv2) #:when (relop? relop)
         (define getfresh (fresh))
-       `(begin (set! ,getfresh ,opand1) 
-               (,relop ,getfresh ,opand2))]
+       `(begin (set! ,getfresh ,triv1) 
+               (,relop ,getfresh ,triv2))]
       [`(begin ,effects ... ,pred)
        `(begin ,@(map wrap (map sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
-       `(if ,@(map sel-ins-pr preds))]
-      [_ pr])) ; bool
+       `(if ,@(map sel-ins-pr preds))]))
   
   ; Return a sequence of instructions dealing with a binop,
   ; Given an aloc to use.
@@ -962,11 +941,11 @@
   ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
     (match e
-      [`(set! ,loc (,binop ...))
-        (sel-ins-b binop loc)]
+      [`(set! ,aloc (,binop ...))
+        (sel-ins-b binop aloc)]
       [`(begin ,eff ...)  ; flatten nested begins
         `(,@(splice-mapped-list (map sel-ins-e eff)))]
-      [`(set! ,loc ,triv) `(,e)]
+      [`(set! ,aloc ,triv) `(,e)]
       [`(if ,pred ,effect1 ,effect2)
         ; wrap the effect result in (begin ) if it is multiple instructions.
         ; do NOT flatten begins if the effect was already a (begin ).
@@ -1004,7 +983,14 @@
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,tail)
-       `(module ,(replace-loc-t tail info))]))
+       `(module ,(replace-loc-t tail info))]
+      [`(module ,info ,label ... ,tail)
+       `(module ,@(map replace-loc-l label) ,(replace-loc-t tail info))]))
+
+  (define (replace-loc-l l)
+    (match l
+      [`(define ,label ,info ,tail)
+       `(define ,label ,(replace-loc-t tail info))]))
 
   (define (get-repl aloc as)
     ; given an abstract location 'aloc' return its replacement as defined
@@ -1018,17 +1004,19 @@
     (match t
       [`(begin ,effects ... ,tail)
         `(begin ,@(map (curry replace-loc-e as) effects) ,(replace-loc-t tail as))]
-      [`(halt ,triv)
-        (if (aloc? triv) `(halt ,(get-repl triv as)) `(halt ,triv))]
+      [`(halt ,opand)
+        `(halt ,(replace-loc opand as))]
       [`(if ,pred ,tail1 ,tail2)
-        `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]))
+        `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]
+      [`(jump ,trg ,loc ...)
+        `(jump ,(replace-loc trg as))]))
 
   (define (replace-loc-e as e)
     (match e
-      [`(set! ,aloc ,triv) #:when (or (number? triv) (aloc? triv))
-        `(set! ,(get-repl aloc as) ,(if (aloc? triv) (get-repl triv as) triv))]
-      [`(set! ,aloc (,binop ...))
-        `(set! ,(get-repl aloc as) ,(replace-loc-b binop as))]
+      [`(set! ,loc_1 (,binop ,loc_1 ,opand))
+        `(set! ,(replace-loc loc_1 as) (,binop ,(replace-loc loc_1 as) ,(replace-loc opand as)))]
+      [`(set! ,loc ,triv)
+        `(set! ,(replace-loc loc as) ,(replace-loc triv as))]
       [`(begin ,effects ...)
         `(begin ,@(map (curry replace-loc-e as) effects))]
       [`(if ,pred ,effect1 ,effect2)
@@ -1042,17 +1030,15 @@
         `(not ,(replace-loc-pred as pred))]
       [`(begin ,effect ... ,pred)
         `(begin ,@(map (curry replace-loc-e as) effect) ,(replace-loc-pred as pred))]
-      [`(,relop ,aloc ,triv)
-        `(,relop ,(get-repl aloc as) ,(if (aloc? triv) (get-repl triv as) triv))]
+      [`(,relop ,loc ,opand)
+        `(,relop ,(replace-loc loc as) ,(replace-loc opand as))]
       [`(true)
         `(true)]
       [`(false)
         `(false)]))
 
-  (define (replace-loc-b b as)
-    (match b
-      [`(,binop ,aloc1 ,triv)
-          `(,binop ,(get-repl aloc1 as) ,(if (aloc? triv) (get-repl triv as) triv))]))
+  (define (replace-loc loc as)
+    (if (aloc? loc) (get-repl loc as) loc))
 
   (replace-loc-p p))
 
