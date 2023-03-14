@@ -445,7 +445,9 @@
         (define-values (predUst predIn) (undead-pred (set-union t1In t2In) pred)) ; pass their combined result into pred
         (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]
       [`(jump ,trg ,loc ...)
-        (values '() loc)]))
+        (if (label? trg) ; exclude labels from the set
+          (values loc loc)
+          (values loc (cons trg loc)))]))
 
   ; Given a pred, return the corresponding undead-out tree.
   ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.

@@ -330,3 +330,69 @@
                 (halt x.1)))))
 
 ; M5 Tests
+
+(test-case "undead 16"
+   (check-equal?
+        (undead-analysis
+            `(module ((locals ())) (halt rsp)))
+        
+        `(module ((locals ()) (undead-out ())) (halt rsp))))
+
+(test-case "undead 17"
+   (check-equal?
+        (undead-analysis
+            `(module ((locals (x.1)))
+                (begin
+                    (set! x.4 x.5)
+                    (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
+                    (jump L.start.1 rsp))))
+        
+        `(module
+            ((locals (x.1))
+            (undead-out ((b.3 c.4 z.3 x.3 rsp) ((z.3 x.3 rsp) (rsp) (rsp)) (rsp))))
+            (begin
+                (set! x.4 x.5)
+                (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
+                (jump L.start.1 rsp)))))
+
+(test-case "undead 18"
+   (check-equal?
+        (undead-analysis
+            `(module ((locals (x.1 y.2 x.4 x.5)))
+                (begin
+                    (set! x.4 x.5)
+                    (jump x.1 rsp fv1 y.1))))
+        
+        `(module
+            ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 rsp fv1 y.1) (rsp fv1 y.1))))
+            (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
+
+(test-case "undead 19"
+   (check-equal?
+        (undead-analysis
+            `(module ((locals (x.1 y.2 x.4 x.5)))
+                     (define L.start.1 ((locals (x.1 x.2)))
+                                       (begin (set! x.1 5) 
+                                              (set! x.2 10) 
+                                              (set! x.1 (+ x.1 x.2)) 
+                                              (halt x.2)))
+                     (define L.start.2 ((locals (x.1 y.2 b.3 c.4)))
+                                       (if (begin (set! x.1 2)
+                                                  (set! y.2 3)
+                                                  (> y.2 x.1)) 
+                                           (halt x.1) 
+                                           (halt c.4)))
+                     (begin
+                        (set! x.4 x.5)
+                        (jump x.1 rsp fv1 y.1))))
+        
+        `(module
+            ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 y.1 fv1 rsp) (y.1 fv1 rsp))))
+            (define L.start.1
+                ((locals (x.1 x.2)) (undead-out ((x.1) (x.1 x.2) (x.2) ())))
+                (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))
+            (define L.start.2
+                ((locals (x.1 y.2 b.3 c.4))
+                (undead-out (((c.4 x.1) (y.2 c.4 x.1) (c.4 x.1)) () ())))
+                (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
+            (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
