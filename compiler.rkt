@@ -535,7 +535,7 @@
       [`(module ((locals ,locals) (undead-out ,undead)) ,defines ... ,tail)
         `(module ((locals ,locals) 
                   (conflicts ,(c-analysis-t undead (new-graph locals) tail)))
-                 ,@(c-analysis-def defines)
+                 ,@(map c-analysis-def defines)
                  ,tail)]))
   
   (define (c-analysis-def d)
@@ -544,8 +544,7 @@
        `(define ,label 
                 ((locals ,locals) 
                  (conflicts ,(c-analysis-t undead (new-graph locals) tail))) 
-                ,tail)]
-      [_ '()]))
+                ,tail)]))
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
   ; graph   : a graph of the conflicts found so far.

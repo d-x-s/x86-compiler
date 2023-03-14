@@ -237,3 +237,83 @@
                     (halt 10)
                     (halt 12))
                 (begin (set! tmp.83 x.37) (set! tmp.83 (+ tmp.83 y.38)) (halt tmp.83)))))))
+
+; M5 tests
+
+(test-case "conflict 9"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((locals (x.1))
+                (undead-out ((b.3 c.4 z.3 x.3 rsp) ((z.3 x.3 rsp) (rsp) (rsp)) (rsp))))
+                (begin
+                    (set! x.4 x.5)
+                    (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
+                    (jump L.start.1 rsp))))
+        `(module
+            ((locals (x.1))
+            (conflicts
+                ((x.1 ())
+                (x.4 (rsp x.3 z.3 c.4 b.3))
+                (b.3 (x.4))
+                (c.4 (x.4))
+                (z.3 (x.4))
+                (x.3 (x.4))
+                (rsp (z.5 x.2 x.4))
+                (x.2 (rsp))
+                (z.5 (rsp)))))
+            (begin
+                (set! x.4 x.5)
+                (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
+                (jump L.start.1 rsp)))))
+
+(test-case "conflict 10"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 rsp fv1 y.1) (rsp fv1 y.1))))
+                (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1))))
+        `(module
+            ((locals (x.1 y.2 x.4 x.5))
+            (conflicts
+                ((x.5 ())
+                (x.4 (y.1 fv1 rsp x.1))
+                (y.2 ())
+                (x.1 (x.4))
+                (rsp (x.4))
+                (fv1 (x.4))
+                (y.1 (x.4)))))
+            (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
+
+(test-case "conflict 11"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 y.1 fv1 rsp) (y.1 fv1 rsp))))
+                (define L.start.1
+                    ((locals (x.1 x.2)) (undead-out ((x.1) (x.1 x.2) (x.2) ())))
+                    (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))
+                (define L.start.2
+                    ((locals (x.1 y.2 b.3 c.4))
+                    (undead-out (((c.4 x.1) (y.2 c.4 x.1) (c.4 x.1)) () ())))
+                    (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
+                (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1))))
+        `(module
+            ((locals (x.1 y.2 x.4 x.5))
+            (conflicts
+                ((x.5 ())
+                (x.4 (rsp fv1 y.1 x.1))
+                (y.2 ())
+                (x.1 (x.4))
+                (y.1 (x.4))
+                (fv1 (x.4))
+                (rsp (x.4)))))
+            (define L.start.1
+                ((locals (x.1 x.2))
+                (conflicts ((x.2 (x.1)) (x.1 (x.2)))))
+                (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))
+            (define L.start.2
+                ((locals (x.1 y.2 b.3 c.4))
+                (conflicts ((c.4 (y.2 x.1)) (b.3 ()) (y.2 (x.1 c.4)) (x.1 (y.2 c.4)))))
+                (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
+            (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))

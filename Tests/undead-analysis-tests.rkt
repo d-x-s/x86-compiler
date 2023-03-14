@@ -387,7 +387,7 @@
                         (jump x.1 rsp fv1 y.1))))
         
         `(module
-            ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 y.1 fv1 rsp) (y.1 fv1 rsp))))
+            ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 rsp fv1 y.1) (rsp fv1 y.1))))
             (define L.start.1
                 ((locals (x.1 x.2)) (undead-out ((x.1) (x.1 x.2) (x.2) ())))
                 (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))
@@ -396,3 +396,4 @@
                 (undead-out (((c.4 x.1) (y.2 c.4 x.1) (c.4 x.1)) () ())))
                 (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
+
