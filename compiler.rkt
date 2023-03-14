@@ -840,11 +840,10 @@
   (seq-p p))
 
 
-; Input:   imp-mf-lang-v4
-; Output:  imp-cmf-lang-v4
-; Compiles Imp-mf-lang v4 to Imp-cmf-lang v4, pushing set! under begin and if so that
-; the right-hand-side of each set! is a simple value-producing operation.
-; M3 > M4 : handle predicates. Push if above set.
+; Input:   imp-mf-lang-v5
+; Output:  proc-imp-cmf-lang-v5
+; Purpose: Compiles Imp-mf-lang v5 to Proc-imp-cmf-lang v5, pushing set! under 
+;          begin so that the right-hand-side of each set! is simple value-producing operation.
 (define (normalize-bind p)
 
   (define (n-bind-p p)
@@ -855,7 +854,7 @@
   (define (n-bind-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
-       `(define ,label (lambda (,aloc ...) ,(n-bind-t tail)))]))
+       `(define ,label (lambda ,aloc ,(n-bind-t tail)))]))
   
   ; Return an instruction
   (define (n-bind-t t)
@@ -864,6 +863,8 @@
        `(begin ,@(map n-bind-e eff) ,(n-bind-t tail))]
       [`(if ,pred ,tail1 ,tail2)
        `(if ,(n-bind-pr pred) ,(n-bind-t tail1) ,(n-bind-t tail2))]
+      [`(call ,triv ,opand ...)
+        t]
       [value
         (n-bind-v value)]))
   

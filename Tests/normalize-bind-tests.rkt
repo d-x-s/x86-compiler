@@ -180,3 +180,36 @@
             `(module (call x.5 1 2 3)))
         
         `(module (call x.5 1 2 3))))
+
+(test-case "normalize 15"
+   (check-equal?
+        (normalize-bind
+            `(module 
+                (define L.start.1 (lambda (x.1 x.2)
+                                          (begin 
+                                            (set! x.5 (if (true) 
+                                                        (begin (set! y.2 14) 12) 
+                                                        (begin 15))) 
+                                            x.5)))
+                (define L.start.2 (lambda () (begin 
+                                                (if (true) 
+                                                    (set! x.3 (begin 
+                                                                (set! y.4 (begin (set! z.4 (+ 4 5)) z.4)) 
+                                                                y.4)) 
+                                                    (set! x.3 y.7)) x.3)))
+                (call x.5 1 2 3)))
+        
+        `(module
+            (define L.start.1
+                (lambda (x.1 x.2)
+                (begin
+                    (if (true) (begin (set! y.2 14) (set! x.5 12)) (begin (set! x.5 15)))
+                    x.5)))
+            (define L.start.2
+                (lambda ()
+                (begin
+                    (if (true)
+                    (begin (begin (set! z.4 (+ 4 5)) (set! y.4 z.4)) (set! x.3 y.4))
+                    (set! x.3 y.7))
+                    x.3)))
+            (call x.5 1 2 3))))
