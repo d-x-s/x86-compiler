@@ -675,43 +675,75 @@
   (assign-p p))
 
 
-; Input:   Values-lang v4
-; Output:  Values-unique-lang v4
-; Purpose: Compiles Values-lang v4 to Values-unique-lang v4 by resolving all lexical 
-;          identifiers to abstract locations
+; Input:   Values-lang-v5
+; Output:  Values-unique-lang v5
+; Purpose: Compiles Values-lang v5 to Values-unique-lang v5 by resolving top-level lexical identifiers 
+;          into unique labels, and all other lexical identifiers into unique abstract locations.
 
 ; M3 > M4
 ; - added support for predicate expressions
 ; - Values-lang v3/v4 Diff:        https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-lang-v3&lang2=Values-lang-v4
 ; - Values-unique-lang v3/v4 Diff: https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-unique-lang-v3&lang2=Values-unique-lang-v4
+
+; M4 > M5
+; - need to compile names to labels rather than abstract locations
+; - add support for calls (extend values-lang-v4 with tail calls, a procedure call in the tail position)
+; - a program is now list of define statements, as opposed to a single tail
 (define (uniquify p) 
+
+  (define label-binds-box (box '()))
 
   ; Input: tail, a list of possibly nested let statements
   ; Output: Values-unique-lang-v3
   ; Purpose: matches on p, which is a list of (nested) let statements
   (define (uniquify-p p dict-acc)
     (match p
-      [`(module ,t ...)
-       `(module ,@(map (lambda (t) (uniquify-tail t dict-acc)) t))]))
+      [`(module ,def ... ,t)
+        (define uniquified-labels (map (lambda (d) (uniquify-define-labels d dict-acc)) def))
+       `(module ,@(map (lambda (d) (uniquify-define d dict-acc)) uniquified-labels)
+                ,(uniquify-tail t dict-acc))]))
+
+  ; Purpose: generate unique labels for the define statements blocks
+  (define (uniquify-define-labels def def-binds)
+    (match def
+      [`(define ,x (lambda (,xs ...) ,tail))
+        (define label-binds (unbox label-binds-box))
+        (if (dict-has-key? label-binds x)
+            (set-box! label-binds-box label-binds)
+            (set-box! label-binds-box (dict-set label-binds x (fresh-label x))))
+       `(define ,(dict-ref (unbox label-binds-box) x) (lambda (,@xs) ,tail))]))
+  
+  ; Purpose: generate unique alocs for the variables in the define statement bodies
+  (define (uniquify-define def def-binds)
+    (match def
+      [`(define ,uniquified-label (lambda (,xs ...) ,t))
+        (define new-def-binds (construct-binds xs def-binds))
+       `(define ,uniquified-label
+                (lambda ,(map (lambda (x) (dict-ref new-def-binds x)) xs) 
+                        ,(uniquify-tail t new-def-binds)))]))
 
   ; Input: value, a let statement or a binary operation
   ; Output: uniquified version of this expression
   ; Purpose: recursively uniquify a single expression
   (define (uniquify-tail t binds)
     (match t 
-      [`(let ([,as ,vs] ...) ,body)
+      [`(let ([,as ,vs] ...) ,tail)
         (define new-binds (construct-binds as binds)) 
         `(let ,(for/list ([a as][v vs])
-                        `[,(dict-ref new-binds a) ,(uniquify-tail v binds)])     
-              ,(uniquify-tail body new-binds))]          
+                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
+              ,(uniquify-tail tail new-binds))]          
       
       [`(if ,p ,t1 ,t2)
        `(if ,(uniquify-pred p  binds)
             ,(uniquify-tail      t1 binds) 
             ,(uniquify-tail      t2 binds))]
       
+      [`(call ,vs ...)
+       `(call ,@(map (lambda (v) (uniquify-value v (unbox label-binds-box))) vs))]
+      
       [value (uniquify-value value binds)]))
 
+  ; Purpose: uniquify a single value
   (define (uniquify-value v binds)
     (match v
        [`(if ,p ,v1 ,v2)
@@ -719,14 +751,21 @@
              ,(uniquify-value     v1 binds)
              ,(uniquify-value     v2 binds))]
 
-       [`(,binop ,triv1 ,triv2)
-       `(,binop ,(update-bind triv1 binds) ,(update-bind triv2 binds))]
+       [`(,binop ,opand1 ,opand2)
+        `(,binop ,(update-bind opand1 binds) ,(update-bind opand2 binds))]
+
+      [`(let ([,as ,vs] ...) ,body)
+        (define new-binds (construct-binds as binds)) 
+        `(let ,(for/list ([a as][v vs])
+                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
+              ,(uniquify-value body new-binds))]   
 
        [triv
         (update-bind triv binds)]
       )
   )
 
+  ; Purpose: uniquify a predicate
   (define (uniquify-pred p binds)
     (match p
       [`(,relop ,triv1 ,triv2)
@@ -752,7 +791,7 @@
             ,(uniquify-pred p3 binds))]))
 
   ; Input: triv and binding dictionary
-  ; Output: int64 or aloc
+  ; Output: int64 or aloc, opand, or label
   ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
   (define (update-bind x binds)
     (match x
