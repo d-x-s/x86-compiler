@@ -213,8 +213,8 @@
 
   (optimize-p p))
 
-; Input: nested-asm-lang-v4
-; Output: block-pred-lang-v4
+; Input: nested-asm-lang-v5
+; Output: block-pred-lang-v5
 ; Purpose: Compile the Nested-asm-lang v4 to Block-pred-lang v4,
 ; eliminating all nested expressions by generating fresh basic blocks and jumps.
 (define (expose-basic-blocks p)
@@ -231,17 +231,25 @@
 
   (define (expose-p p)
     (match p
-      [`(module ,tail)
+      [`(module ,defines ... ,tail)
+        (map expose-def! (reverse defines))
         (define tailRes (expose-t tail))
         (add-new-block! (fresh-label '__main) tailRes)
        `(module ,@result-acc)]))
+
+  (define (expose-def! d)
+    (match d
+      [`(define ,label ,tail)
+        (define tailRes (expose-t tail))
+        (add-new-block! label tailRes)]))
 
   ; Given a tail, recursively generate blocks. 
   ; Returns the tail block instructions to be used to make a block by the caller
   ; of this function. 
   (define (expose-t t)
     (match t
-      [`(halt ,triv) `(,t)]
+      [`(halt ,opand) `(,t)]
+      [`(jump ,trg) `(,t)]
       [`(begin ,effects ... ,tail)
         (expose-effects effects (expose-t tail))]
       [`(if ,pred ,tail1 ,tail2)
