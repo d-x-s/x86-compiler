@@ -98,22 +98,29 @@
 
 ; Input:   nested-asm-lang-v5
 ; Output:  nested-asm-lang-v5
-; Purpose: Optimize Nested-asm-lang v4 programs by analyzing and simplifying predicates.
+; Purpose: Optimize Nested-asm-lang v5 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
 
   (define (optimize-p p)
     (match p
-      [`(module ,tail)
-       `(module ,(optimize-t tail #hash()))]))
+      [`(module ,defines ... ,tail)
+       `(module ,@(map optimize-def defines) ,(optimize-t tail #hash()))]))
+
+  (define (optimize-def d)
+    (match d
+      [`(define ,label ,tail)
+       `(define ,label ,(optimize-t tail #hash()))]))
 
   (define (optimize-t t env)
     (match t
-      [`(halt ,triv) #:when (number? triv)
+      [`(halt ,opand) #:when (number? opand)
         t]
-      [`(halt ,triv) ; triv is reg or fvar
-       `(halt ,(if (and (dict-has-key? env triv) (number? (dict-ref env triv))) 
-                    (dict-ref env triv)
-                    triv))]
+      [`(halt ,opand) ; opand is reg or fvar
+       `(halt ,(if (and (dict-has-key? env opand) (number? (dict-ref env opand))) 
+                    (dict-ref env opand)
+                    opand))]
+      [`(jump ,trg)
+        t]
       [`(begin ,effects ... ,tail)
         (define-values (effRes new-env)
           (for/fold ([acc '()] ; list of processed effects
@@ -614,16 +621,11 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v4/conflicts
-; Output:   asm-pred-lang-v4/assignments
+; Input:    asm-pred-lang-v5/conflicts
+; Output:   asm-pred-lang-v5/assignments
 ; Purpose:  Performs graph-colouring register allocation. 
 ;           The pass attempts to fit each of the abstract location declared in the locals 
 ;           set into a register, and if one cannot be found, assigns it a frame variable instead.
-
-; M3 > M4 
-; - the allocator should run the same algorithm as before. 
-; - since the allocator doesn’t traverse programs, it shouldn’t need any changes.
-
 ; M4 > M5
 ; - The allocator simply runs the same algorithm as before, but this time, on each block’s conflict graph, separately
 ; - add support for blocks and by extension opands and jumps
