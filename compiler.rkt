@@ -830,7 +830,7 @@
   (define (seq-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
-       `(define ,label (lambda (,aloc ...) ,(seq-t tail)))]))
+       `(define ,label (lambda ,aloc ,(seq-t tail)))]))
 
   ; Return an instruction
   (define (seq-t t)

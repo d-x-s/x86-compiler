@@ -146,20 +146,45 @@
 (test-case "sequentialize 13"
    (check-equal?
         (sequentialize-let
-            `(module (let ((foo.1 1)) (+ foo.1 foo.1))))
+            `(module (let ((x.5 10)) (call x.5 2 3 4))))
         
-        `(module (begin (set! foo.1 1) (+ foo.1 foo.1)))))
+        `(module (begin (set! x.5 10) (call x.5 2 3 4)))))
 
 (test-case "sequentialize 14"
    (check-equal?
         (sequentialize-let
-            `(module (let ((x.5 10)) x.5)))
+            `(module 
+                (define L.id1.2 (lambda (x.10) x.10)) 
+                (define L.id2.3 (lambda (x.11) x.11)) 
+                (let ((y.12 (if (true) L.id1.2 L.id2.3))) (call y.12 5))))
         
-        `(module (begin (set! x.5 10) x.5))))
+        `(module
+            (define L.id1.2 (lambda (x.10) x.10))
+            (define L.id2.3 (lambda (x.11) x.11))
+            (begin (set! y.12 (if (true) L.id1.2 L.id2.3)) (call y.12 5)))))
 
 (test-case "sequentialize 15"
    (check-equal?
         (sequentialize-let
-            `(module (let ((x.5 10)) (call x.5 2 3 4))))
+            `(module 
+                (define L.id1.2 (lambda (x.10) x.10)) 
+                (define L.id2.3 (lambda (x.11) (let ((x.48 1)) 
+                                                    (let ((y.49 (let ((z.50 3)) z.50))) 
+                                                        (let ((z.51 (let ((y.52 2)) (+ y.52 y.52)))) 
+                                                                (if (let ((x.53 6)) (> x.53 7)) 
+                                                                    9 
+                                                                    10)))))) 
+                (let ((y.12 (if (true) L.id1.2 L.id2.3))) (call y.12 5))))
         
-        `(module (begin (set! x.5 10) (call x.5 2 3 4)))))
+        `(module
+            (define L.id1.2 (lambda (x.10) x.10))
+            (define L.id2.3
+                (lambda (x.11)
+                (begin
+                    (set! x.48 1)
+                    (begin
+                    (set! y.49 (begin (set! z.50 3) z.50))
+                    (begin
+                        (set! z.51 (begin (set! y.52 2) (+ y.52 y.52)))
+                        (if (begin (set! x.53 6) (> x.53 7)) 9 10))))))
+            (begin (set! y.12 (if (true) L.id1.2 L.id2.3)) (call y.12 5)))))
