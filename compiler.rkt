@@ -621,16 +621,11 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v4/conflicts
-; Output:   asm-pred-lang-v4/assignments
+; Input:    asm-pred-lang-v5/conflicts
+; Output:   asm-pred-lang-v5/assignments
 ; Purpose:  Performs graph-colouring register allocation. 
 ;           The pass attempts to fit each of the abstract location declared in the locals 
 ;           set into a register, and if one cannot be found, assigns it a frame variable instead.
-
-; M3 > M4 
-; - the allocator should run the same algorithm as before. 
-; - since the allocator doesn’t traverse programs, it shouldn’t need any changes.
-
 ; M4 > M5
 ; - The allocator simply runs the same algorithm as before, but this time, on each block’s conflict graph, separately
 ; - add support for blocks and by extension opands and jumps
