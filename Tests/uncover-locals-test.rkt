@@ -76,7 +76,6 @@
     
     '(module ((locals ())) (jump L.start.1 rax x.1 x.5 rcx x.3))))
 
-;locals sets are equivalent but check-equal checks for order
 (test-case "uncover 9"
   (check-equal?
     (uncover-locals
@@ -89,7 +88,7 @@
             (jump L.start.14 x.11 rax x.100))))
     
     '(module
-      ((locals (x.11 x.12 x.7 x.1 x.4)))
+      ((locals (x.1 x.4 x.7 x.12 x.11))) 
       (begin
         (set! rax L.start.1)
         (set! x.1 x.4)
