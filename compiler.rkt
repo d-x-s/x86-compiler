@@ -98,22 +98,29 @@
 
 ; Input:   nested-asm-lang-v5
 ; Output:  nested-asm-lang-v5
-; Purpose: Optimize Nested-asm-lang v4 programs by analyzing and simplifying predicates.
+; Purpose: Optimize Nested-asm-lang v5 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
 
   (define (optimize-p p)
     (match p
-      [`(module ,tail)
-       `(module ,(optimize-t tail #hash()))]))
+      [`(module ,defines ... ,tail)
+       `(module ,@(map optimize-def defines) ,(optimize-t tail #hash()))]))
+
+  (define (optimize-def d)
+    (match d
+      [`(define ,label ,tail)
+       `(define ,label ,(optimize-t tail #hash()))]))
 
   (define (optimize-t t env)
     (match t
-      [`(halt ,triv) #:when (number? triv)
+      [`(halt ,opand) #:when (number? opand)
         t]
-      [`(halt ,triv) ; triv is reg or fvar
-       `(halt ,(if (and (dict-has-key? env triv) (number? (dict-ref env triv))) 
-                    (dict-ref env triv)
-                    triv))]
+      [`(halt ,opand) ; opand is reg or fvar
+       `(halt ,(if (and (dict-has-key? env opand) (number? (dict-ref env opand))) 
+                    (dict-ref env opand)
+                    opand))]
+      [`(jump ,trg)
+        t]
       [`(begin ,effects ... ,tail)
         (define-values (effRes new-env)
           (for/fold ([acc '()] ; list of processed effects
