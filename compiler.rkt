@@ -739,7 +739,7 @@
             ,(uniquify-tail      t2 binds))]
       
       [`(call ,vs ...)
-       `(call ,@(map (lambda (v) (uniquify-value v (unbox label-binds-box))) vs))]
+       `(call ,@(map (lambda (v) (uniquify-value v binds)) vs))]
       
       [value (uniquify-value value binds)]))
 
@@ -752,7 +752,8 @@
              ,(uniquify-value     v2 binds))]
 
        [`(,binop ,opand1 ,opand2)
-        `(,binop ,(update-bind opand1 binds) ,(update-bind opand2 binds))]
+         #:when (or (equal? binop '*) (equal? binop '+))
+        `(,binop ,(uniquify-value opand1 binds) ,(uniquify-value opand2 binds))]
 
       [`(let ([,as ,vs] ...) ,body)
         (define new-binds (construct-binds as binds)) 
@@ -770,7 +771,7 @@
     (match p
       [`(,relop ,triv1 ,triv2)
       #:when (relop? relop)
-      `(,relop ,(update-bind triv1 binds) ,(update-bind triv2 binds))]
+      `(,relop ,(uniquify-value triv1 binds) ,(uniquify-value triv2 binds))]
 
       [`(true)  `(true)]
 
@@ -796,15 +797,7 @@
   (define (update-bind x binds)
     (match x
       [(? integer?) x]
-      [(? symbol?) (lookup-bind x binds)]))
-
-  ; Input: aloc
-  ; Output: aloc
-  ; Purpose: returns the mapped binding at the current scope (if it exists in the dictionary)
-  (define (lookup-bind x binds)
-    (if (and (name? x) (dict-has-key? binds x)) 
-        (dict-ref binds x)                      
-        x)) 
+      [(? symbol?) (assign-aloc-or-label x binds)]))
 
   ; Input: aloc and binding dictionary
   ; Output: a new binding dictionary
@@ -812,7 +805,13 @@
   (define (construct-binds xs binds)
     (for/fold ([new-binds binds]) ; accumulator
               ([x xs])            ; x is an element, xs is the list
-      (dict-set new-binds x (fresh x))))                                    
+      (dict-set new-binds x (fresh x))))    
+
+  ; Purpose: lookup the associated key in a binding dictionary, prioritizng label binds first 
+  (define (assign-aloc-or-label x binds)
+    (if (dict-has-key? (unbox label-binds-box) x)
+        (dict-ref (unbox label-binds-box) x)
+        (dict-ref binds x)))                                
 
   (uniquify-p p '()))
 

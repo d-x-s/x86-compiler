@@ -2,7 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../../compiler.rkt"
+ rackunit "../compiler.rkt"
 )
 
 (test-case "uniquify 1"
@@ -133,4 +133,54 @@
         (call L.x.9 10 20 30 40 50))
     )
 )
+
+(test-case "uniquify 8"
+    (check-match
+      (uniquify 
+        '(module 
+            (define id1 (lambda (x) x)) 
+            (define id2 (lambda (x) x)) 
+            (let ((y (if (true) id1 id2))) (call y 5))))
+
+     `(module
+        (define ,L.id1.1 (lambda (,x.1) ,x.1))
+        (define ,L.id2.2 (lambda (,x.2) ,x.2))
+        (let ((,y.3 (if (true) ,L.id1.1 ,L.id2.2))) (call ,y.3 5)))
+    )
+)
+
+(test-case "uniquify 9"
+    (check-match
+     (uniquify '(module 
+                    (define id (lambda (x) x)) 
+                    (let ((y id)) (call y 5))))
+
+     `(module 
+        (define ,L.id.1 (lambda (,x.1) ,x.1)) 
+        (let ((,y.2 ,L.id.1)) (call ,y.2 5)))
+    )
+)
+
+(test-case "uniquify 10"
+    (check-match
+     (uniquify '(module 
+                    (let ((foo (let ((bar 1)) bar)) (bar 2)) (+ foo bar))))
+
+     `(module (let ((,foo.2 (let ((,bar.3 1)) ,bar.3)) (,bar.1 2)) (+ ,foo.2 ,bar.1)))
+    )
+)
+
+(test-case "uniquify 11"
+    (check-match
+        (uniquify '(module (let ((x 1)) (let ((y (let ((z 3)) z))) (let ((z (let ((y 2)) (+ y y)))) (if (let ((x 6)) (> x 7)) 9 10))))))
+
+     `(module
+        (let ((,x.1 1))
+            (let ((,y.2 (let ((,z.3 3)) ,z.3)))
+            (let ((,z.4 (let ((,y.5 2)) (+ ,y.5 ,y.5))))
+                (if (let ((,x.6 6)) (> ,x.6 7)) 9 10)))))
+    )
+)
+
+
 
