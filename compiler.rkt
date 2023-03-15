@@ -614,11 +614,19 @@
   (c-analysis-p p))
 
  
-; Input:   asm-pred-lang-v5/conflicts
-; Output:  asm-pred-lang-v5/assignments
-; Purpose: Performs graph-colouring register allocation. 
-;          The pass attempts to fit each of the abstract location declared in the locals 
-;          set into a register, and if one cannot be found, assigns it a frame variable instead.
+; Input:    asm-pred-lang-v4/conflicts
+; Output:   asm-pred-lang-v4/assignments
+; Purpose:  Performs graph-colouring register allocation. 
+;           The pass attempts to fit each of the abstract location declared in the locals 
+;           set into a register, and if one cannot be found, assigns it a frame variable instead.
+
+; M3 > M4 
+; - the allocator should run the same algorithm as before. 
+; - since the allocator doesn’t traverse programs, it shouldn’t need any changes.
+
+; M4 > M5
+; - The allocator simply runs the same algorithm as before, but this time, on each block’s conflict graph, separately
+; - add support for blocks and by extension opands and jumps
 (define (assign-registers p)
   ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
   (define car (current-assignable-registers))
@@ -634,13 +642,21 @@
   ; splice the updated info block into the language
   (define (assign-p p)
     (match p
-      [`(module ,info ,tail)
-       `(module ,(assign-info info) ,tail)]))
+      [`(module ,info ,def ... ,tail)
+       `(module ,(assign-info info) ,@(map (lambda (d) (assign-block d)) def) ,tail)]))
+
+  ; generates the assignment for a single block
+  (define (assign-block d)
+    (match d
+      [`(define ,label ,info ,tail)
+       `(define ,label ,(assign-info info) ,tail)]))
 
   ; update the info block with new assignments
+  ; clean the conflicts so only conflicts declared in locals remain
+  ; then sort the conflicts
   (define (assign-info d)
-    (let* ([conflicts   (sort-conflicts (first (dict-ref d 'conflicts)))]
-           [locals      (dict-keys conflicts)]
+    (let* ([conflicts   (sort-conflicts                     (first (dict-ref d 'conflicts)))]
+           [locals      (clean-locals (dict-keys conflicts) (first (dict-ref d 'locals)))]
            [assignments (reverse (generate-assignments locals conflicts '()))])
           (dict-set d 'assignment (list assignments))))
 
@@ -676,6 +692,10 @@
   ; sort a list of conflicts by degree
   (define (sort-conflicts c) 
     (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
+
+  ; cleans a list of conflict keys such that only those also present in the locals list also remain
+  (define (clean-locals conflict-keys locals)
+    (filter (lambda (c)  (if (member c locals) #t #f)) conflict-keys))
 
   (assign-p p))
 
