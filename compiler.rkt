@@ -96,8 +96,8 @@
 
 ; =============== M4 Passes ================
 
-; Input: nested-asm-lang-v4
-; Output: nested-asm-lang-v4
+; Input:   nested-asm-lang-v5
+; Output:  nested-asm-lang-v5
 ; Purpose: Optimize Nested-asm-lang v4 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
 
@@ -213,10 +213,10 @@
 
   (optimize-p p))
 
-; Input: nested-asm-lang-v5
-; Output: block-pred-lang-v5
+; Input:   nested-asm-lang-v5
+; Output:  block-pred-lang-v5
 ; Purpose: Compile the Nested-asm-lang v4 to Block-pred-lang v4,
-; eliminating all nested expressions by generating fresh basic blocks and jumps.
+;          eliminating all nested expressions by generating fresh basic blocks and jumps.
 (define (expose-basic-blocks p)
 
   ; a list of basic blocks to return (a mutable variable)
@@ -320,9 +320,10 @@
   (expose-p p))
   
 
-; Input: block-pred-lang-v4?
-; Output: block-asm-lang-v4?
-; Purpose: Compile the Block-pred-lang v4 to Block-asm-lang v4 by manipulating the branches of if statements to resolve branches.
+; Input:   block-pred-lang-v5
+; Output:  block-asm-lang-v4
+; Purpose: Compile the Block-pred-lang v4 to Block-asm-lang v4 by manipulating the 
+;          branches of if statements to resolve branches.
 (define (resolve-predicates p)
   (define (resolve-p p) 
     (match p
@@ -358,8 +359,8 @@
   (resolve-p p))
 
 
-; Input: block-asm-lang-v4
-; Output: para-asm-lang-v4
+; Input:   block-asm-lang-v4
+; Output:  para-asm-lang-v4
 ; Purpose: Compile Block-asm-lang v4 to Para-asm-lang v4 by flattening basic blocks into labeled instructions.
 (define (flatten-program p)
 
@@ -405,10 +406,10 @@
 
   (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
 
-; Input:    asm-pred-lang-v5/locals
-; Output:   asm-pred-lang-v5/undead
-; Purpose:  Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
-;           by decorating programs with their undead-set trees.
+; Input:   asm-pred-lang-v5/locals
+; Output:  asm-pred-lang-v5/undead
+; Purpose: Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
+;          by decorating programs with their undead-set trees.
 (define (undead-analysis p)
 
   ; Decorate the program with the undead-out tree.
@@ -523,10 +524,10 @@
   (undead-p p))
 
 
-; Input: asm-pred-lang-v5/undead
-; Output: asm-pred-lang-v5/conflicts
-; Performs conflict analysis, compiling Asm-pred-lang v5/undead to 
-; Asm-pred-lang v5/conflicts by decorating programs with their conflict graph.
+; Input:   asm-pred-lang-v5/undead
+; Output:  asm-pred-lang-v5/conflicts
+; Purpose: Performs conflict analysis, compiling Asm-pred-lang v5/undead to 
+;          Asm-pred-lang v5/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
@@ -613,15 +614,11 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v4/conflicts
-; Output:   asm-pred-lang-v4/assignments
-; Purpose:  Performs graph-colouring register allocation. 
-;           The pass attempts to fit each of the abstract location declared in the locals 
-;           set into a register, and if one cannot be found, assigns it a frame variable instead.
-
-; M3 > M4 
-; - The allocator should run the same algorithm as before. 
-; - Since the allocator doesn’t traverse programs, it shouldn’t need any changes.
+; Input:   asm-pred-lang-v5/conflicts
+; Output:  asm-pred-lang-v5/assignments
+; Purpose: Performs graph-colouring register allocation. 
+;          The pass attempts to fit each of the abstract location declared in the locals 
+;          set into a register, and if one cannot be found, assigns it a frame variable instead.
 (define (assign-registers p)
   ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
   (define car (current-assignable-registers))
@@ -687,12 +684,6 @@
 ; Output:  Values-unique-lang v5
 ; Purpose: Compiles Values-lang v5 to Values-unique-lang v5 by resolving top-level lexical identifiers 
 ;          into unique labels, and all other lexical identifiers into unique abstract locations.
-
-; M3 > M4
-; - added support for predicate expressions
-; - Values-lang v3/v4 Diff:        https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-lang-v3&lang2=Values-lang-v4
-; - Values-unique-lang v3/v4 Diff: https://www.students.cs.ubc.ca/~cs-411/2022w2/lang-differ.cgi?lang1=Values-unique-lang-v3&lang2=Values-unique-lang-v4
-
 ; M4 > M5
 ; - need to compile names to labels rather than abstract locations
 ; - add support for calls (extend values-lang-v4 with tail calls, a procedure call in the tail position)
@@ -826,8 +817,8 @@
 
 ; Input:   values-unique-lang-v5
 ; Output:  imp-mf-lang-v5
-; Compiles Values-unique-lang v5 to Imp-mf-lang v5 by picking a 
-; particular order to implement let expressions using set!.
+; Purpose: Compiles Values-unique-lang v5 to Imp-mf-lang v5 by picking a 
+;          particular order to implement let expressions using set!.
 (define (sequentialize-let p)
   
   (define (seq-p p)
@@ -1048,12 +1039,10 @@
   (sel-ins-p p))
 
 
-(define (assign-homes p)
-  ; Compiles Asm-lang v2 to Nested-asm-lang v2, 
-  ; replacing each abstract location with a physical location.
-  (replace-locations (assign-fvars (uncover-locals p))))
-
-
+; Input:   asm-pred-lang-v5/assignments
+; Output:  nested-asm-lang-v5
+; Purpose: Replaces all abstract location with physical locations using the assignment described in the 
+;          assignment info field, and dropping any register-allocation-related metadata from the program.
 (define (replace-locations p)
   ; Compiles Asm-lang v2/assignments to Nested-asm-lang v2, replacing each 
   ; abstract location with its assigned physical location from the assignment info field.
@@ -1121,33 +1110,10 @@
   (replace-loc-p p))
 
 
-(define (assign-fvars p)
-  ; Compiles Asm-lang v2/locals to Asm-lang v2/assignments, by assigning each 
-  ; abstract location from the locals info field to a fresh frame variable.
-
-  (define (assignf-p p)
-    (match p
-      [`(module ((locals ,locals)) ,tail)
-       `(module ((locals ,locals) (assignment ,(create-assignments locals))) ,tail)]))
-  
-  (define (create-assignments locals)
-    ; map each element of a list of locals to an fvar.
-    (map (lambda (i) `(,(list-ref locals i) ,(fvar-from-i i)))
-         (range 0 (length locals))))
-  
-  (define (fvar-from-i i)
-    (string->symbol (format "fv~a" i)))
-
-  (assignf-p p))
-
-
-; Input: asm-pred-lang-v4
-; Output: asm-pred-lang-v4/locals
-; Purpose: Compiles Asm-pred-lang v4 to Asm-pred-lang v4/locals, analysing which abstract locations are used in the module and decorating the module with the set of variables in an info field.
-
-; M2 > M4
-; - extend language to deal with control flow
-
+; Input:   asm-pred-lang-v5
+; Output:  asm-pred-lang-v5/locals
+; Purpose: Compiles Asm-pred-lang v4 to Asm-pred-lang v4/locals, analysing which abstract locations 
+;          are used in the module and decorating the module with the set of variables in an info field.
 (define (uncover-locals p)
   ; Convert asm-lang-v2 into Asm-lang-v2/locals, analysing which 
   ; abstract locations are used in the program and decorating the
@@ -1230,36 +1196,11 @@
 
   (uloc-p p '()))
 
-(define (flatten-begins p)
-  ; Convert from nested-asm-lang-v2 to para-asm-lang-v2 by flattening all
-  ; 'begins' expressions
-  (define (flatten-p p)
-    `(begin ,@(flatten-tail p)))
-  
-  (define (flatten-tail t)
-    ; Return a list of flattened instructions.
-    (match t
-      [`(begin ,e ... ,tail)
-          `(,@(splice-mapped-list (map flatten-effect e))
-            ,@(flatten-tail tail))]
-      [`(halt ,val) 
-        `((halt ,val))]))
-  
-  (define (flatten-effect e)
-    (match e
-        [`(begin ,e ...)
-            `(,@(splice-mapped-list (map flatten-effect e)))]
-        [_ `(,e)]))
 
-  (flatten-p p))
-
-
-; Input: para-asm-lang-v4
-; Output: paren-x64-fvars-v4
-; Purpose: Compiles Para-asm-lang v4 to Paren-x64-fvars v4 by patching each instruction that has no x64 analogue into a sequence of instructions using auxiliary register from current-patch-instructions-registers.
-
-; M2 > M4
-; - extend language to deal with control flow
+; Input:   para-asm-lang-v4
+; Output:  paren-x64-fvars-v4
+; Purpose: Compiles Para-asm-lang v4 to Paren-x64-fvars v4 by patching each instruction that has no 
+;          x64 analogue into a sequence of instructions using auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
   ; Compiles Para-asm-lang v2 to Paren-x64-fvars v2 by patching instructions that have 
   ; no x64 analogue into a sequence of instructions.
@@ -1330,12 +1271,9 @@
   (patch-p p))
 
 
-; Input: paren-x64-fvars-v4
-; Output: paren-x64-v4
+; Input:   paren-x64-fvars-v4
+; Output:  paren-x64-v4
 ; Purpose: Compile the Paren-x64-fvars v4 to Paren-x64 v4 by reifying fvars into displacement mode operands.
-
-; M2 > M4
-; - extend language to deal with control flow
 (define (implement-fvars p)
   (define (f-program->p p)
     (match p
@@ -1367,12 +1305,9 @@
        
   (f-program->p p))
 
-; Input: paren-x64-v4
-; Output: x64-instructions
+; Input:   paren-x64-v4
+; Output:  x64-instructions
 ; Purpose: Compile the Paren-x64 v4 program into a valid sequence of x64 instructions, represented as a string.
-
-; M3 > M4
-; - extend language to deal with jumps, conditional jumps, and labels
 (define (generate-x64 p)
 
   (define (program->x64 p)
