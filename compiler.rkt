@@ -104,7 +104,9 @@
 
   (define cpr (current-parameter-registers))
 
-  (define cfbp (current-frame-base-pointer-register) )
+  (define cfbp (current-frame-base-pointer-register))
+
+  (define cprLen (length cpr))
   
   (define (impose-p p)
     (match p
@@ -114,7 +116,7 @@
   (define (impose-d d)
     (match d
       [`(define ,label (lambda (,alocs ...) ,tail))
-        `(define ,label (begin ,@(map set-opands (reverse (take cpr (length alocs))) (reverse alocs)) ,(impose-t tail)))]))
+        `(define ,label (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) ,(impose-t tail)))]))
 
   (define (impose-t t)
     (match t
@@ -128,14 +130,20 @@
       [value value]
       ))
 
+
+  (define (make-para-list len)
+    (if (> len cprLen)
+        (append cpr (build-list (- len cprLen) (lambda (x) (make-fvar x))))
+        (take cpr len)))
+
   (define (set-block opands)
-    (map set-opands (reverse opands) (reverse (take cpr (length opands)))))
+    (map set-opands (reverse opands) (reverse (make-para-list (length opands)))))
 
   (define (set-opands o r)
     `(set! ,r ,o))
 
   (define (create-jump t len)
-    `(jump ,t ,cfbp ,@(take cpr len)))  
+    `(jump ,t ,cfbp ,@(make-para-list len)))  
 
   (impose-p p))
 
