@@ -94,8 +94,8 @@
       (equal? relop '> )
       (equal? relop '!=)))
 
-; =============== M4 Passes ================
 
+; =============== M5 Passes ================
 
 ; Input:   proc-imp-cmf-lang-v5
 ; Output:  imp-cmf-lang-v5
@@ -147,6 +147,7 @@
 
   (impose-p p))
 
+; =============== M4 Passes ================
 
 ; Input:   nested-asm-lang-v5
 ; Output:  nested-asm-lang-v5
@@ -1015,6 +1016,7 @@
 
   (n-bind-p p))
 
+
 ; Input:   imp-cmf-lang-v5
 ; Output:  asm-pred-lang-v5
 ; Purpose: Compiles Imp-cmf-lang v5 to Asm-pred-lang v5, selecting appropriate sequences of
@@ -1024,91 +1026,86 @@
   (define (sel-ins-p p)
     (match p
       [`(module ,defines ... ,tail)
-        (if (or (number? tail) (aloc? tail) (equal? (first tail) 'if))
-          `(module () ,@(map sel-ins-def defines) ,@(sel-ins-t tail)) ; dispense with 'begin' when top-level tail is a triv
-          `(module () ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
+        (define tailRes (sel-ins-t tail))
+        (if (equal? (length tailRes) 1)
+           `(module () ,@(map sel-ins-def defines) ,@(sel-ins-t tail))
+           `(module () ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
   
   (define (sel-ins-def d)
     (match d
       [`(define ,label ,tail)
-       `(define ,label ,@(sel-ins-t tail))]))
+        (define tailRes (sel-ins-t tail))
+        (if (equal? (length tailRes) 1)
+           `(define ,label () ,@(sel-ins-t tail))
+           `(define ,label () (begin ,@(sel-ins-t tail))))]))
 
   ; Return a list of instructions
   (define (sel-ins-t t)
     (match t
-      [`(begin ,effects ... ,tail) ; flattens nested begins
+      [`(halt ,opand) `(,t)]
+      [`(jump ,trg ,loc ...) `(,t)]
+      [`(begin ,effects ... ,tail) ; flattens nested begins, including in tail position.
        `(,@(splice-mapped-list (map sel-ins-e effects)) ,@(sel-ins-t tail))]
-      [value #:when (or (number? value) (aloc? value))
-        (sel-ins-v value '_)]
-      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
-        ; tail binop: need to create a temporary aloc
-        (define getfresh (fresh))
-        `(,@(sel-ins-v binop getfresh) (halt ,getfresh))]
       [`(if ,pred ,tail1 ,tail2)
-        (define tailRes1 (wrap (sel-ins-t tail1)))
-        (define tailRes2 (wrap (sel-ins-t tail2)))
-       `((if ,(sel-ins-pr pred) ,tailRes1 ,tailRes2))]
-      [_ t])) ; (jump trg loc ...)
+        (define tailRes1 (sel-ins-t tail1))
+        (define tailRes2 (sel-ins-t tail2))
+        (define corrTail1 (if (equal? (length tailRes1) 1)
+                              tailRes1
+                             `((begin ,@tailRes1)))) ; wrap in begin if multiple instructions
+        (define corrTail2 (if (equal? (length tailRes2) 1)
+                              tailRes2
+                             `((begin ,@tailRes2))))
+       `((if ,(sel-ins-pr pred) ,@corrTail1 ,@corrTail2))]
+      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
+        (define getfresh (fresh)) ; tail binop: need to create a temporary aloc
+       `(,@(sel-ins-v binop getfresh) (halt ,getfresh))]
+      [value ; value is a triv
+        (sel-ins-v value '_)]))
   
+  ; Returns a list of instructions
   (define (sel-ins-v v aloc)
     (match v
       [value #:when (or (number? value) (aloc? value)) ; value is a triv
         `((halt ,value))]
-      [`(,binop ...)
-        (sel-ins-b binop aloc)]))
+      [`(,binop ,opand1 ,opand2)
+       `((set! ,aloc ,opand1)
+         (set! ,aloc (,binop ,aloc ,opand2)))]))
 
+  ; Returns an instruction
   (define (sel-ins-pr pr)
     (match pr
       [`(not ,pred)
        `(not ,(sel-ins-pr pred))]
-      [`(,relop ,opand1 ,opand2) #:when (relop? relop)
+      [`(,relop ,opand1 ,opand2) #:when (and (relop? relop) (number? opand1))
         (define getfresh (fresh))
        `(begin (set! ,getfresh ,opand1) 
                (,relop ,getfresh ,opand2))]
-      [`(begin ,effects ... ,pred)
-       `(begin ,@(map wrap (map sel-ins-e effects)) ,(sel-ins-pr pred))]
+      [`(begin ,effects ... ,pred) ; flatten nested begins here (currently different from interrogator)
+       `(begin ,@(splice-mapped-list (map sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
        `(if ,@(map sel-ins-pr preds))]
-      [_ pr])) ; bool
-  
-  ; Return a sequence of instructions dealing with a binop,
-  ; Given an aloc to use.
-  ; e.g. sel-ins-b (+ 2 4) tmp.1 ->
-  ; ((set! tmp.1 2) (set! tmp.1 (+ tmp.1 4)))
-  (define (sel-ins-b b aloc)
-    (match b
-      [`(,binop ,triv1 ,triv2)
-           `((set! ,aloc ,triv1)
-             (set! ,aloc (,binop ,aloc ,triv2)))]))
+      [_ pr])) ; bool or (relop loc opand)
   
   ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
     (match e
       [`(set! ,loc (,binop ...))
-        (sel-ins-b binop loc)]
+        (sel-ins-v binop loc)]
       [`(begin ,eff ...)  ; flatten nested begins
         `(,@(splice-mapped-list (map sel-ins-e eff)))]
       [`(set! ,loc ,triv) `(,e)]
       [`(if ,pred ,effect1 ,effect2)
         ; wrap the effect result in (begin ) if it is multiple instructions.
         ; do NOT flatten begins if the effect was already a (begin ).
-        (define effRes1 (if (equal? (first effect1) 'begin) 
-                           `(begin ,@(sel-ins-e effect1)) 
-                            (wrap (sel-ins-e effect1))))
-        (define effRes2 (if (equal? (first effect2) 'begin) 
-                           `(begin ,@(sel-ins-e effect2)) 
-                            (wrap (sel-ins-e effect2))))
-       `((if ,(sel-ins-pr pred) ,effRes1 ,effRes2))]))
-
-  ; Helper for sel-ins-e and sel-ins-t. Wrap a list of instructions in begin.
-  ; If it's a single instruction return that instruction.
-  (define (wrap lst)
-    (match lst
-      [`(,e ...) #:when (and (> (length e) 1) (list? (first e))) ; e.g. ((set 1 2) (set 1 2))
-       `(begin ,@e)]
-      [`(,x) ; e.g. ((halt 1))
-        `(,@x)]
-      [_ lst])) ; e.g. (halt 1)
+        (define effRes1 (sel-ins-e effect1))
+        (define effRes2 (sel-ins-e effect2))
+        (define corrEffRes1 (if (or (> (length effRes1) 1) (equal? (first effect1) 'begin))
+                               `((begin ,@effRes1))
+                                effRes1))
+        (define corrEffRes2 (if (or (> (length effRes2) 1) (equal? (first effect2) 'begin))
+                               `((begin ,@effRes2))
+                                effRes2))
+       `((if ,(sel-ins-pr pred) ,@corrEffRes1 ,@corrEffRes2))]))
 
   (sel-ins-p p))
 
