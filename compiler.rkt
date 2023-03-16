@@ -99,7 +99,8 @@
 
 ; Input:   proc-imp-cmf-lang-v5
 ; Output:  imp-cmf-lang-v5
-; Purpose: Compiles Proc-imp-cmf-lang v5 to Imp-cmf-lang v5 by imposing calling conventions on all calls and procedure definitions
+; Purpose: Compiles Proc-imp-cmf-lang v5 to Imp-cmf-lang v5 by imposing calling conventions on all 
+;          calls and procedure definitions
 (define (impose-calling-conventions p)
 
   (define cpr (current-parameter-registers))
@@ -111,25 +112,24 @@
   (define (impose-p p)
     (match p
       [`(module ,defines ... ,tail)
-        `(module ,@(map impose-d defines) ,(impose-t tail))]))
+       `(module ,@(map impose-d defines) ,(impose-t tail))]))
 
   (define (impose-d d)
     (match d
       [`(define ,label (lambda (,alocs ...) ,tail))
-        `(define ,label (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) ,(impose-t tail)))]))
+       `(define ,label (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) 
+                              ,(impose-t tail)))]))
 
   (define (impose-t t)
     (match t
       [`(call ,triv ,opands ...)
-        `(begin ,@(set-block opands)
-         ,(create-jump triv (length opands)))]
+       `(begin ,@(set-block opands)
+               ,(create-jump triv (length opands)))]
       [`(begin ,effects ... ,tail)
         `(begin ,@effects ,(impose-t tail))]
       [`(if ,pred ,tail1 ,tail2)
         `(if ,pred ,(impose-t tail1) ,(impose-t tail2))]
-      [value value]
-      ))
-
+      [value value]))
 
   (define (make-para-list len)
     (if (> len cprLen)

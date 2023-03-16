@@ -187,28 +187,26 @@
                (set! a.1 (+ y.1 x.1))
                (if (begin (set! x.1 9) (set! x.2 1) (> x.1 x.2)) 
                   (call L.start.1 x.4 x.5 x.6)
-                  (call L.start.1 x.1 x.2 x.3)))))
-'(module
-  (begin
-    (set! x.2 (* 1 x.2))
-    (set! a.1 (+ y.1 x.1))
-    (if (begin (set! x.1 9) (set! x.2 1) (> x.1 x.2))
+                        (call L.start.1 x.1 x.2 x.3)))))
+      '(module
       (begin
-        (set! rdx x.6)
-        (set! rsi x.5)
-        (set! rdi x.4)
-        (jump L.start.1 rbp rdi rsi rdx))
-      (begin
-        (set! rdx x.3)
-        (set! rsi x.2)
-        (set! rdi x.1)
-        (jump L.start.1 rbp rdi rsi rdx)))))))
+         (set! x.2 (* 1 x.2))
+         (set! a.1 (+ y.1 x.1))
+         (if (begin (set! x.1 9) (set! x.2 1) (> x.1 x.2))
+            (begin
+            (set! rdx x.6)
+            (set! rsi x.5)
+            (set! rdi x.4)
+            (jump L.start.1 rbp rdi rsi rdx))
+            (begin
+            (set! rdx x.3)
+            (set! rsi x.2)
+            (set! rdi x.1)
+            (jump L.start.1 rbp rdi rsi rdx)))))))
 
 (test-case "impose 11"
    (check-equal?
-(impose-calling-conventions
-'(module(call x.1))
-)
-'(module (begin (jump x.1 rbp)))
-    )
-)
+      (impose-calling-conventions
+         '(module (call x.1)))
+
+      '(module (begin (jump x.1 rbp)))))
