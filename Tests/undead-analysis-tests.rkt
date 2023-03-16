@@ -397,3 +397,28 @@
                 (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
 
+(test-case "undead 20"
+   (check-equal?
+        (undead-analysis
+            `(module ((locals (y.12))) 
+                     (define L.id1.2 ((locals (x.10))) (begin (set! x.10 rdi) (halt x.10))) 
+                     (define L.id2.3 ((locals (x.11))) (begin (set! x.11 rdi) (halt x.11))) 
+                     (begin 
+                        (if (true) (set! y.12 L.id1.2) (set! y.12 L.id2.3)) 
+                        (set! rdi 5) 
+                        (jump y.12 rbp rdi))))
+        
+        `(module
+            ((locals (y.12))
+            (undead-out (((rbp) (y.12 rbp) (y.12 rbp)) (y.12 rbp rdi) (rbp rdi))))
+            (define L.id1.2
+                ((locals (x.10)) (undead-out ((x.10) ())))
+                (begin (set! x.10 rdi) (halt x.10)))
+            (define L.id2.3
+                ((locals (x.11)) (undead-out ((x.11) ())))
+                (begin (set! x.11 rdi) (halt x.11)))
+            (begin
+                (if (true) (set! y.12 L.id1.2) (set! y.12 L.id2.3))
+                (set! rdi 5)
+                (jump y.12 rbp rdi)))))
+

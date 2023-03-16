@@ -562,9 +562,9 @@
                           (set-add (set-add undead-out opand) loc))])
           (values undead-out newSet))]
       [`(set! ,loc ,triv)
-        (let ([newSet (if (number? triv)
-                      (set-remove undead-out loc)
-                      (set-remove (set-add undead-out triv) loc))])
+        (let ([newSet (if (or (number? triv) (label? triv))
+                          (set-remove undead-out loc)
+                          (set-remove (set-add undead-out triv) loc))])
           (values undead-out newSet))]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
@@ -578,7 +578,7 @@
       [`(if ,pred ,effect1 ,effect2)
         (define-values (eff2Ust e2In) (undead-effect undead-out effect2)) ; process effects separately
         (define-values (eff1Ust e1In) (undead-effect undead-out effect1)) ; pass their combined results into pred
-        (define-values (predUst predIn) (undead-pred (set-union (set-union e1In e2In) undead-out) pred))
+        (define-values (predUst predIn) (undead-pred (set-union e1In e2In) pred))
         (values `(,predUst ,eff1Ust ,eff2Ust) predIn)]))
   
   (undead-p p))
