@@ -31,7 +31,7 @@
                 ;uniquify
                 ;sequentialize-let
                 ;normalize-bind
-                impose-calling-conventions
+                ;impose-calling-conventions
                 ;select-instructions
                 ;assign-homes-opt
                 ;uncover-locals
@@ -52,7 +52,7 @@
    ;values ;u
    ;values ;s
    ;values ;n
-   values ;i
+   ;values ;i
    ;values ;s
    ;values ;a
    ;values ;u
@@ -95,6 +95,50 @@
       (equal? relop '!=)))
 
 ; =============== M4 Passes ================
+
+
+; Input:   proc-imp-cmf-lang-v5
+; Output:  imp-cmf-lang-v5
+; Purpose: Compiles Proc-imp-cmf-lang v5 to Imp-cmf-lang v5 by imposing calling conventions on all calls and procedure definitions
+(define (impose-calling-conventions p)
+
+  (define cpr (current-parameter-registers))
+
+  (define cfbp (current-frame-base-pointer-register) )
+  
+  (define (impose-p p)
+    (match p
+      [`(module ,defines ... ,tail)
+        `(module ,@(map impose-d defines) ,(impose-t tail))]))
+
+  (define (impose-d d)
+    (match d
+      [`(define ,label (lambda (,alocs ...) ,tail))
+        `(define ,label (begin ,@(map set-opands (reverse (take cpr (length alocs))) (reverse alocs)) ,(impose-t tail)))]))
+
+  (define (impose-t t)
+    (match t
+      [`(call ,triv ,opands ...)
+        `(begin ,@(set-block opands)
+         ,(create-jump triv (length opands)))]
+      [`(begin ,effects ... ,tail)
+        `(begin ,@effects ,(impose-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+        `(if ,pred ,(impose-t tail1) ,(impose-t tail2))]
+      [value value]
+      ))
+
+  (define (set-block opands)
+    (map set-opands (reverse opands) (reverse (take cpr (length opands)))))
+
+  (define (set-opands o r)
+    `(set! ,r ,o))
+
+  (define (create-jump t len)
+    `(jump ,t ,cfbp ,@(take cpr len)))  
+
+  (impose-p p))
+
 
 ; Input:   nested-asm-lang-v5
 ; Output:  nested-asm-lang-v5
