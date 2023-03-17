@@ -153,6 +153,15 @@
 ; Output:  nested-asm-lang-v5
 ; Purpose: Optimize Nested-asm-lang v5 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
+  
+  ; key-and-value-wise intersection of h0 with h1 and h2.
+  (define (hash-intersect h0 h1 h2)
+    (for/fold ([h #hash()])
+              ([k (hash-keys h0)])
+              (define currVal (dict-ref h0 k))
+              (if (and (equal? (dict-ref h1 k) currVal) (equal? (dict-ref h2 k) currVal))
+                  (dict-set h k currVal)
+                  h)))
 
   (define (optimize-p p)
     (match p
@@ -194,13 +203,13 @@
           (match binop
             ['* *]
             ['+ +]))
-        (define new-env (if (dict-has-key? env loc_1)
-                             (if (number? triv)
-                                 (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) triv))
-                                 (if (dict-has-key? env triv)
-                                     (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) (dict-ref env triv)))
-                                     env))
-                             env))
+        (define new-env (if (and (dict-has-key? env loc_1) (number? (dict-ref env loc_1)))
+                            (if (number? triv)
+                                (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) triv)) ; evaluate the binop
+                                (if (and (dict-has-key? env triv) (number? (dict-ref env triv)))
+                                    (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) (dict-ref env triv)))
+                                    env))
+                            env))
         
         
         (values e new-env)]
@@ -221,8 +230,12 @@
       [`(if ,pred ,effect1 ,effect2)
         (define-values (e1 env1) (optimize-e effect1 env))
         (define-values (e2 env2) (optimize-e effect2 env))
-        (values (optimize-pred pred e1 e2 env) env)])) ;??? pass in env of chosen effect?
+        (values (optimize-pred pred e1 e2 env) (hash-intersect env env1 env2))])) ; Remove variables modified in eff1 and eff2 from env.
 
+  ; Process a pred.
+  ;   t1 : the already-processed true option
+  ;   t2 : the already-processed false option
+  ;   env : the environment of the pred
   (define (optimize-pred p t1 t2 env)
     (match p
       [`(begin ,effects ... ,pred)
