@@ -155,3 +155,79 @@
             (begin (set! r15 r14) (set! r15 (+ r15 17)) (set! r15 12))
             (halt r15)))
         (begin (begin (set! r15 14) (set! r15 12)) (jump r15)))))
+
+(test-case "optimize-predicates 9"
+    (check-match
+        (optimize-predicates
+            `(module 
+                (begin 
+                    (set! r15 0) 
+                    (if (true) 
+                        (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12)) 
+                        (begin (set! r15 15))) 
+                    (halt r15)))
+        )
+
+     `(module
+        (begin
+            (set! r15 0)
+            (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12))
+            (halt r15)))))
+
+(test-case "optimize-predicates 10"
+    (check-match
+        (optimize-predicates
+            `(module 
+                (begin 
+                    (set! r15 5) 
+                    (if (true) 
+                        (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12)) 
+                        (begin (set! r15 15))) 
+                    (halt r15)))
+        )
+
+     `(module
+        (begin
+            (set! r15 5)
+            (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12))
+            (halt r15)))))
+
+(test-case "optimize-predicates 11"
+    (check-match
+        (optimize-predicates
+            `(module 
+                (define L.odd?.6 (begin 
+                                    (set! r15 rdi) 
+                                    (if (= r15 0) 
+                                        (halt 0) 
+                                        (begin (set! r15 r15) (set! r15 (+ r15 -1)) (set! rdi r15) (jump L.even?.7))))) 
+                (define L.even?.7 (begin 
+                                    (set! r15 rdi) 
+                                    (if (= r15 0) 
+                                        (halt 1) 
+                                        (begin (set! r15 r15) (set! r15 (+ r15 -1)) (set! rdi r15) (jump L.odd?.6))))) 
+                (begin (set! rdi 5) (jump L.even?.7)))
+        )
+
+     `(module
+        (define L.odd?.6
+            (begin
+            (set! r15 rdi)
+            (if (= r15 0)
+                (halt 0)
+                (begin
+                (set! r15 r15)
+                (set! r15 (+ r15 -1))
+                (set! rdi r15)
+                (jump L.even?.7)))))
+        (define L.even?.7
+            (begin
+            (set! r15 rdi)
+            (if (= r15 0)
+                (halt 1)
+                (begin
+                (set! r15 r15)
+                (set! r15 (+ r15 -1))
+                (set! rdi r15)
+                (jump L.odd?.6)))))
+        (begin (set! rdi 5) (jump L.even?.7)))))
