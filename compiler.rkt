@@ -495,12 +495,6 @@
 
 ; =============== M3 Passes ================
 
-(define (assign-homes-opt p)
-  ; Compiles Asm-lang v2 to Nested-asm-lang v2, replacing each abstract location 
-  ; with a physical location. This version performs graph-colouring register allocation.
-
-  (replace-locations (assign-registers (conflict-analysis (undead-analysis (uncover-locals p))))))
-
 ; Input:   asm-pred-lang-v5/locals
 ; Output:  asm-pred-lang-v5/undead
 ; Purpose: Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
