@@ -1424,12 +1424,8 @@
       (string-append x64 "mov " (addr->ins addr) ", " (number->string int32) "\n")]
 
       [`(set! ,addr ,trg)
-      #:when (and (address? addr) (register? trg))
-      (string-append x64 "mov " (addr->ins addr) ", " (trg->ins trg) "\n")]
-
-      [`(set! ,addr ,trg)
-      #:when (and (address? addr) (label? trg))
-      (string-append x64 "lea " (addr->ins addr) ", " (trg->ins trg) "\n")]
+      #:when (and (address? addr) (trg? trg))
+      (string-append x64 (if (register? trg) "mov " "lea ") (addr->ins addr) ", " (trg->ins trg) "\n")]
 
       [`(set! ,reg ,loc)
       #:when (and (register? reg) (loc? loc))
@@ -1490,7 +1486,7 @@
     (or (trg? triv) (int64? triv)))
 
   (define (binop? b)
-    (or (equal? b '*) (equal? b '+)))
+    (or (equal? b '*) (equal? b '+) (equal? b '-)))
 
   (define (opand? opand)
     (or (int64? opand) (register? opand)))
@@ -1512,19 +1508,30 @@
                    (number->string(third addr))
                    "]"))
 
+  ; rather verbose, but I believe repeating the cases is more readable than abstracting everything
+  ; into tiny helper functions
   (define (math->ins binop reg target)
     (cond [(and (int32? target)   (equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (number->string target))]
           [(and (int32? target)   (equal? '+ binop)) 
            (string-append "add "  (symbol->string reg) ", " (number->string target))]
+          [(and (int32? target)   (equal? '- binop)) 
+           (string-append "sub "  (symbol->string reg) ", " (number->string target))]
+
           [(and (register? target)(equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (symbol->string target))]
           [(and (address? target) (equal? '* binop)) 
            (string-append "imul " (symbol->string reg) ", " (addr->ins target))]
+
           [(and (register? target)(equal? '+ binop)) 
            (string-append "add "  (symbol->string reg) ", " (symbol->string target))]
           [(and (address? target) (equal? '+ binop)) 
-           (string-append "add "  (symbol->string reg) ", " (addr->ins target))]))
+           (string-append "add "  (symbol->string reg) ", " (addr->ins target))]
+
+          [(and (register? target)(equal? '- binop)) 
+           (string-append "sub "  (symbol->string reg) ", " (symbol->string target))]
+          [(and (address? target) (equal? '- binop)) 
+           (string-append "sub "  (symbol->string reg) ", " (addr->ins target))]))
   
   (define (label->ins label) 
     (string-append (sanitize-label label) ":"))
