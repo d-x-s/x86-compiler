@@ -148,7 +148,7 @@
     )
 )
 
-(test-case "generate-x64 32 - complex with labels and jumps and subtraction binop"
+(test-case "generate-x64 13 - complex with labels and jumps and subtraction binop"
     (check-equal?
         (generate-x64
            '(begin 
