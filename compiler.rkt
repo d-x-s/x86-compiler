@@ -837,7 +837,7 @@
               ,(uniquify-tail tail new-binds))]          
       
       [`(if ,p ,t1 ,t2)
-       `(if ,(uniquify-pred p  binds)
+       `(if ,(uniquify-pred       p binds)
             ,(uniquify-tail      t1 binds) 
             ,(uniquify-tail      t2 binds))]
       
@@ -850,12 +850,12 @@
   (define (uniquify-value v binds)
     (match v
        [`(if ,p ,v1 ,v2)
-        `(if ,(uniquify-pred p  binds) 
+        `(if ,(uniquify-pred       p binds) 
              ,(uniquify-value     v1 binds)
              ,(uniquify-value     v2 binds))]
 
        [`(,binop ,opand1 ,opand2)
-         #:when (or (equal? binop '*) (equal? binop '+))
+         #:when (or (equal? binop '*) (equal? binop '+) (equal? binop '-))
         `(,binop ,(uniquify-value opand1 binds) ,(uniquify-value opand2 binds))]
 
       [`(let ([,as ,vs] ...) ,body)
@@ -863,6 +863,9 @@
         `(let ,(for/list ([a as][v vs])
                         `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
               ,(uniquify-value body new-binds))]   
+
+      [`(call ,triv ,os ...)
+       `(call ,(update-bind triv binds) ,@(map (lambda (o) (uniquify-value o binds)) os))]
 
        [triv
         (update-bind triv binds)]
