@@ -2,11 +2,10 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
 
-(test-case "impose 1"
+(test-case "impose 1 - basic traversal"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -14,7 +13,7 @@
 
       '(module (begin (set! x.1 9) 100))))
 
-(test-case "impose 2"
+(test-case "impose 2 - basic traversal"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -33,7 +32,7 @@
             (if (= x.1 x.2) (set! x.2 2) (set! x.2 4))
             (+ x.1 1)))))
 
-(test-case "impose 3"
+(test-case "impose 3 - basic traversal"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -52,7 +51,7 @@
                (set! a.1 (+ y.1 x.1))
                (if (not (not (false))) L.start.1 x.1))))))
 
-(test-case "impose 4"
+(test-case "impose 4 - call as tail in if branch, params are registers"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -70,12 +69,12 @@
             (if (begin (set! x.1 9) (set! x.2 1) (> x.1 x.2))
                L.start.1
                (begin
-               (set! rdx x.3)
-               (set! rsi x.2)
-               (set! rdi x.1)
-               (jump L.start.1 rbp rdi rsi rdx)))))))
+                  (set! rdx x.3)
+                  (set! rsi x.2)
+                  (set! rdi x.1)
+                  (jump L.start.1 rbp rdi rsi rdx)))))))
 
-(test-case "impose 5"
+(test-case "impose 5 - call with no params as tail in begin"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -83,7 +82,7 @@
 
       '(module (begin (set! x.1 9) (begin (jump x.1 rbp))))))
 
-(test-case "impose 6"
+(test-case "impose 6 - tail call, params are alocs and number"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -94,7 +93,7 @@
             (set! x.1 9)
             (begin (set! rsi x.2) (set! rdi 100) (jump x.1 rbp rdi rsi))))))
 
-(test-case "impose 7"
+(test-case "impose 7 - call with a large number of params"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -123,7 +122,7 @@
                (set! rdi 1)
                (jump x.1 rbp rdi rsi rdx rcx r8 r9 fv0 fv1 fv2 fv3 fv4 fv5 fv6 fv7 fv8 fv9 fv10))))))
 
-(test-case "impose 8"
+(test-case "impose 8 - define functions, call with label as param"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -151,7 +150,7 @@
             (set! x.1 9)
             (begin (set! rsi x.2) (set! rdi 100) (jump x.1 rbp rdi rsi))))))
 
-(test-case "impose 9"
+(test-case "impose 9 - define function with large number of params"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -178,7 +177,7 @@
             (set! x.1 9)
             (begin (set! rsi x.2) (set! rdi 100) (jump x.1 rbp rdi rsi))))))
 
-(test-case "impose 10"
+(test-case "impose 10 - if with calls as branches"
    (check-equal?
       (impose-calling-conventions
          '(module
@@ -204,7 +203,7 @@
             (set! rdi x.1)
             (jump L.start.1 rbp rdi rsi rdx)))))))
 
-(test-case "impose 11"
+(test-case "impose 11 - call as top-level tail"
    (check-equal?
       (impose-calling-conventions
          '(module (call x.1)))
