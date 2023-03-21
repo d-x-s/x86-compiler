@@ -1221,29 +1221,25 @@
   (replace-loc-p p))
 
 
-; Input:   asm-pred-lang-v5
-; Output:  asm-pred-lang-v5/locals
-; Purpose: Compiles Asm-pred-lang v4 to Asm-pred-lang v4/locals, analysing which abstract locations 
-;          are used in the module and decorating the module with the set of variables in an info field.
+; Input:   asm-pred-lang-v6
+; Output:  asm-pred-lang-v6/locals
+; Purpose: Compiles Asm-pred-lang v6 to Asm-pred-lang v6/locals, analysing which abstract locations 
+;          are used in each block, and decorating each block and the module with the set of variables 
+;          in an info? field.
 (define (uncover-locals p)
-  ; Convert asm-lang-v2 into Asm-lang-v2/locals, analysing which 
-  ; abstract locations are used in the program and decorating the
-  ; program with the set of variables in an info field.
 
-  (define (uloc-p p acc)
+  (define (uloc-p p)
     (match p
-      [`(module ,info ,tail)
-       `(module ((locals ,(uloc-t tail acc))) ,tail)]
-      [`(module ,info ,d ... ,tail)
-       `(module ((locals ,(uloc-t tail acc))) ,@(map uloc-def d) ,tail)]))
+      [`(module ,info ,defines ... ,tail)
+       `(module ,(info-set info 'locals (uloc-t tail '())) ,@(map uloc-def defines) ,tail)]))
 
-  (define (uloc-def d)
-    (match d
+  (define (uloc-def def)
+    (match def
       [`(define ,label ,info ,tail)
-       `(define ,label ((locals ,(uloc-t tail '()))) ,tail)]))
-
+       `(define ,label ,(info-set info 'locals (uloc-t tail '())) ,tail)]))
+  
+  ; return a set of alocs.
   (define (uloc-t t acc)
-    ; return a set of alocs.
     (match t
       [`(begin ,effect ... ,tail)
         (uloc-t 
@@ -1251,52 +1247,47 @@
           (foldl (lambda (elem rest) (set-add rest elem)) 
             acc 
             (foldl append '() (map uloc-e effect))))]
-      [`(halt ,opand)
-        (if (aloc? opand) (set-add acc opand) acc)]
       [`(if ,pred ,tail1 ,tail2)
         (set-union 
-        (uloc-pred pred)
-        (uloc-t tail1 acc)
-        (uloc-t tail2 acc)
-        )]
-      [`(jump ,trg ,loc ...)
+          (uloc-pred pred)
+          (uloc-t tail1 acc)
+          (uloc-t tail2 acc))]
+      [`(jump ,trg ,loc ...) ; alocs in jump params are not added to locals set.
         (if (aloc? trg) (set-add acc trg) acc)]))
-
+  
+  ; return: set of all alocs found in effect
   (define (uloc-e e)
-    ; return: list of all alocs found in effect
     (match e  
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
         (aloc-truth loc_1 opand)]
       [`(set! ,loc ,triv)
         (aloc-truth loc triv)]  
       [`(if ,pred ,effect1 ,effect2)
-       (set-union
-        (uloc-pred pred)
-        (uloc-e effect1)
-        (uloc-e effect2))]
+        (set-union
+          (uloc-pred pred)
+          (uloc-e effect1)
+          (uloc-e effect2))]
       [`(begin ,effects ...)
         (foldl append '() (map uloc-e effects))]
-        ))
+      [`(return-point ,label ,tail)
+        (uloc-t tail '())]))
 
   (define (uloc-pred p)
     (match p
       [`(begin ,effect ... ,pred)
         (set-union
-        (uloc-pred pred)
-        (foldl set-union '() (map uloc-e effect)))]
+          (uloc-pred pred)
+          (foldl set-union '() (map uloc-e effect)))]
       [`(if ,pred1 ,pred2 ,pred3)
         (set-union
-        (uloc-pred pred1)
-        (uloc-pred pred2)
-        (uloc-pred pred3))]
+          (uloc-pred pred1)
+          (uloc-pred pred2)
+          (uloc-pred pred3))]
       [`(not ,pred)
         (uloc-pred pred)]
       [`(,relop ,loc ,opand)
         (aloc-truth loc opand)]
-      [`(true)
-        `()]
-      [`(false)
-        `()]))
+      [_ `()])) ;bool
 
   (define (aloc-truth a1 a2)
      (cond
@@ -1305,7 +1296,7 @@
         [(aloc? a2) `(,a2)]
         [else `()]))
 
-  (uloc-p p '()))
+  (uloc-p p))
 
 
 ; Input:   para-asm-lang-v6
