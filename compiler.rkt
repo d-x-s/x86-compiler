@@ -784,14 +784,10 @@
   (assign-p p))
 
 
-; Input:   Values-lang-v5
-; Output:  Values-unique-lang v5
-; Purpose: Compiles Values-lang v5 to Values-unique-lang v5 by resolving top-level lexical identifiers 
+; Input:   Values-lang-v6
+; Output:  Values-unique-lang v6
+; Purpose: Compiles Values-lang v6 to Values-unique-lang v6 by resolving top-level lexical identifiers 
 ;          into unique labels, and all other lexical identifiers into unique abstract locations.
-; M4 > M5
-; - need to compile names to labels rather than abstract locations
-; - add support for calls (extend values-lang-v4 with tail calls, a procedure call in the tail position)
-; - a program is now list of define statements, as opposed to a single tail
 (define (uniquify p) 
 
   (define label-binds-box (box '()))
@@ -922,9 +918,9 @@
   (uniquify-p p '()))
 
 
-; Input:   values-unique-lang-v5
-; Output:  imp-mf-lang-v5
-; Purpose: Compiles Values-unique-lang v5 to Imp-mf-lang v5 by picking a 
+; Input:   values-unique-lang-v6
+; Output:  imp-mf-lang-v6
+; Purpose: Compiles Values-unique-lang v6 to Imp-mf-lang v6 by picking a 
 ;          particular order to implement let expressions using set!.
 (define (sequentialize-let p)
   
@@ -979,6 +975,8 @@
                ,@(seq-v val))]
       [`(if ,pred ,val1 ,val2)
        `(if ,(seq-pr pred) ,(seq-v val1) ,(seq-v val2))]
+      [`(call ,triv ,opand ...)
+       v]
       [_ v])) ; triv or binop
 
   (seq-p p))
