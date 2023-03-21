@@ -77,13 +77,19 @@
 
 ; ================= Helpers =================
 
-(define (address? a)
-  (match a
-    [`(rbp ,op ,int)
-      #:when (and (member op '(- +))
-                  (integer? int))
-     #t]
-    [_ #f]))
+; (define (address? a)
+;   (match a
+;     [`(rbp ,op ,int)
+;       #:when (and (member op '(- +))
+;                   (integer? int))
+;      #t]
+;     [_ #f]))
+
+(define (address? addr)
+  (and (list? addr)
+        (frame-base-pointer-register? (first addr))
+        (equal? '- (second addr))
+        (dispoffset? (third addr))))
 
 (define (splice-mapped-list list)
   ; splice things when an instruction is replaced by multiple instructions.
@@ -1302,14 +1308,11 @@
   (uloc-p p '()))
 
 
-; Input:   para-asm-lang-v4
-; Output:  paren-x64-fvars-v4
-; Purpose: Compiles Para-asm-lang v4 to Paren-x64-fvars v4 by patching each instruction that has no 
-;          x64 analogue into a sequence of instructions using auxiliary register from current-patch-instructions-registers.
+; Input:   para-asm-lang-v6
+; Output:  paren-x64-fvars-v6
+; Purpose: Compile the Para-asm-lang v6 to Paren-x64 v6 by patching instructions that have 
+;          no x64 analogue into to a sequence of instructions and an auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
-  ; Compiles Para-asm-lang v2 to Paren-x64-fvars v2 by patching instructions that have 
-  ; no x64 analogue into a sequence of instructions.
-
   (define i-reg1 (first (current-patch-instructions-registers)))
   (define i-reg2 (second (current-patch-instructions-registers)))
   (define ret-reg (current-return-value-register))
@@ -1325,33 +1328,33 @@
 
   (define (patch-effect e)
     (match e
-      [`(set! ,fvar1 ,fvar2) #:when (and (fvar? fvar1) (fvar? fvar2))
-          `((set! ,i-reg1 ,fvar2)
-            (set! ,fvar1 ,i-reg1))]
-      [`(set! ,fvar1 ,int64) #:when (and (not (int32? int64)) (int64? int64) )
+      [`(set! ,addr1 ,addr2) #:when (and (address? addr1) (address? addr2))
+          `((set! ,i-reg1 ,addr2)
+            (set! ,addr1 ,i-reg1))]
+      [`(set! ,addr1 ,int64) #:when (and (not (int32? int64)) (int64? int64) )
           `((set! ,i-reg1 ,int64)
-            (set! ,fvar1 ,i-reg1))]
-      [`(set! ,fvar (,binop ...)) #:when (fvar? fvar)
-          `((set! ,i-reg1 ,fvar)
+            (set! ,addr1 ,i-reg1))]
+      [`(set! ,addr1 ,label) #:when (and (address? addr1) (label? label))
+          `((set! ,i-reg1 ,label)
+            (set! ,addr1 ,i-reg1))]
+      [`(set! ,addr (,binop ...)) #:when (address? addr)
+          `((set! ,i-reg1 ,addr)
             (set! ,i-reg1 ,(patch-binop binop))
-            (set! ,fvar ,i-reg1))]
-      [`(halt ,opand)
-          `((set! ,ret-reg ,opand)
-            (jump done))]
+            (set! ,addr ,i-reg1))]
       [`(with-label ,label (halt ,opand))
           `((with-label ,label (set! ,ret-reg ,opand))
             (jump done))]
       [`(with-label ,label ,s)
           `(with-label ,label ,(patch-effect s))]
-      [`(jump ,trg) #:when (fvar? trg)
-          `((set! ,i-reg1 ,trg)
+      [`(jump ,addr) #:when (address? addr)
+          `((set! ,i-reg1 ,addr)
             (jump ,i-reg1))]
-      [`(compare ,fvar1 ,fvar2) #:when (and (fvar? fvar1) (fvar? fvar2))
-          `((set! ,i-reg2 ,fvar2)
-            (set! ,i-reg1 ,fvar1)
+      [`(compare ,addr1 ,addr2) #:when (and (address? addr1) (address? addr2))
+          `((set! ,i-reg2 ,addr2)
+            (set! ,i-reg1 ,addr1)
             (compare ,i-reg1 ,i-reg2))]
-      [`(compare ,reg ,fvar1) #:when (fvar? fvar1)
-          `((set! ,i-reg1 ,fvar1)
+      [`(compare ,reg ,addr1) #:when (address? addr1)
+          `((set! ,i-reg1 ,addr1)
             (compare ,reg ,i-reg1))]
       [`(jump-if ,relop ,trg) #:when (not (label? trg))
           `((jump-if ,(patch-relop relop) L.tmp.1)
@@ -1361,8 +1364,8 @@
 
   (define (patch-binop b)
     (match b
-      [`(,binop ,fvar ,val) #:when (fvar? fvar)
-          `(,binop ,i-reg1 ,val)]
+      [`(,binop ,addr ,val) #:when (address? addr)
+       `(,binop ,i-reg1 ,val)]
       [_ b]))  ; everything else
     
   (define (patch-relop r)
@@ -1480,12 +1483,6 @@
 
   (define (trg? trg)
     (or (register? trg) (label? trg)))
-
-  (define (address? addr)
-    (and (list? addr)
-         (frame-base-pointer-register? (first addr))
-         (equal? '- (second addr))
-         (dispoffset? (third addr))))
   
   (define (triv? triv)
     (or (trg? triv) (int64? triv)))
