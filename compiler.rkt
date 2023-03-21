@@ -1097,7 +1097,7 @@
        `(begin ,@(splice-mapped-list (map sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
        `(if ,@(map sel-ins-pr preds))]
-      [_ pr])) ; bool or (relop loc opand)
+      [_ pr])) ; bool
   
   ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
