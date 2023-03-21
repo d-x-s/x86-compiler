@@ -190,7 +190,7 @@
             (define L.id.5 ((new-frames ())) (begin (set! x.32 rdi) (jump x.32)))
             (begin (set! y.33 L.id.5) (set! rdi 5) (jump y.33 rbp rdi)))))
 
-(test-case "select 12 - complex test"
+(test-case "select 12 - complex test, binop"
    (check-equal?
         (select-instructions
             `(module 
@@ -256,3 +256,19 @@
                 (return-point L.two.2 (begin (set! z.1 2) (jump r9 r9 fv1 x.1)))
                 (return-point L.three.3 (if (true) (jump fv9 fv1) (jump x.7 x.1)))
                 (jump fv9)))))
+
+(test-case "select 14 - binop is subtraction"
+   (check-equal?
+        (select-instructions
+            `(module ((new-frames ())) 
+                     (begin 
+                        (set! y.59 (- x.58 -1)) 
+                        (begin (set! rdi y.59) (jump x.0 rbp rdi)))))
+        
+        `(module
+            ((new-frames ()))
+            (begin
+                (set! y.59 x.58)
+                (set! y.59 (- y.59 -1))
+                (set! rdi y.59)
+                (jump x.0 rbp rdi)))))
