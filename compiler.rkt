@@ -119,10 +119,12 @@
 
 ; =============== M5 Passes ================
 
-; Input:   proc-imp-cmf-lang-v5
-; Output:  imp-cmf-lang-v5
-; Purpose: Compiles Proc-imp-cmf-lang v5 to Imp-cmf-lang v5 by imposing calling conventions on all 
-;          calls and procedure definitions
+; Input:   proc-imp-cmf-lang-v6
+; Output:  imp-cmf-lang-v6
+; Purpose: Compiles Proc-imp-cmf-lang v6 to Imp-cmf-lang v6 by imposing calling conventions on all calls 
+;          (both tail and non-tail calls), and entry points. The registers used to passing parameters are 
+;          defined by current-parameter-registers, and the registers used for returning are defined by 
+;          current-return-address-register and current-return-value-register.
 (define (impose-calling-conventions p)
 
   (define cpr (current-parameter-registers))
@@ -1049,32 +1051,32 @@
   (n-bind-p p))
 
 
-; Input:   imp-cmf-lang-v5
-; Output:  asm-pred-lang-v5
-; Purpose: Compiles Imp-cmf-lang v5 to Asm-pred-lang v5, selecting appropriate sequences of
+; Input:   imp-cmf-lang-v6
+; Output:  asm-pred-lang-v6
+; Purpose: Compiles Imp-cmf-lang v6 to Asm-pred-lang v6, selecting appropriate sequences of
 ;          abstract assembly instructions to implement the operations of the source language.
+; M5 > M6 : remove support for halt, tail is no longer value, add return-points. 
 (define (select-instructions p)
 
   (define (sel-ins-p p)
     (match p
-      [`(module ,defines ... ,tail)
+      [`(module ,info ,defines ... ,tail)
         (define tailRes (sel-ins-t tail))
         (if (equal? (length tailRes) 1)
-           `(module () ,@(map sel-ins-def defines) ,@(sel-ins-t tail))
-           `(module () ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
+           `(module ,info ,@(map sel-ins-def defines) ,@(sel-ins-t tail))
+           `(module ,info ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
   
   (define (sel-ins-def d)
     (match d
-      [`(define ,label ,tail)
+      [`(define ,label ,info ,tail)
         (define tailRes (sel-ins-t tail))
         (if (equal? (length tailRes) 1)
-           `(define ,label () ,@(sel-ins-t tail))
-           `(define ,label () (begin ,@(sel-ins-t tail))))]))
+           `(define ,label ,info ,@(sel-ins-t tail))
+           `(define ,label ,info (begin ,@(sel-ins-t tail))))]))
 
   ; Return a list of instructions
   (define (sel-ins-t t)
     (match t
-      [`(halt ,opand) `(,t)]
       [`(jump ,trg ,loc ...) `(,t)]
       [`(begin ,effects ... ,tail) ; flattens nested begins, including in tail position.
        `(,@(splice-mapped-list (map sel-ins-e effects)) ,@(sel-ins-t tail))]
@@ -1087,21 +1089,16 @@
         (define corrTail2 (if (equal? (length tailRes2) 1)
                               tailRes2
                              `((begin ,@tailRes2))))
-       `((if ,(sel-ins-pr pred) ,@corrTail1 ,@corrTail2))]
-      [`(,binop ...) #:when (and (member (first binop) '(+ *)) #t)
-        (define getfresh (fresh)) ; tail binop: need to create a temporary aloc
-       `(,@(sel-ins-v binop getfresh) (halt ,getfresh))]
-      [value ; value is a triv
-        (sel-ins-v value '_)]))
+       `((if ,(sel-ins-pr pred) ,@corrTail1 ,@corrTail2))]))
   
   ; Returns a list of instructions
   (define (sel-ins-v v aloc)
     (match v
-      [value #:when (or (number? value) (aloc? value)) ; value is a triv
-        `((halt ,value))]
       [`(,binop ,opand1 ,opand2)
        `((set! ,aloc ,opand1)
-         (set! ,aloc (,binop ,aloc ,opand2)))]))
+         (set! ,aloc (,binop ,aloc ,opand2)))]
+      [triv ; label, int, register, fvar, or aloc
+        `((halt ,triv))]))
 
   ; Returns an instruction
   (define (sel-ins-pr pr)
@@ -1116,16 +1113,16 @@
        `(begin ,@(splice-mapped-list (map sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
        `(if ,@(map sel-ins-pr preds))]
-      [_ pr])) ; bool or (relop loc opand)
+      [_ pr])) ; bool
   
   ; Process an effect and return a list of instructions
   (define (sel-ins-e e)
     (match e
       [`(set! ,loc (,binop ...))
         (sel-ins-v binop loc)]
+      [`(set! ,loc ,triv) `(,e)] ; triv is label, int, register, fvar, or aloc
       [`(begin ,eff ...)  ; flatten nested begins
         `(,@(splice-mapped-list (map sel-ins-e eff)))]
-      [`(set! ,loc ,triv) `(,e)]
       [`(if ,pred ,effect1 ,effect2)
         ; wrap the effect result in (begin ) if it is multiple instructions.
         ; do NOT flatten begins if the effect was already a (begin ).
@@ -1137,7 +1134,12 @@
         (define corrEffRes2 (if (or (> (length effRes2) 1) (equal? (first effect2) 'begin))
                                `((begin ,@effRes2))
                                 effRes2))
-       `((if ,(sel-ins-pr pred) ,@corrEffRes1 ,@corrEffRes2))]))
+       `((if ,(sel-ins-pr pred) ,@corrEffRes1 ,@corrEffRes2))]
+      [`(return-point ,label ,tail)
+        (define tailRes (sel-ins-t tail))
+        (if (equal? (length tailRes) 1)
+           `((return-point ,label ,@(sel-ins-t tail)))
+           `((return-point ,label (begin ,@(sel-ins-t tail)))))]))
 
   (sel-ins-p p))
 
