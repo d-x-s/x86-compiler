@@ -1225,15 +1225,15 @@
   (define (uloc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
-       `(module ((locals ,(uloc-t tail '()))) ,@(map uloc-def defines) ,tail)]))
+       `(module ,(info-set info 'locals (uloc-t tail '())) ,@(map uloc-def defines) ,tail)]))
 
   (define (uloc-def def)
     (match def
       [`(define ,label ,info ,tail)
-       `(define ,label ((locals ,(uloc-t tail '()))) ,tail)]))
-
+       `(define ,label ,(info-set info 'locals (uloc-t tail '())) ,tail)]))
+  
+  ; return a set of alocs.
   (define (uloc-t t acc)
-    ; return a set of alocs.
     (match t
       [`(begin ,effect ... ,tail)
         (uloc-t 
@@ -1241,18 +1241,16 @@
           (foldl (lambda (elem rest) (set-add rest elem)) 
             acc 
             (foldl append '() (map uloc-e effect))))]
-      [`(halt ,opand)
-        (if (aloc? opand) (set-add acc opand) acc)]
       [`(if ,pred ,tail1 ,tail2)
         (set-union 
           (uloc-pred pred)
           (uloc-t tail1 acc)
           (uloc-t tail2 acc))]
-      [`(jump ,trg ,loc ...)
+      [`(jump ,trg ,loc ...) ; alocs in jump params are not added to locals set.
         (if (aloc? trg) (set-add acc trg) acc)]))
-
+  
+  ; return: set of all alocs found in effect
   (define (uloc-e e)
-    ; return: list of all alocs found in effect
     (match e  
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
         (aloc-truth loc_1 opand)]
@@ -1264,7 +1262,9 @@
           (uloc-e effect1)
           (uloc-e effect2))]
       [`(begin ,effects ...)
-        (foldl append '() (map uloc-e effects))]))
+        (foldl append '() (map uloc-e effects))]
+      [`(return-point ,label ,tail)
+        (uloc-t tail '())]))
 
   (define (uloc-pred p)
     (match p
