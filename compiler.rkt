@@ -1196,22 +1196,18 @@
 
 ; Input:   asm-pred-lang-v5
 ; Output:  asm-pred-lang-v5/locals
-; Purpose: Compiles Asm-pred-lang v4 to Asm-pred-lang v4/locals, analysing which abstract locations 
-;          are used in the module and decorating the module with the set of variables in an info field.
+; Purpose: Compiles Asm-pred-lang v5 to Asm-pred-lang v5/locals, analysing which abstract locations 
+;          are used in each block, and decorating each block and the module with the set of variables 
+;          in an info? field.
 (define (uncover-locals p)
-  ; Convert asm-lang-v2 into Asm-lang-v2/locals, analysing which 
-  ; abstract locations are used in the program and decorating the
-  ; program with the set of variables in an info field.
 
-  (define (uloc-p p acc)
+  (define (uloc-p p)
     (match p
-      [`(module ,info ,tail)
-       `(module ((locals ,(uloc-t tail acc))) ,tail)]
-      [`(module ,info ,d ... ,tail)
-       `(module ((locals ,(uloc-t tail acc))) ,@(map uloc-def d) ,tail)]))
+      [`(module ,info ,defines ... ,tail)
+       `(module ((locals ,(uloc-t tail '()))) ,@(map uloc-def defines) ,tail)]))
 
-  (define (uloc-def d)
-    (match d
+  (define (uloc-def def)
+    (match def
       [`(define ,label ,info ,tail)
        `(define ,label ((locals ,(uloc-t tail '()))) ,tail)]))
 
@@ -1228,10 +1224,9 @@
         (if (aloc? opand) (set-add acc opand) acc)]
       [`(if ,pred ,tail1 ,tail2)
         (set-union 
-        (uloc-pred pred)
-        (uloc-t tail1 acc)
-        (uloc-t tail2 acc)
-        )]
+          (uloc-pred pred)
+          (uloc-t tail1 acc)
+          (uloc-t tail2 acc))]
       [`(jump ,trg ,loc ...)
         (if (aloc? trg) (set-add acc trg) acc)]))
 
@@ -1243,33 +1238,29 @@
       [`(set! ,loc ,triv)
         (aloc-truth loc triv)]  
       [`(if ,pred ,effect1 ,effect2)
-       (set-union
-        (uloc-pred pred)
-        (uloc-e effect1)
-        (uloc-e effect2))]
+        (set-union
+          (uloc-pred pred)
+          (uloc-e effect1)
+          (uloc-e effect2))]
       [`(begin ,effects ...)
-        (foldl append '() (map uloc-e effects))]
-        ))
+        (foldl append '() (map uloc-e effects))]))
 
   (define (uloc-pred p)
     (match p
       [`(begin ,effect ... ,pred)
         (set-union
-        (uloc-pred pred)
-        (foldl set-union '() (map uloc-e effect)))]
+          (uloc-pred pred)
+          (foldl set-union '() (map uloc-e effect)))]
       [`(if ,pred1 ,pred2 ,pred3)
         (set-union
-        (uloc-pred pred1)
-        (uloc-pred pred2)
-        (uloc-pred pred3))]
+          (uloc-pred pred1)
+          (uloc-pred pred2)
+          (uloc-pred pred3))]
       [`(not ,pred)
         (uloc-pred pred)]
       [`(,relop ,loc ,opand)
         (aloc-truth loc opand)]
-      [`(true)
-        `()]
-      [`(false)
-        `()]))
+      [_ `()])) ;bool
 
   (define (aloc-truth a1 a2)
      (cond
@@ -1278,7 +1269,7 @@
         [(aloc? a2) `(,a2)]
         [else `()]))
 
-  (uloc-p p '()))
+  (uloc-p p))
 
 
 ; Input:   para-asm-lang-v4
