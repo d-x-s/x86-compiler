@@ -2,24 +2,23 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "select 1"
+(test-case "select 1 - tail is number"
    (check-equal?
         (select-instructions
             `(module 2))
         
         `(module () (halt 2))))
 
-(test-case "select 2"
+(test-case "select 2 - tail is binop"
    (check-equal?
         (select-instructions
             `(module (+ 1 x.1)))
         
         `(module () (begin (set! tmp.2 1) (set! tmp.2 (+ tmp.2 x.1)) (halt tmp.2)))))
 
-(test-case "select 3"
+(test-case "select 3 - nested begins"
    (check-equal?
         (select-instructions
             `(module (begin 
@@ -42,7 +41,7 @@
                 (set! x.3 (+ x.3 y.2))
                 (halt 2)))))
 
-(test-case "select 4"
+(test-case "select 4 - nested begins, tail is begin"
    (check-equal?
         (select-instructions
             `(module (begin 
@@ -70,7 +69,7 @@
 
 ; M4 Tests
 
-(test-case "select 5"
+(test-case "select 5 - tail is if"
    (check-equal?
         (select-instructions
             `(module (if (true) 0 (+ 0 1))))
@@ -80,7 +79,7 @@
                 (halt 0)
                 (begin (set! tmp.4 0) (set! tmp.4 (+ tmp.4 1)) (halt tmp.4))))))
 
-(test-case "select 6"
+(test-case "select 6 - pred is number comparison"
    (check-equal?
         (select-instructions
             `(module (if (> 0 1) 0 (+ 0 1))))
@@ -91,7 +90,7 @@
                 (halt 0)
                 (begin (set! tmp.7 0) (set! tmp.7 (+ tmp.7 1)) (halt tmp.7))))))
 
-(test-case "select 7"
+(test-case "select 7 - pred is not"
    (check-equal?
         (select-instructions
             `(module (if (not (> 0 1)) 0 (+ 0 1))))
@@ -102,7 +101,7 @@
                 (begin (set! tmp.11 0) (set! tmp.11 (+ tmp.11 1)) (halt tmp.11))))))
 
 ; Note: this test differs from interrogator result in that it flattens begins in (begin effects ... pred).
-(test-case "select 8"
+(test-case "select 8 - pred is begin"
    (check-equal?
         (select-instructions
             `(module (if (begin 
@@ -124,7 +123,7 @@
                 (halt 0)
                 (begin (set! tmp.14 0) (set! tmp.14 (+ tmp.14 1)) (halt tmp.14))))))
 
-(test-case "select 9"
+(test-case "select 9 - pred is if"
    (check-equal?
         (select-instructions
             `(module (if (if (> 1 2) (true) (false)) 
@@ -136,7 +135,7 @@
                 (halt 0)
                 (begin (set! tmp.17 0) (set! tmp.17 (+ tmp.17 1)) (halt tmp.17))))))
 
-(test-case "select 10"
+(test-case "select 10 - effect is if"
    (check-equal?
         (select-instructions
             `(module (begin 
@@ -150,7 +149,7 @@
                 (if (true) (begin (set! x.2 1) (set! x.2 (+ x.2 2))) (set! x.3 3))
                 (halt 2)))))
 
-(test-case "select 11"
+(test-case "select 11 - effect if has begins as branches"
    (check-equal?
         (select-instructions
             `(module 
@@ -172,7 +171,7 @@
 
 ; M5 Tests
 
-(test-case "select 12"
+(test-case "select 12 - define functions, jump as tail"
    (check-equal?
         (select-instructions
             `(module 
@@ -184,7 +183,7 @@
             (define L.id.5 () (begin (set! x.32 rdi) (halt x.32)))
             (begin (set! y.33 L.id.5) (set! rdi 5) (jump y.33 rbp rdi)))))
 
-(test-case "select 13"
+(test-case "select 13 - define functions, binop"
    (check-equal?
         (select-instructions
             `(module 
@@ -210,7 +209,7 @@
                 (halt tmp.20)))
             (halt 0))))
 
-(test-case "select 14"
+(test-case "select 14 - nested begins"
    (check-equal?
         (select-instructions
             `(module 
@@ -229,7 +228,7 @@
                 (set! rdi 5)
                 (jump y.12 rbp rdi)))))
 
-(test-case "select 15"
+(test-case "select 15 - tail is aloc"
    (check-equal?
         (select-instructions
             `(module 
@@ -241,7 +240,7 @@
             (define L.id.4 () (begin (set! x.31 rdi) (halt x.31)))
             (begin (set! rdi 5) (jump L.id.4 rbp rdi)))))
 
-(test-case "select 16"
+(test-case "select 16 - complex test"
    (check-equal?
         (select-instructions
             `(module 
