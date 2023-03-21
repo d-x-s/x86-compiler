@@ -2,17 +2,16 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "uncover 1"
+(test-case "uncover 1 - simple halt"
    (check-equal?
       (uncover-locals
         '(module () (halt 0)))
     
       '(module ((locals ())) (halt 0))))
 
-(test-case "uncover 2"
+(test-case "uncover 2 - define function, halt aloc, jump aloc"
   (check-equal?
     (uncover-locals
       '(module () (define L.start.1 () (halt x.2)) (jump x.1 rax)))
@@ -22,7 +21,7 @@
         (define L.start.1 ((locals (x.2))) (halt x.2))
         (jump x.1 rax))))
 
-(test-case "uncover 3"
+(test-case "uncover 3 - set loc to binop with aloc"
   (check-equal?
     (uncover-locals
       '(module () (define L.start.1 () (halt x.2)) (begin (set! rax (+ rax x.3)) (halt rax))))
@@ -32,7 +31,7 @@
       (define L.start.1 ((locals (x.2))) (halt x.2))
       (begin (set! rax (+ rax x.3)) (halt rax)))))
 
-(test-case "uncover 4"
+(test-case "uncover 4 - set loc to binop with multiple alocs"
   (check-equal?
     (uncover-locals
       '(module () (define L.start.1 () (halt x.2)) (begin (set! x.1 (+ x.1 x.3)) (halt rax))))
@@ -42,14 +41,14 @@
       (define L.start.1 ((locals (x.2))) (halt x.2))
       (begin (set! x.1 (+ x.1 x.3)) (halt rax)))))
 
-(test-case "uncover 5"
+(test-case "uncover 5 - pred with alocs"
   (check-equal?
     (uncover-locals
       '(module () (if (> x.1 x.3) (halt rax) (halt x.4))))
     
     '(module ((locals (x.4 x.3 x.1))) (if (> x.1 x.3) (halt rax) (halt x.4)))))
 
-(test-case "uncover 6"
+(test-case "uncover 6 - simple test"
   (check-equal?
     (uncover-locals
       '(module () 
@@ -62,21 +61,21 @@
       (define L.start.3 ((locals (x.7))) (halt x.7))
       (begin (set! x.1 (+ x.1 x.3)) (halt rax)))))
 
-(test-case "uncover 7"
+(test-case "uncover 7 - jump with multiple params"
   (check-equal?
     (uncover-locals
       '(module () (jump rax rax x.1 x.5 rcx x.3)))
     
     '(module ((locals ())) (jump rax rax x.1 x.5 rcx x.3))))
 
-(test-case "uncover 8"
+(test-case "uncover 8 - jump with multiple params"
   (check-equal?
     (uncover-locals
       '(module () (jump L.start.1 rax x.1 x.5 rcx x.3)))
     
     '(module ((locals ())) (jump L.start.1 rax x.1 x.5 rcx x.3))))
 
-(test-case "uncover 9"
+(test-case "uncover 9 - set and pred with label, register"
   (check-equal?
     (uncover-locals
       '(module () 
@@ -207,9 +206,9 @@
          (jump z.5 rdi rsi rdx))))
     
       '(module
-        ((locals (x.1 x.2 x.3 z.5)))
+        ((locals (x.3 x.1 x.2 z.5)))
         (define L.a.1
-          ((locals (x.3 y.6 x.5 x.2)))
+          ((locals (x.5 x.3 y.6 x.2)))
           (begin
             (set! x.5 6)
             (begin (set! x.3 6) (set! y.6 10))
@@ -249,20 +248,20 @@
          (jump z.5 rdi rsi rdx))))
     
       '(module
-  ((locals (x.1 x.2 x.3 z.5)))
-  (define L.a.1
-    ((locals (x.2 x.3 y.6 x.5)))
-    (begin
-      (set! x.5 6)
-      (begin (set! x.3 6) (set! y.6 10))
-      (set! x.2 2)
-      (jump L.b.1 rdi)))
-  (define L.b.1 ((locals ())) (begin (set! fv0 22) (halt fv0)))
-  (begin
-    (set! x.3 1)
-    (set! x.2 2)
-    (set! x.2 (+ x.2 x.3))
-    (set! x.1 x.2)
-    (set! x.1 (+ x.1 x.2))
-    (set! z.5 L.a.1)
-    (jump z.5 rdi rsi rdx)))))
+        ((locals (x.3 x.1 x.2 z.5)))
+        (define L.a.1
+          ((locals (x.5 x.3 y.6 x.2))) 
+          (begin
+            (set! x.5 6)
+            (begin (set! x.3 6) (set! y.6 10))
+            (set! x.2 2)
+            (jump L.b.1 rdi)))
+        (define L.b.1 ((locals ())) (begin (set! fv0 22) (halt fv0)))
+        (begin
+          (set! x.3 1)
+          (set! x.2 2)
+          (set! x.2 (+ x.2 x.3))
+          (set! x.1 x.2)
+          (set! x.1 (+ x.1 x.2))
+          (set! z.5 L.a.1)
+          (jump z.5 rdi rsi rdx)))))
