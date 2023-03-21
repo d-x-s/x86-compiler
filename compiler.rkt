@@ -982,9 +982,9 @@
   (seq-p p))
 
 
-; Input:   imp-mf-lang-v5
-; Output:  proc-imp-cmf-lang-v5
-; Purpose: Compiles Imp-mf-lang v5 to Proc-imp-cmf-lang v5, pushing set! under 
+; Input:   imp-mf-lang-v6
+; Output:  proc-imp-cmf-lang-v6
+; Purpose: Compiles Imp-mf-lang v6 to Proc-imp-cmf-lang v6, pushing set! under 
 ;          begin so that the right-hand-side of each set! is simple value-producing operation.
 (define (normalize-bind p)
 
@@ -1017,6 +1017,8 @@
         `(begin ,@(map n-bind-e eff) ,(n-bind-v val))]
       [`(if ,pred ,value1 ,value2)
        `(if ,(n-bind-pr pred) ,(n-bind-v value1) ,(n-bind-v value2))]
+      [`(call ,triv ,opand ...)
+        v]
       [_ v])) ; triv or binop
 
   ; Return an instruction

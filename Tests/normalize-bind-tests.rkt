@@ -2,38 +2,37 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "normalize 1"
+(test-case "normalize 1 - tail is aloc"
    (check-equal?
         (normalize-bind
             `(module x.1))
         
         `(module x.1)))
 
-(test-case "normalize 2"
+(test-case "normalize 2 - tail is binop"
    (check-equal?
         (normalize-bind
             `(module (+ 1 2)))
         
         `(module (+ 1 2))))
 
-(test-case "normalize 3"
+(test-case "normalize 3 - tail is begin"
    (check-equal?
         (normalize-bind
             `(module (begin (set! x.1 0) 2)))
         
         `(module (begin (set! x.1 0) 2))))
 
-(test-case "normalize 4"
+(test-case "normalize 4 - effect is begin"
    (check-equal?
         (normalize-bind
             `(module (begin (set! x.1 0) (begin (set! x.1 0)) 2)))
         
         `(module (begin (set! x.1 0) (begin (set! x.1 0)) 2))))
 
-(test-case "normalize 5"
+(test-case "normalize 5 - value is begin"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -42,7 +41,7 @@
         
         `(module (begin (begin (set! x.1 2)) x.1))))
 
-(test-case "normalize 6"
+(test-case "normalize 6 - value is begin, multiple effects"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -52,7 +51,7 @@
         
         `(module (begin (begin (set! x.1 (+ 1 2))) (set! x.2 5) x.1))))
 
-(test-case "normalize 7"
+(test-case "normalize 7 - nested effects"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -61,7 +60,7 @@
         
         `(module (begin (begin (set! x.2 3) (set! x.1 x.2)) x.1))))
 
-(test-case "normalize 8"
+(test-case "normalize 8 - multi-nested effects"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -72,7 +71,7 @@
 
 ; M4 Tests
 
-(test-case "normalize 9"
+(test-case "normalize 9 - tail is if, if-branch is begin, pred"
    (check-equal?
         (normalize-bind
             `(module (if (true)
@@ -81,7 +80,7 @@
         
         `(module (if (true) (begin (set! x.1 1) 2) (if (> 1 2) 3 4)))))
 
-(test-case "normalize 10"
+(test-case "normalize 10 - effect value is if"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -95,7 +94,7 @@
                 (if (true) (begin (set! y.2 14) (set! x.5 12)) (begin (set! x.5 15)))
                 x.5))))
 
-(test-case "normalize 11"
+(test-case "normalize 11 - nesting"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -117,7 +116,7 @@
                 (begin (set! x.37 8) (set! z.38 x.37))
                 (if (true) (begin (set! z.38 (+ x.37 7)) 8) 9))))))
 
-(test-case "normalize 12"
+(test-case "normalize 12 - effect is if, value is begin"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -134,7 +133,7 @@
                 (set! x.3 y.7))
                 x.3))))
 
-(test-case "normalize 13"
+(test-case "normalize 13 - value is if"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -148,11 +147,11 @@
             (begin
                 (set! x.1 0)
                 (if (true)
-                (begin (set! y.2 (+ x.1 17)) (set! x.5 12))
-                (begin (set! x.5 15)))
+                    (begin (set! y.2 (+ x.1 17)) (set! x.5 12))
+                    (begin (set! x.5 15)))
                 x.5))))
 
-(test-case "normalize 13"
+(test-case "normalize 14 - effect is if, nested if"
    (check-equal?
         (normalize-bind
             `(module (begin 
@@ -174,14 +173,14 @@
 
 ; M5 Tests
 
-(test-case "normalize 14"
+(test-case "normalize 15 - tail is call"
    (check-equal?
         (normalize-bind
             `(module (call x.5 1 2 3)))
         
         `(module (call x.5 1 2 3))))
 
-(test-case "normalize 15"
+(test-case "normalize 16 - define functions"
    (check-equal?
         (normalize-bind
             `(module 
@@ -213,3 +212,19 @@
                     (set! x.3 y.7))
                     x.3)))
             (call x.5 1 2 3))))
+
+; M6 Tests
+(test-case "normalize 17 - tail is subtraction binop"
+   (check-equal?
+        (normalize-bind
+            `(module (- 1 2)))
+        
+        `(module (- 1 2))))
+
+(test-case "normalize 18 - effect value is call"
+   (check-equal?
+        (normalize-bind
+            `(module (begin (set! x.1 (call x.2 1 x.4 5)) 2)))
+        
+        `(module (begin (set! x.1 (call x.2 1 x.4 5)) 2))))
+

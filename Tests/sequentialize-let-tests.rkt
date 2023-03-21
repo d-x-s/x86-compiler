@@ -2,8 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
 (test-case "sequentialize 1 - tail is number"
    (check-equal?
