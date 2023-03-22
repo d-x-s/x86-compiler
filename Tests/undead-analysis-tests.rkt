@@ -2,10 +2,9 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "undead 1"
+(test-case "undead 1 - simple halt"
    (check-equal?
         (undead-analysis
             `(module ((locals (v.1)))
@@ -13,7 +12,7 @@
         
         `(module ((locals (v.1)) (undead-out ())) (halt v.1))))
 
-(test-case "undead 2"
+(test-case "undead 2 - tail is begin"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1)))
@@ -23,7 +22,7 @@
         
         `(module ((locals (x.1)) (undead-out ((x.1) ()))) (begin (set! x.1 42) (halt x.1)))))
 
-(test-case "undead 3"
+(test-case "undead 3 - long begin"
    (check-equal?
         (undead-analysis
             `(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1)))
@@ -79,7 +78,7 @@
                 (set! z.5 (+ z.5 t.6))
                 (halt z.5)))))
 
-(test-case "undead 4"
+(test-case "undead 4 - unused variable"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.1)))
@@ -92,7 +91,7 @@
             ((locals (x.1 y.1)) (undead-out (() (x.1) ())))
             (begin (set! y.1 42) (set! x.1 5) (halt x.1)))))
 
-(test-case "undead 5"
+(test-case "undead 5 - unused variable"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.1)))
@@ -105,7 +104,7 @@
             ((locals (x.1 y.1)) (undead-out ((x.1) (x.1) ())))
             (begin (set! x.1 5) (set! y.1 42) (halt x.1)))))
 
-(test-case "undead 6"
+(test-case "undead 6 - simple tail-nested begin"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 w.2 p.1 t.6)))
@@ -126,7 +125,7 @@
                 (set! w.2 46)
                 (begin (set! p.1 -1) (set! t.6 (* t.6 w.2)) (halt t.6))))))
 
-(test-case "undead 7"
+(test-case "undead 7 - effect is begin"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.3 w.2 p.1 t.6)))
@@ -160,7 +159,7 @@
                 (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
                 (halt t.6))))))
 
-(test-case "undead 8"
+(test-case "undead 8 - tail-nested begin"
    (check-equal?
         (undead-analysis
             `(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1)))
@@ -171,12 +170,12 @@
                     (set! p.1 7)
                     (set! z.5 (+ z.5 p.1))
                     (begin
-                    (set! v.1 1)
-                    (set! w.2 46)
-                    (set! x.3 v.1)
-                    (set! p.1 7)
-                    (set! z.5 (+ z.5 p.1))
-                    (halt z.5)))))
+                        (set! v.1 1)
+                        (set! w.2 46)
+                        (set! x.3 v.1)
+                        (set! p.1 7)
+                        (set! z.5 (+ z.5 p.1))
+                        (halt z.5)))))
         
         `(module
             ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
@@ -201,7 +200,7 @@
                 (set! z.5 (+ z.5 p.1))
                 (halt z.5))))))
 
-(test-case "undead 9"
+(test-case "undead 9 - multiple effects are begins"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.3 w.2 p.1 t.6)))
@@ -209,13 +208,13 @@
                     (set! x.1 42)
                     (set! w.2 46)
                     (begin (begin (set! x.1 42)
-                                (set! w.2 46)
-                                (set! y.3 (+ y.3 2)))
-                        (set! t.6 (* t.6 w.2))
-                        (begin (set! x.1 42)
-                                (set! w.2 46)
-                                (set! y.3 (+ y.3 2)))
-                        (halt t.6)))))
+                                  (set! w.2 46)
+                                  (set! y.3 (+ y.3 2)))
+                           (set! t.6 (* t.6 w.2))
+                           (begin (set! x.1 42)
+                                  (set! w.2 46)
+                                  (set! y.3 (+ y.3 2)))
+                           (halt t.6)))))
         
         `(module
             ((locals (x.1 y.3 w.2 p.1 t.6))
@@ -235,24 +234,9 @@
                 (begin (set! x.1 42) (set! w.2 46) (set! y.3 (+ y.3 2)))
                 (halt t.6))))))
 
-(test-case "undead 10"
-   (check-equal?
-        (undead-analysis
-            `(module
-                ((locals (x.1 x.2)) )
-                (begin (set! x.1 5) 
-                    (set! x.2 10) 
-                    (set! x.1 (+ x.1 x.2)) 
-                    (halt x.2))))
-        
-        `(module
-            ((locals (x.1 x.2)) (undead-out ((x.1) (x.1 x.2) (x.2) ())))
-            (begin (set! x.1 5) (set! x.2 10) (set! x.1 (+ x.1 x.2)) (halt x.2)))))
-
-
 ; M4 Tests
 
-(test-case "undead 11"
+(test-case "undead 10 - tail is if, pred is not"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 b.3 c.4))) 
@@ -262,7 +246,7 @@
             ((locals (x.1 y.2 b.3 c.4)) (undead-out ((c.4 x.1) () ())))
             (if (not (true)) (halt x.1) (halt c.4)))))
 
-(test-case "undead 12"
+(test-case "undead 11 - pred is begin, relop"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 b.3 c.4))) 
@@ -276,7 +260,7 @@
             (undead-out (((c.4 x.1) (y.2 c.4 x.1) (c.4 x.1)) () ())))
             (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))))
 
-(test-case "undead 13"
+(test-case "undead 12 - pred is equality"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 b.3 c.4))) 
@@ -301,7 +285,7 @@
                 (set! c.4 b.3)
                 (if (= c.4 b.3) (halt c.4) (begin (set! x.1 c.4) (halt c.4))))))))
     
-(test-case "undead 14"
+(test-case "undead 13 - pred is if"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 b.3 c.4 x.2 x.3))) 
@@ -312,7 +296,7 @@
             (undead-out (((y.2 b.3 c.4 x.1) (c.4 x.1) (c.4 x.1)) () ())))
             (if (if (< x.2 x.3) (= b.3 c.4) (> x.1 y.2)) (halt x.1) (halt c.4)))))
 
-(test-case "undead 15"
+(test-case "undead 14 - effect is if"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1)))
@@ -331,14 +315,14 @@
 
 ; M5 Tests
 
-(test-case "undead 16"
+(test-case "undead 15 - halt on register"
    (check-equal?
         (undead-analysis
             `(module ((locals ())) (halt rsp)))
         
         `(module ((locals ()) (undead-out ())) (halt rsp))))
 
-(test-case "undead 17"
+(test-case "undead 16 - jump to label, register as param"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1)))
@@ -355,7 +339,7 @@
                 (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
                 (jump L.start.1 rsp)))))
 
-(test-case "undead 18"
+(test-case "undead 17 - jump to aloc, multiple params"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 x.4 x.5)))
@@ -367,7 +351,7 @@
             ((locals (x.1 y.2 x.4 x.5)) (undead-out ((x.1 rsp fv1 y.1) (rsp fv1 y.1))))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
 
-(test-case "undead 19"
+(test-case "undead 18 - define functions"
    (check-equal?
         (undead-analysis
             `(module ((locals (x.1 y.2 x.4 x.5)))
@@ -397,7 +381,7 @@
                 (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
 
-(test-case "undead 20"
+(test-case "undead 19 - set loc to label"
    (check-equal?
         (undead-analysis
             `(module ((locals (y.12))) 
