@@ -503,36 +503,38 @@
 
 ; =============== M3 Passes ================
 
-; Input:   asm-pred-lang-v5/locals
-; Output:  asm-pred-lang-v5/undead
-; Purpose: Performs undead analysis, compiling Asm-pred-lang v5/locals to Asm-pred-lang v5/undead 
+; Input:   asm-pred-lang-v6/locals
+; Output:  asm-pred-lang-v6/undead
+; Purpose: Performs undead analysis, compiling Asm-pred-lang v6/locals to Asm-pred-lang v6/undead 
 ;          by decorating programs with their undead-set trees.
 (define (undead-analysis p)
+
+  ; stores abstract locations and frame variables in the undead-out sets of return-points.
+  (define call-acc (mutable-set))
 
   ; Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
-      [`(module ,locals ,defines ... ,tail)
+      [`(module ,info ,defines ... ,tail)
         (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
-       `(module ,(info-set locals `undead-out ust)
+       `(module ,(info-set (info-set info 'call-undead (set->list call-acc)) `undead-out ust)
                 ,@(map undead-def defines)
                 ,tail)]))
 
   (define (undead-def d)
     (match d
-      [`(define ,label ,locals ,tail)
+      [`(define ,label ,info ,tail)
+        (set! call-acc (mutable-set))
         (define-values (ust x) (undead-tail tail))  ; find the undead-set tree of the tail
-       `(define ,label ,(info-set locals `undead-out ust) ,tail)]))
+       `(define ,label 
+                ,(info-set (info-set info `undead-out ust) 'call-undead (set->list call-acc))
+                ,tail)]))
 
   ; Takes a tail and produces the undead-set tree from the effects
   ; Return: (values undead-set-tree? undead-set?)
   ; i.e. (<tree for tail> <set for next effect>)
   (define (undead-tail t)
     (match t
-      [`(halt ,opand)       
-        (if (number? opand)
-            (values '() '())
-            (values '() `(,opand)))]
       [`(begin ,effects ... ,tail)
         (define-values (tailUst tIn) (undead-tail tail))
  
@@ -552,8 +554,8 @@
         (values `(,predUst ,tail1Ust ,tail2Ust) predIn)]
       [`(jump ,trg ,loc ...)
         (if (label? trg) ; exclude labels from the set
-          (values loc loc)
-          (values loc (cons trg loc)))]))
+            (values loc loc)
+            (values loc (cons trg loc)))]))
 
   ; Given a pred, return the corresponding undead-out tree.
   ; Use a base undead-out consisting of the union of the undead-outs of the pred branches.
@@ -616,7 +618,12 @@
         (define-values (eff2Ust e2In) (undead-effect undead-out effect2)) ; process effects separately
         (define-values (eff1Ust e1In) (undead-effect undead-out effect1)) ; pass their combined results into pred
         (define-values (predUst predIn) (undead-pred (set-union e1In e2In) pred))
-        (values `(,predUst ,eff1Ust ,eff2Ust) predIn)]))
+        (values `(,predUst ,eff1Ust ,eff2Ust) predIn)]
+      [`(return-point ,label ,tail)
+        (define-values (ust nextIn) (undead-tail tail))  ; find the undead-set tree of the tail
+        (for ([e (filter (lambda (x) (not (register? x))) undead-out)])
+             (set-add! call-acc e))
+        (values `(,undead-out ,ust) (set-union nextIn undead-out))]))
   
   (undead-p p))
 
