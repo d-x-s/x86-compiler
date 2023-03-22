@@ -621,9 +621,12 @@
         (values `(,predUst ,eff1Ust ,eff2Ust) predIn)]
       [`(return-point ,label ,tail)
         (define-values (ust nextIn) (undead-tail tail))  ; find the undead-set tree of the tail
-        (for ([e (filter (lambda (x) (not (register? x))) undead-out)])
+        (define undead-filtered (filter (lambda (x) (not (register? x))) undead-out))
+        (for ([e undead-filtered])
              (set-add! call-acc e))
-        (values `(,undead-out ,ust) (set-union nextIn undead-out))]))
+        ; treat a return-point as defining the current-return-value-register.
+        (define new-undead-out (set-remove undead-out (current-return-value-register)))
+        (values `(,undead-out ,ust) (set-union nextIn new-undead-out))]))
   
   (undead-p p))
 

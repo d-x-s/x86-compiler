@@ -531,7 +531,7 @@
                 (if (false) (jump y.5) (jump y.6))))
                 (jump x.1)))))
 
-(test-case "undead 22 - return point in function"
+(test-case "undead 22 - return point in function, registers in return-point undead-out"
    (check-equal?
         (undead-analysis
             `(module ((new-frames (())) (locals (x.1 y.2 x.4 x.5 z.3)))
@@ -586,3 +586,89 @@
                 (set! x.4 x.5)
                 (return-point L.three.3 (jump z.3))
                 (jump x.1 rsp fv1 y.1)))))
+
+(test-case "undead 23 - complex test, rax in undead-out"
+   (check-equal?
+        (undead-analysis
+            `(module
+                ((new-frames ()) (locals (ra.12)))
+                (define L.fact.4
+                    ((new-frames ((nfv.16)))
+                    (locals (ra.13 x.9 tmp.14 tmp.15 new-n.10 nfv.16 factn-1.11 tmp.17)))
+                    (begin
+                    (set! x.9 fv0)
+                    (set! ra.13 r15)
+                    (if (= x.9 0)
+                        (begin (set! rax 1) (jump ra.13 rbp rax))
+                        (begin
+                            (set! tmp.14 -1)
+                            (set! tmp.15 x.9)
+                            (set! tmp.15 (+ tmp.15 tmp.14))
+                            (set! new-n.10 tmp.15)
+                            (return-point
+                                L.rp.6
+                            (begin
+                                (set! nfv.16 new-n.10)
+                                (set! r15 L.rp.6)
+                                (jump L.fact.4 rbp r15 nfv.16)))
+                            (set! factn-1.11 rax)
+                            (set! tmp.17 x.9)
+                            (set! tmp.17 (* tmp.17 factn-1.11))
+                            (set! rax tmp.17)
+                            (jump ra.13 rbp rax)))))
+                (begin
+                    (set! ra.12 r15)
+                    (set! fv0 5)
+                    (set! r15 ra.12)
+                    (jump L.fact.4 rbp r15 fv0))))
+        
+        `(module
+            ((new-frames ())
+            (locals (ra.12))
+            (call-undead ())
+            (undead-out ((ra.12 rbp) (ra.12 rbp fv0) (rbp r15 fv0) (rbp r15 fv0))))
+            (define L.fact.4
+                ((new-frames ((nfv.16)))
+                (locals (ra.13 x.9 tmp.14 tmp.15 new-n.10 nfv.16 factn-1.11 tmp.17))
+                (undead-out
+                ((r15 x.9 rbp)
+                (x.9 ra.13 rbp)
+                ((x.9 ra.13 rbp)
+                    ((ra.13 rbp rax) (rbp rax))
+                    ((tmp.14 ra.13 x.9 rbp)
+                    (tmp.14 tmp.15 ra.13 x.9 rbp)
+                    (tmp.15 ra.13 x.9 rbp)
+                    (ra.13 x.9 new-n.10 rbp)
+                    ((rax x.9 ra.13 rbp) ((rbp nfv.16) (rbp r15 nfv.16) (rbp r15 nfv.16)))
+                    (x.9 factn-1.11 ra.13 rbp)
+                    (factn-1.11 tmp.17 ra.13 rbp)
+                    (tmp.17 ra.13 rbp)
+                    (ra.13 rbp rax)
+                    (rbp rax)))))
+                (call-undead (x.9 ra.13)))
+                (begin
+                (set! x.9 fv0)
+                (set! ra.13 r15)
+                (if (= x.9 0)
+                    (begin (set! rax 1) (jump ra.13 rbp rax))
+                    (begin
+                    (set! tmp.14 -1)
+                    (set! tmp.15 x.9)
+                    (set! tmp.15 (+ tmp.15 tmp.14))
+                    (set! new-n.10 tmp.15)
+                    (return-point
+                        L.rp.6
+                        (begin
+                            (set! nfv.16 new-n.10)
+                            (set! r15 L.rp.6)
+                            (jump L.fact.4 rbp r15 nfv.16)))
+                    (set! factn-1.11 rax)
+                    (set! tmp.17 x.9)
+                    (set! tmp.17 (* tmp.17 factn-1.11))
+                    (set! rax tmp.17)
+                    (jump ra.13 rbp rax)))))
+            (begin
+                (set! ra.12 r15)
+                (set! fv0 5)
+                (set! r15 ra.12)
+                (jump L.fact.4 rbp r15 fv0)))))

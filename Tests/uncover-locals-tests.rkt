@@ -216,3 +216,62 @@
         (return-point L.two.2 (begin (set! y.2 y.3) (jump y.4)))
         (return-point L.three.3 (if (false) (jump y.5) (jump y.6)))
         (jump rax)))))
+
+(test-case "uncover 12 - non-empty new-frames"
+  (check-equal?
+    (uncover-locals
+      '(module
+        ((new-frames ((nfv.1))))
+        (define L.swap.1
+          ((new-frames ((nfv.2 nfv.3))))
+          (begin
+            (set! tmp-ra.1 r15)
+            (set! x.1 fv0)
+            (set! y.2 fv1)
+            (if (< y.2 x.1)
+              (begin (set! rax x.1) (jump tmp-ra.1 rbp rax))
+              (begin
+                (return-point
+                L.rp.1
+                (begin
+                  (set! nfv.3 x.1)
+                  (set! nfv.2 y.2)
+                  (set! r15 L.rp.1)
+                  (jump L.swap.1 rbp r15 nfv.2 nfv.3)))
+                (set! z.3 rax)
+                (set! rax z.3)
+                (jump tmp-ra.1 rbp rax)))))
+        (begin
+          (set! tmp-ra.4 r15)
+          (set! fv1 2)
+          (set! fv0 1)
+          (set! r15 tmp-ra.4)
+          (jump L.swap.1 rbp r15 fv0 fv1))))
+      
+    '(module
+      ((new-frames ((nfv.1))) (locals (tmp-ra.4)))
+      (define L.swap.1
+        ((new-frames ((nfv.2 nfv.3))) (locals (z.3 nfv.3 nfv.2 tmp-ra.1 x.1 y.2)))
+        (begin 
+          (set! tmp-ra.1 r15)
+          (set! x.1 fv0)
+          (set! y.2 fv1)
+          (if (< y.2 x.1)
+            (begin (set! rax x.1) (jump tmp-ra.1 rbp rax))
+            (begin
+              (return-point
+              L.rp.1
+              (begin
+                (set! nfv.3 x.1)
+                (set! nfv.2 y.2)
+                (set! r15 L.rp.1)
+                (jump L.swap.1 rbp r15 nfv.2 nfv.3)))
+              (set! z.3 rax)
+              (set! rax z.3)
+              (jump tmp-ra.1 rbp rax)))))
+      (begin
+        (set! tmp-ra.4 r15)
+        (set! fv1 2)
+        (set! fv0 1)
+        (set! r15 tmp-ra.4)
+        (jump L.swap.1 rbp r15 fv0 fv1)))))
