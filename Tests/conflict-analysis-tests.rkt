@@ -2,17 +2,16 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "conflict 1"
+(test-case "conflict 1 - simple halt"
    (check-equal?
         (conflict-analysis
             `(module ((locals (v.1)) (undead-out ())) (halt v.1)))
         
         `(module ((locals (v.1)) (conflicts ((v.1 ())))) (halt v.1))))
 
-(test-case "conflict 2"
+(test-case "conflict 2 - simple begin"
    (check-equal?
         (conflict-analysis
             `(module ((locals (x.1))
@@ -25,7 +24,7 @@
             ((locals (x.1)) (conflicts ((x.1 ()))))
             (begin (set! x.1 42) (halt x.1)))))
 
-(test-case "conflict 3"
+(test-case "conflict 3 - long begin"
    (check-equal?
         (conflict-analysis
             `(module ((locals (v.1 w.2 x.3 y.4 z.5 t.6 p.1))
@@ -89,7 +88,7 @@
                 (set! z.5 (+ z.5 t.6))
                 (halt z.5)))))
 
-(test-case "conflict 4"
+(test-case "conflict 4 - nested begin"
    (check-equal?
         (conflict-analysis
             `(module
@@ -109,7 +108,7 @@
                 (set! w.2 46)
                 (begin (set! p.1 -1) (set! t.6 (* t.6 w.2)) (halt t.6))))))
 
-(test-case "conflict 5"
+(test-case "conflict 5 - effect is begin"
    (check-equal?
         (conflict-analysis
             `(module
@@ -147,7 +146,7 @@
 
 ; M4 tests
 
-(test-case "conflict 6"
+(test-case "conflict 6 - tail is if"
    (check-equal?
         (conflict-analysis
             `(module ((locals (x.1 y.2)) 
@@ -164,7 +163,7 @@
                 (x.1 ()))))
             (begin (set! x.1 3) (set! y.2 x.1) (if (> y.2 x.1) (halt x.1) (halt y.2))))))
 
-(test-case "conflict 7"
+(test-case "conflict 7 - if branch is begin"
    (check-equal?
         (conflict-analysis
             `(module ((locals (x.1 y.2 b.3 c.4)) 
@@ -194,7 +193,7 @@
                 (set! c.4 b.3)
                 (if (= c.4 b.3) (halt c.4) (begin (set! x.1 c.4) (halt c.4))))))))
 
-(test-case "conflict 8"
+(test-case "conflict 8 - nested if"
    (check-equal?
         (conflict-analysis
             `(module 
@@ -240,7 +239,7 @@
 
 ; M5 tests
 
-(test-case "conflict 9"
+(test-case "conflict 9 - tail is jump"
    (check-equal?
         (conflict-analysis
             `(module
@@ -267,7 +266,7 @@
                 (if (= c.4 b.3) (set! x.2 x.3) (set! z.5 z.3))
                 (jump L.start.1 rsp)))))
 
-(test-case "conflict 10"
+(test-case "conflict 10 - jump with multiple params"
    (check-equal?
         (conflict-analysis
             `(module
@@ -285,7 +284,7 @@
                 (y.1 (x.4)))))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
 
-(test-case "conflict 11"
+(test-case "conflict 11 - define functions"
    (check-equal?
         (conflict-analysis
             `(module
