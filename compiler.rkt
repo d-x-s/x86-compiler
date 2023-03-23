@@ -631,10 +631,10 @@
   (undead-p p))
 
 
-; Input:   asm-pred-lang-v5/undead
-; Output:  asm-pred-lang-v5/conflicts
-; Purpose: Performs conflict analysis, compiling Asm-pred-lang v5/undead to 
-;          Asm-pred-lang v5/conflicts by decorating programs with their conflict graph.
+; Input:   asm-pred-lang-v6/undead
+; Output:  asm-pred-lang-v6/conflicts
+; Purpose: Performs conflict analysis, compiling Asm-pred-lang v6/undead to 
+;          Asm-pred-lang v6/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
@@ -648,18 +648,20 @@
 
   (define (c-analysis-p p)
     (match p
-      [`(module ((locals ,locals) (undead-out ,undead)) ,defines ... ,tail)
-        `(module ((locals ,locals) 
-                  (conflicts ,(c-analysis-t undead (new-graph locals) tail)))
-                 ,@(map c-analysis-def defines)
-                 ,tail)]))
+      [`(module ,info ,defines ... ,tail)
+        (define locals (info-ref info 'locals))
+        (define undead (info-ref info 'undead-out))
+       `(module ,(info-set info 'conflicts (c-analysis-t undead (new-graph locals) tail))
+                ,@(map c-analysis-def defines)
+                ,tail)]))
   
   (define (c-analysis-def d)
     (match d
-      [`(define ,label ((locals ,locals) (undead-out ,undead)) ,tail)
+      [`(define ,label ,info ,tail)
+        (define locals (info-ref info 'locals))
+        (define undead (info-ref info 'undead-out))
        `(define ,label 
-                ((locals ,locals) 
-                 (conflicts ,(c-analysis-t undead (new-graph locals) tail))) 
+                ,(info-set info 'conflicts (c-analysis-t undead (new-graph locals) tail))
                 ,tail)]))
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
@@ -678,7 +680,8 @@
         (define predGraph (c-analysis-pr (first undead) graph pred))
         (define tail1Graph (c-analysis-t (second undead) predGraph tail1))
         (c-analysis-t (third undead) tail1Graph tail2)]
-      [_ graph])) ; halt or jump
+      [`(jump ,trg ,loc ...) 
+        graph]))
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
   ; graph   : a graph of the conflicts found so far.
@@ -698,7 +701,7 @@
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([p preds] [currUndead undead])
                   (c-analysis-pr currUndead g p))]
-      [_ graph])) ; everything else
+      [_ graph])) ; bool or relop
 
   ; undead : the entry in the list of undead relating to the current effect
   ; graph   : a graph of the conflicts found so far.
@@ -707,7 +710,7 @@
     (match e
       [`(set! ,loc1 ,loc2) #:when (or (aloc? loc2) (register? loc2) (fvar? loc2))
         (update-conflicts `(,loc1 ,loc2) undead graph)]
-      [`(set! ,loc ,binopOrInt)
+      [`(set! ,loc ,other) ; other is binop, number, or label
         (update-conflicts `(,loc) undead graph)]
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
@@ -716,7 +719,9 @@
       [`(if ,pred ,effect1 ,effect2)
         (define predGraph (c-analysis-pr (first undead) graph pred))
         (define e1Graph (c-analysis-e (second undead) predGraph effect1))
-        (c-analysis-e (third undead) e1Graph effect2)]))
+        (c-analysis-e (third undead) e1Graph effect2)]
+      [`(return-point ,label ,tail)
+        (c-analysis-t (second undead) graph tail)]))
 
   (c-analysis-p p))
 
@@ -1414,9 +1419,9 @@
        
   (f-program->p p))
 
-; Input:   paren-x64-v4
+; Input:   paren-x64-v6
 ; Output:  x64-instructions
-; Purpose: Compile the Paren-x64 v4 program into a valid sequence of x64 instructions, represented as a string.
+; Purpose: Compile the Paren-x64 v6 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
 
   (define (program->x64 p)
