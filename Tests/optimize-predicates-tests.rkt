@@ -2,10 +2,9 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "optimize-predicates 1"
+(test-case "optimize-predicates 1 - if true"
     (check-match
         (optimize-predicates
             `(module 
@@ -23,7 +22,7 @@
             (begin (set! r15 r14) (set! r15 (+ r15 17)) (set! r15 12))
             (halt r15)))))
 
-(test-case "optimize-predicates 2"
+(test-case "optimize-predicates 2 - if not"
     (check-match
         (optimize-predicates
             `(module 
@@ -38,7 +37,7 @@
 
      `(module (begin (set! r8 0) (set! r9 0) (set! r12 15) (halt r12)))))
 
-(test-case "optimize-predicates 3"
+(test-case "optimize-predicates 3 - if registers equal"
     (check-match
         (optimize-predicates
             `(module 
@@ -64,7 +63,7 @@
                 (set! r15 r14) 
                 (halt 10))))))
 
-(test-case "optimize-predicates 4"
+(test-case "optimize-predicates 4 - if branches are begins"
     (check-match
         (optimize-predicates
             `(module 
@@ -81,7 +80,7 @@
             (begin (set! r15 r14) (set! r15 (+ r15 17)) (set! r15 12))
             (halt r15)))))
 
-(test-case "optimize-predicates 5"
+(test-case "optimize-predicates 5 - halt on register not depending on branch"
     (check-match
         (optimize-predicates
             `(module 
@@ -96,7 +95,7 @@
 
      `(module (begin (set! r8 12) (set! r9 12) (set! r13 90) (halt 12)))))
 
-(test-case "optimize-predicates 6"
+(test-case "optimize-predicates 6 - halt on register depending on branch"
     (check-match
         (optimize-predicates
             `(module 
@@ -111,7 +110,7 @@
 
 ; M5 Tests
 
-(test-case "optimize-predicates 7"
+(test-case "optimize-predicates 7 - tail is jump"
     (check-match
         (optimize-predicates
             `(module 
@@ -124,7 +123,7 @@
 
      `(module (begin (begin (set! r15 14) (set! r15 12)) (jump r15)))))
 
-(test-case "optimize-predicates 8"
+(test-case "optimize-predicates 8 - define functions"
     (check-match
         (optimize-predicates
             `(module 
@@ -156,7 +155,7 @@
             (halt r15)))
         (begin (begin (set! r15 14) (set! r15 12)) (jump r15)))))
 
-(test-case "optimize-predicates 9"
+(test-case "optimize-predicates 9 - register value unknown after branch"
     (check-match
         (optimize-predicates
             `(module 
@@ -174,7 +173,7 @@
             (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12))
             (halt r15)))))
 
-(test-case "optimize-predicates 10"
+(test-case "optimize-predicates 10 - register value unknown after branch"
     (check-match
         (optimize-predicates
             `(module 
@@ -192,7 +191,7 @@
             (begin (set! r15 r15) (set! r15 (+ r15 17)) (set! r15 12))
             (halt r15)))))
 
-(test-case "optimize-predicates 11"
+(test-case "optimize-predicates 11 - complex test"
     (check-match
         (optimize-predicates
             `(module 
