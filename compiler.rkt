@@ -179,13 +179,13 @@
 
 ; =============== M4 Passes ================
 
-; Input:   nested-asm-lang-v5
-; Output:  nested-asm-lang-v5
-; Purpose: Optimize Nested-asm-lang v5 programs by analyzing and simplifying predicates.
+; Input:   Nested-asm-lang-fvars v6
+; Output:  Nested-asm-lang-fvars v6
+; Purpose: Optimize Nested-asm-lang-fvars v6 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
   
   ; key-and-value-wise intersection of h0 with h1 and h2.
-  (define (hash-intersect h0 h1 h2)
+  (define (hash-intersects h0 h1 h2)
     (for/fold ([h #hash()])
               ([k (hash-keys h0)])
               (define currVal (dict-ref h0 k))
@@ -193,26 +193,32 @@
                   (dict-set h k currVal)
                   h)))
 
+  ; key-and-value-wise intersection of h1 and h2
+  (define (hash-intersect h1 h2)
+    (for/fold ([h #hash()])
+              ([k (hash-keys h1)])
+              (define currVal (dict-ref h1 k))
+              (if (equal? (dict-ref h2 k) currVal)
+                  (dict-set h k currVal)
+                  h)))
+
   (define (optimize-p p)
     (match p
       [`(module ,defines ... ,tail)
-       `(module ,@(map optimize-def defines) ,(optimize-t tail #hash()))]))
+        (define-values (tailRes x) (optimize-t tail #hash()))
+       `(module ,@(map optimize-def defines) ,tailRes)]))
 
   (define (optimize-def d)
     (match d
       [`(define ,label ,tail)
-       `(define ,label ,(optimize-t tail #hash()))]))
-
+        (define-values (tailRes x) (optimize-t tail #hash()))
+       `(define ,label ,tailRes)]))
+  
+  ; Return (values new-eff new-env)
   (define (optimize-t t env)
     (match t
-      [`(halt ,opand) #:when (number? opand)
-        t]
-      [`(halt ,opand) ; opand is reg or fvar
-       `(halt ,(if (and (dict-has-key? env opand) (number? (dict-ref env opand))) 
-                    (dict-ref env opand)
-                    opand))]
       [`(jump ,trg)
-        t]
+        (values t env)]
       [`(begin ,effects ... ,tail)
         (define-values (effRes new-env)
           (for/fold ([acc '()] ; list of processed effects
@@ -222,17 +228,22 @@
                                    (optimize-e e currEnv))
                     (values (append acc `(,new-eff)) eff-env)))
 
-       `(begin ,@effRes ,(optimize-t tail new-env))]
+        (define-values (tailRes x) (optimize-t tail new-env))
+        (values `(begin ,@effRes ,tailRes) new-env)]
       [`(if ,pred ,tail1 ,tail2)
-        (optimize-pred pred (optimize-t tail1 env) (optimize-t tail2 env) env)]))
-
+        (define-values (t1 x1) (optimize-t tail1 env))
+        (define-values (t2 x2) (optimize-t tail2 env))
+        (values (optimize-pred pred t1 t2 env) env)]))
+  
+  ; Return (values new-eff new-env)
   (define (optimize-e e env)
     (match e
       [`(set! ,loc_1 (,binop ,loc_1 ,triv))
         (define (interp-binop binop)
           (match binop
             ['* *]
-            ['+ +]))
+            ['+ +]
+            ['- -]))
         (define new-env (if (and (dict-has-key? env loc_1) (number? (dict-ref env loc_1)))
                             (if (number? triv)
                                 (dict-set env loc_1 ((interp-binop binop) (dict-ref env loc_1) triv)) ; evaluate the binop
@@ -260,7 +271,11 @@
       [`(if ,pred ,effect1 ,effect2)
         (define-values (e1 env1) (optimize-e effect1 env))
         (define-values (e2 env2) (optimize-e effect2 env))
-        (values (optimize-pred pred e1 e2 env) (hash-intersect env env1 env2))])) ; Remove variables modified in eff1 and eff2 from env.
+        (values (optimize-pred pred e1 e2 env) (hash-intersects env env1 env2))] ; Remove variables modified in eff1 and eff2 from env.
+      [`(return-point ,label ,tail)
+        (define-values (tailRes new-env) (optimize-t tail env))
+        (values `(return-point ,label ,tailRes) 
+                 (hash-intersect env new-env))]))
 
   ; Process a pred.
   ;   t1 : the already-processed true option
@@ -285,14 +300,17 @@
           env)]
       [`(not ,pred)
         (optimize-pred pred t2 t1 env)]
-      [`(,relop ,loc ,triv)
-        (optimize-relop relop loc triv t1 t2 env)]
+      [`(,relop ,loc ,opand)
+        (optimize-relop p t1 t2 env)]
       [`(false)
         t2]
       [`(true)
         t1]))
-
-  (define (optimize-relop r l triv t1 t2 env)
+  
+  ; Given a relop, return the branch that should replace it, otherwise return the original
+  ; if-statement.
+  ; expr: a relop expression (,relop ,loc ,opand)
+  (define (optimize-relop expr t1 t2 env)
       (define (interp-relop relop)
         (match relop
           ['< <]
@@ -302,17 +320,18 @@
           ['> >]
           ['>= >=]))
       
-      (if (and (dict-has-key? env l) (int64? (dict-ref env l))) 
-        (if (int64? triv)
-          (if ((interp-relop r) (dict-ref env l) triv)
-                t1
-                t2)
-          (if (and (dict-has-key? env triv) (int64? (dict-ref env triv)))
-            (if ((interp-relop r) (dict-ref env l) (dict-ref env triv))
-                t1
-                t2)
-            `(if (,r ,l ,triv) ,t1 ,t2))) 
-        `(if (,r ,l ,triv) ,t1 ,t2)))
+      (match expr
+        [`(,relop ,loc ,opand) #:when (and (dict-has-key? env loc) (int64? (dict-ref env loc)))
+          (if (int64? opand)
+              (if ((interp-relop relop) (dict-ref env loc) opand)
+                    t1
+                    t2)
+              (if (and (dict-has-key? env opand) (int64? (dict-ref env opand)))
+                  (if ((interp-relop relop) (dict-ref env loc) (dict-ref env opand))
+                      t1
+                      t2)
+                  `(if ,expr ,t1 ,t2)))]
+        [_ `(if ,expr ,t1 ,t2)]))
 
   (optimize-p p))
 
