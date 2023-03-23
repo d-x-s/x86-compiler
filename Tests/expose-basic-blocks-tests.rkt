@@ -2,10 +2,9 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
-(test-case "expose-basic-blocks 1"
+(test-case "expose-basic-blocks 1 - simple halt"
     (check-match
         (expose-basic-blocks
             `(module (halt 10))
@@ -13,7 +12,7 @@
 
      `(module (define L.__main.1 (halt 10)))))
 
-(test-case "expose-basic-blocks 2"
+(test-case "expose-basic-blocks 2 - simple begin"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -24,7 +23,7 @@
 
      `(module (define L.__main.2 (begin (set! rax 10) (halt 10))))))
 
-(test-case "expose-basic-blocks 3"
+(test-case "expose-basic-blocks 3 - begin with multiple effects"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -38,7 +37,7 @@
 
      `(module (define L.__main.3 (begin (set! rax 10) (set! r12 (* r12 rdx)) (halt 10))))))
 
-(test-case "expose-basic-blocks 4"
+(test-case "expose-basic-blocks 4 - effect is a begin"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -61,7 +60,7 @@
             (set! r13 (+ r13 rax))
             (halt 10))))))
 
-(test-case "expose-basic-blocks 5"
+(test-case "expose-basic-blocks 5 - effect is an if"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -88,7 +87,7 @@
         (define L.tmp.6 (begin (set! fv1 3) (jump L.tmp.7)))
         (define L.tmp.7 (halt 10)))))
 
-(test-case "expose-basic-blocks 6"
+(test-case "expose-basic-blocks 6 - nested effect ifs"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -123,7 +122,7 @@
         (define L.tmp.13 (begin (set! fv3 3) (jump L.tmp.14))) 
         (define L.tmp.14 (jump L.tmp.11)))))
 
-(test-case "expose-basic-blocks 7"
+(test-case "expose-basic-blocks 7 - effects after branching"
     (check-match
         (expose-basic-blocks
             '(module 
@@ -163,7 +162,7 @@
         (define L.tmp.26 (begin (set! fv3 3) (jump L.tmp.27))) 
         (define L.tmp.27 (jump L.tmp.24)))))
 
-(test-case "expose-basic-blocks 8"
+(test-case "expose-basic-blocks 8 - tail is if"
     (check-match
         (expose-basic-blocks
            `(module 
@@ -175,7 +174,7 @@
         (define L.__nested.35 (halt 1))
         (define L.__nested.36 (halt 2)))))
 
-(test-case "expose-basic-blocks 9"
+(test-case "expose-basic-blocks 9 - pred is if"
     (check-match
         (expose-basic-blocks
            '(module 
@@ -191,7 +190,7 @@
         (define L.__nested.38 (halt 1))
         (define L.__nested.39 (halt 2)))))
 
-(test-case "expose-basic-blocks 10"
+(test-case "expose-basic-blocks 10 - if true"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -210,7 +209,7 @@
         (define L.tmp.44 (begin (set! r8 8) (jump L.tmp.45)))
         (define L.tmp.45 (begin (set! rax 11) (halt 10))))))
 
-(test-case "expose-basic-blocks 11"
+(test-case "expose-basic-blocks 11 - if not"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -229,7 +228,7 @@
         (define L.tmp.48 (begin (set! r8 8) (jump L.tmp.49)))
         (define L.tmp.49 (begin (set! rax 11) (halt 10))))))
 
-(test-case "expose-basic-blocks 12"
+(test-case "expose-basic-blocks 12 - if begin"
     (check-match
         (expose-basic-blocks
             `(module (if (begin (set! r15 0) (= r15 0)) (halt 0) (halt 1)))
@@ -239,7 +238,7 @@
         (define L.__nested.51 (halt 0)) 
         (define L.__nested.52 (halt 1)))))
 
-(test-case "expose-basic-blocks 13"
+(test-case "expose-basic-blocks 13 - multiple nested begins"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -260,7 +259,7 @@
 
 ; M5 Tests
 
-(test-case "expose-basic-blocks 14"
+(test-case "expose-basic-blocks 14 - define function"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -273,7 +272,7 @@
         (define L.__main.55 (begin (set! rax 10) (halt 10)))
         (define L.start.1 (begin (set! rsp 2) (halt rsp))))))
 
-(test-case "expose-basic-blocks 15"
+(test-case "expose-basic-blocks 15 - define functions, tail is jump"
     (check-match
         (expose-basic-blocks
             `(module 
@@ -290,7 +289,7 @@
         (define L.start.1 (begin (set! rsp 2) (halt rsp)))
         (define L.start.2 (begin (set! rsp 2) (jump L.start.1))))))
 
-(test-case "expose-basic-blocks 16"
+(test-case "expose-basic-blocks 16 - branches in functions"
     (check-match
         (expose-basic-blocks
             `(module 
