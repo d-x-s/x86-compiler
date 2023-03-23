@@ -1216,8 +1216,6 @@
     (match t
       [`(begin ,effects ... ,tail)
         `(begin ,@(map (curry replace-loc-e as) effects) ,(replace-loc-t tail as))]
-      [`(halt ,opand)
-        `(halt ,(replace-loc opand as))]
       [`(if ,pred ,tail1 ,tail2)
         `(if ,(replace-loc-pred as pred) ,(replace-loc-t tail1 as) ,(replace-loc-t tail2 as))]
       [`(jump ,trg ,loc ...)
@@ -1232,7 +1230,9 @@
       [`(begin ,effects ...)
         `(begin ,@(map (curry replace-loc-e as) effects))]
       [`(if ,pred ,effect1 ,effect2)
-        `(if ,(replace-loc-pred as pred) ,(replace-loc-e as effect1) ,(replace-loc-e as effect2))]))
+        `(if ,(replace-loc-pred as pred) ,(replace-loc-e as effect1) ,(replace-loc-e as effect2))]
+      [`(return-point ,label ,tail)
+        `(return-point ,label ,(replace-loc-t tail as))]))
 
   (define (replace-loc-pred as p)
     (match p
