@@ -141,3 +141,33 @@
     '(module (define L.start.1 (jump rcx)) (if (> rax 0) (halt rax) (halt 0)))
  )
 )
+
+(test-case "replace 10 - basic traversal with return-point"
+(check-equal?
+(replace-locations
+'(module
+((locals (x.1)) (assignment ((x.1 rax))))
+(define L.start.1 ((locals (x.3)) (assignment ((x.3 rcx)))) (begin (return-point L.start.1 (jump x.3)) (jump rax)))
+(jump x.1)
+))
+    
+    '(module
+  (define L.start.1 (begin (return-point L.start.1 (jump rcx)) (jump rax)))
+  (jump rax))
+ )
+)
+
+(test-case "replace 11 - basic traversal with return-point"
+(check-equal?
+(replace-locations
+'(module
+((locals (x.1) (x.5)) (assignment ((x.1 rax) (x.5 rcx))))
+(define L.start.1 ((locals (x.3)) (assignment ((x.3 rcx)))) (begin (return-point L.start.1 (jump x.3)) (jump rax)))
+(begin (return-point L.start.1 (jump x.5)) (jump x.5))
+))
+    
+    '(module
+  (define L.start.1 (begin (return-point L.start.1 (jump rcx)) (jump rax)))
+  (begin (return-point L.start.1 (jump rcx)) (jump rcx)))
+ )
+)
