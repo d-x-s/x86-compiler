@@ -335,10 +335,11 @@
 
   (optimize-p p))
 
-; Input:   nested-asm-lang-v5
-; Output:  block-pred-lang-v5
-; Purpose: Compile the Nested-asm-lang v4 to Block-pred-lang v4,
+; Input:   nested-asm-lang-v6
+; Output:  block-pred-lang-v6
+; Purpose: Compile the Nested-asm-lang v6 to Block-pred-lang v6,
 ;          eliminating all nested expressions by generating fresh basic blocks and jumps.
+; M5 > M6 : all the instructions following a return point go into a new block.
 (define (expose-basic-blocks p)
 
   ; a list of basic blocks to return (a mutable variable)
@@ -370,7 +371,6 @@
   ; of this function. 
   (define (expose-t t)
     (match t
-      [`(halt ,opand) `(,t)]
       [`(jump ,trg) `(,t)]
       [`(begin ,effects ... ,tail)
         (expose-effects effects (expose-t tail))]
@@ -383,7 +383,7 @@
         (add-new-block! true_label tailBody1)
         `(,(expose-pred pred true_label false_label))]))
 
-  ; Walk through a list of effects until a predicate
+  ; Walk through a list of effects until a predicate or return-point
   ; is encountered, then create a block and continue walking.
   ;    tail: the instruction at the end of the list of effects from whence this effect came
   ; Returns the list of block instructions to be used to make a block by the caller
@@ -400,6 +400,8 @@
   ; Returns a list of instructions.
   (define (expose-e e effRest tail)
     (match e
+      [`(set! ,loc ,trivOrBinop)
+        (cons e (expose-effects effRest tail))]
       [`(begin ,effects ...) ; flatten nested effects
         (expose-effects (append effects effRest) tail)]
       [`(if ,pred ,effect1 ,effect2)
@@ -407,18 +409,22 @@
         
         (define true_label (fresh-label 'tmp))
         (define false_label (fresh-label 'tmp))
-        (define join-label (fresh-label 'tmp))  ; join label: the block where effect1 and effect2 will converge
+        (define join_label (fresh-label 'tmp))  ; join label: the block where effect1 and effect2 will converge
         
-        (define eff1Res (expose-e effect1 '() `((jump ,join-label))))
-        (define eff2Res (expose-e effect2 '() `((jump ,join-label))))
+        (define eff1Res (expose-e effect1 '() `((jump ,join_label))))
+        (define eff2Res (expose-e effect2 '() `((jump ,join_label))))
         
-        (add-new-block! join-label restResult)
+        (add-new-block! join_label restResult)
         (add-new-block! false_label eff2Res)
         (add-new-block! true_label eff1Res)
         
        `(,(expose-pred pred true_label false_label))]
-      [`(set! ,loc ,trivOrBinop)
-        (cons e (expose-effects effRest tail))]))
+      [`(return-point ,label ,rtail)
+        (define restResult (expose-effects effRest tail))
+        (define tailBody (expose-t rtail))
+
+        (add-new-block! label restResult) ; give the label to the next block
+        tailBody])) ; return the processed tail to be appended to the current block
 
   ; Given a pred, return an instruction.
   ; Add blocks for recursive preds.
