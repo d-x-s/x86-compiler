@@ -77,29 +77,29 @@
 
 ; ================= Helpers =================
 
-; (define (address? a)
-;   (match a
-;     [`(rbp ,op ,int)
-;       #:when (and (member op '(- +))
-;                   (integer? int))
-;      #t]
-;     [_ #f]))
 
-(define fvar_cap 50);
+; return true if the value is in the list, false otherwise
+(define (is-in-list list value)
+  (cond
+    [(empty? list) #f]
+    [(equal? (first list) value) #t]
+    [else (is-in-list (rest list) value)]))
 
+; splice things when an instruction is replaced by multiple instructions.
+(define (splice-mapped-list list)
+  (foldr
+    (lambda (elem rest) `(,@elem ,@rest))
+            '()
+             list))
+
+; return true if the value is an address (by the m6 definition), otherwise false
 (define (address? addr)
   (and (list? addr)
         (frame-base-pointer-register? (first addr))
         (equal? '- (second addr))
         (dispoffset? (third addr))))
 
-(define (splice-mapped-list list)
-  ; splice things when an instruction is replaced by multiple instructions.
-  (foldr
-    (lambda (elem rest) `(,@elem ,@rest))
-            '()
-             list))
-
+; return true if value is relop, false otherwise
 (define (relop? relop)
   (or (equal? relop '<=)
       (equal? relop '< )
@@ -138,6 +138,8 @@
 ;   spilling at frame variable "fv0" 
 ; > the interrogator will assign the variable with the least amount of conflicts first
 (define (assign-call-undead-variables p)
+
+  (define fvar_cap 50)
 
   ; generate a list of fvars from 0 to num
   (define (allocate-fvars num)
@@ -200,13 +202,6 @@
   (define (update-locals assignments locals)
     (define assignments-alocs (dict-keys assignments))
     (filter (lambda (x) (not (is-in-list assignments-alocs x))) locals))
-
-  ; return true if the value is in the list, false otherwise
-  (define (is-in-list list value)
-    (cond
-      [(empty? list) #f]
-      [(equal? (first list) value) #t]
-      [else (is-in-list (rest list) value)]))
 
   (assign-call-undead-p p)
 )
@@ -849,25 +844,13 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v5/conflicts
-; Output:   asm-pred-lang-v5/assignments
-; Purpose:  Performs graph-colouring register allocation. 
-;           The pass attempts to fit each of the abstract location declared in the locals 
-;           set into a register, and if one cannot be found, assigns it a frame variable instead.
-; M4 > M5
-; - The allocator simply runs the same algorithm as before, but this time, on each block’s conflict graph, separately
-; - add support for blocks and by extension opands and jumps
+; Input:    asm-pred-lang-v6/framed
+; Output:   asm-pred-lang-v6/spilled
+; Purpose:  Performs graph-colouring register allocation, 
+;           compiling Asm-pred-lang v6/framed to Asm-pred-lang v6/spilled by decorating programs with their register assignments.
 (define (assign-registers p)
-  ; a list consisting of r15 r14 r13 r9 r8 rdi rsi rdx rcx rbx rsp
+  ; a list consisting of '(rsp rbx rcx rdx rsi rdi r8 r9 r13 r14 r15)
   (define car (current-assignable-registers))
-
-  ; generate a list of fvars from 0 to num
-  (define (allocate-fvars num)
-    (map make-fvar (range num)))
-
-  ; allocate all registers and frame variables in order of usage
-  (define (construct-registers conflicts)
-    `(,@(reverse car) ,@(allocate-fvars (length conflicts))))
 
   ; splice the updated info block into the language
   (define (assign-p p)
@@ -884,48 +867,70 @@
   ; update the info block with new assignments
   ; clean the conflicts so only conflicts declared in locals remain
   ; then sort the conflicts
-  (define (assign-info d)
-    (let* ([conflicts   (sort-conflicts                     (first (dict-ref d 'conflicts)))]
-           [locals      (clean-locals (dict-keys conflicts) (first (dict-ref d 'locals)))]
-           [assignments (reverse (generate-assignments locals conflicts '()))])
-          (dict-set d 'assignment (list assignments))))
+  (define (assign-info i)
+    (let* ([conflicts   (first (dict-ref i 'conflicts))]
+           [locals      (first (dict-ref i 'locals))]
+           [assignments (generate-assignments locals conflicts '())])
+          (dict-set (dict-set i 'locals (list (update-locals assignments locals))) 
+                    'assignment 
+                   `((,@(extract-assignments i) ,@assignments)))))
 
   ; generates assignments based on the alocs and their conflicts
   (define (generate-assignments locals conflicts assignments)
-    (define registers (construct-registers conflicts))
+    (define registers (reverse car))
     (if (empty? locals)
         '()
         (let* ([node            (first locals)]
                [node-conflicts  (first (dict-ref conflicts node))]
                [new-locals      (remove node locals)]
                [new-conflicts   (remove node conflicts)]
-               [new-assignments (generate-assignments new-locals new-conflicts assignments)])
-              (append (list (assign-node node node-conflicts new-assignments registers)) new-assignments))))
+               [new-assignments (generate-assignments new-locals new-conflicts assignments)]
+               [assigned-node   (assign-node node node-conflicts new-assignments registers)])
+              (if (false? assigned-node)
+                  new-assignments
+                 (append (list assigned-node) new-assignments)))))
 
-  ; assigns a single aloc to a register (or a frame variable if no registers are available)
+  ; assigns a single aloc to a register
   (define (assign-node node node-conflicts assignments registers)
-    (define register (first registers))
-    (if (ormap (lambda (x) (has-conflict node node-conflicts register x)) assignments)
-        (assign-node node node-conflicts assignments (rest registers))
-        `(,node ,register)))
+    (cond [(empty? registers) #f]
+          [(empty? assignments)
+            (define try-assigned (try-assign-register node node-conflicts registers))
+            (if (false? try-assigned)
+                #f
+                try-assigned)]
+          [else
+           (if (ormap (lambda (x) (has-conflict node node-conflicts (first registers) x)) assignments)
+              (assign-node node node-conflicts assignments (rest registers))
+             `(,node ,(first registers)))]))
 
-  ; returns true if an aloc has a conflict with this specific register, otherwise false 
+  ; return false if this node is incompatible with all registers, otherwise assign it
+  (define (try-assign-register node node-conflicts registers)
+    (cond [(empty? registers) #f]
+          [else
+           (define register (first registers))
+           (if (member register node-conflicts)
+               (try-assign-register node node-conflicts (rest registers))
+               `(,node ,register))]))
+  
+  ; return true if:
+  ; a) the fvar we are trying to assign this node is in the node's conflict list OR...
+  ; b) some other assignment already uses this register, and the nodes conflict with each other
+  ; otherwise return false
   (define (has-conflict node node-conflicts register assignment)
     (define a-aloc (first assignment))
-    (define a-reg  (second assignment))
-    (cond [(equal? a-reg register)
-          (if (member a-aloc node-conflicts)
-                #t
-                #f)]
+    (define a-reg (second assignment))
+    (cond [(member register node-conflicts) #t]
+          [(equal? a-reg register) (is-in-list node-conflicts a-aloc)]
           [else #f]))
 
-  ; sort a list of conflicts by degree
-  (define (sort-conflicts c) 
-    (sort c (lambda (a b) (< (length (second a)) (length (second b))))))
+  ; in the locals list, keep only the locals who have not been assigned yet
+  (define (update-locals assignments locals)
+    (define assignments-alocs (dict-keys assignments))
+    (filter (lambda (x) (not (is-in-list assignments-alocs x))) locals))
 
-  ; cleans a list of conflict keys such that only those also present in the locals list also remain
-  (define (clean-locals conflict-keys locals)
-    (filter (lambda (c)  (if (member c locals) #t #f)) conflict-keys))
+  ; since dict-ref returns a list, extract value by one level
+  (define (extract-assignments i)
+    (first (dict-ref i 'assignment)))
 
   (assign-p p))
 
