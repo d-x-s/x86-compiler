@@ -113,10 +113,103 @@
 ; Purpose: 
 (define (assign-call-undead-variables p) p)
 
-; Input:
-; Output:
-; Purpose: 
-(define (allocate-frames p) p)
+
+; Input:   asm-pred-lang-v6/pre-framed
+; Output:  asm-pred-lang-v6/framed
+; Purpose: Compiles Asm-pred-lang-v6/pre-framed to Asm-pred-lang-v6/framed by allocating frames for 
+;          each non-tail call, and assigning all new-frame variables to frame variables in the new frame.
+(define (allocate-frames p) 
+  
+  (define bpr (current-frame-base-pointer-register))
+  
+  (define framesize 0)
+
+  ; Return the integer x corresponding to the largest frame value fvx in assignment.
+  ; if assignment is empty, return -1.
+  (define (find-largest-frame assignment)
+    (foldr (lambda (p rest) (max (fvar->index (second p)) rest)) 
+                            -1
+                            assignment))
+
+  ; The size of a frame n (in slots) for a given non-tail call is the maximum of:
+  ;   - the number of locations in the call-undead, or
+  ;   - one more than the index of the largest frame location in the call-undead set.
+  (define (find-framesize! info)
+    (define call-undead (info-ref info 'call-undead))
+    (define assignment (info-ref info 'assignment))
+    (set! framesize (* (current-word-size-bytes) 
+                       (max (length call-undead)
+                            (+ 1 (find-largest-frame assignment))))))
+  
+  ; Create a new assignment for every entry fr in new-frames. 
+  ; The assignment is (fr fvi) where the 'i's in assignment form an ascending sequence.
+  ; Remove the assigned variables from the locals set
+  ; Return the updated info.
+  (define (update-info info)
+    (define locals (info-ref info 'locals))
+    (define assignment (info-ref info 'assignment))
+    (define new-frames (flatten (info-ref info 'new-frames)))
+    (define-values (x new-loc new-as)
+      (for/fold ([i (+ 1 (find-largest-frame assignment))]
+                 [loc locals]
+                 [as assignment])
+                ([f new-frames])
+                (values (+ i 1) (set-remove loc f) (cons `(,f ,(make-fvar i)) as))))
+    (define new-info (info-remove (info-remove (info-remove info 'new-frames) 'call-undead) 'undead-out))
+    (info-set (info-set new-info 'locals new-loc) 'assignment new-as))
+
+  (define (allocate-p p)
+    (match p
+      [`(module ,info ,defines ... ,tail)
+        (find-framesize! info)
+       `(module ,(update-info info)
+                ,@(map allocate-def defines)
+                ,(allocate-t tail))]))
+  
+  (define (allocate-def d)
+    (match d
+      [`(define ,label ,info ,tail)
+        (find-framesize! info)
+       `(define ,label ,(update-info info) ,(allocate-t tail))]))
+
+  ; Return an instruction.
+  (define (allocate-t t)
+    (match t
+      [`(begin ,effects ... ,tail)
+       `(begin ,@(map allocate-e effects) ,(allocate-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+       `(if ,(allocate-pr pred) ,(allocate-t tail1) ,(allocate-t tail2))]
+      [`(jump ,trg ,loc ...) 
+        t]))
+
+  ; Return an instruction
+  (define (allocate-pr pr)
+    (match pr
+      [`(not ,pred)
+       `(not ,(allocate-pr pred))]
+      [`(begin ,effects ... ,pred)
+       `(begin ,@(map allocate-e effects) ,(allocate-pr pred))]
+      [`(if ,pred1 ,pred2 ,pred3)
+       `(if ,(allocate-pr pred1) ,(allocate-pr pred2) ,(allocate-pr pred3))]
+      [_ pr])) ; bool or relop
+
+  ; Returns an instruction
+  (define (allocate-e e)
+    (match e
+      [`(set! ,loc ,trivOrBinop)
+        e]
+      [`(begin ,effects ...)
+       `(begin ,@(map allocate-e effects))]
+      [`(if ,pred ,effect1 ,effect2)
+       `(if ,(allocate-pr pred) ,(allocate-e effect1) ,(allocate-e effect2))]
+      [`(return-point ,label ,tail)
+       `(begin 
+            (set! ,bpr (- ,bpr ,framesize))
+            (return-point ,label ,(allocate-t tail))
+            (set! ,bpr (+ ,bpr ,framesize)))]))
+
+  (allocate-p p)) 
+
 
 ; Input:
 ; Output:
@@ -334,6 +427,7 @@
         [_ `(if ,expr ,t1 ,t2)]))
 
   (optimize-p p))
+
 
 ; Input:   nested-asm-lang-v6
 ; Output:  block-pred-lang-v6
