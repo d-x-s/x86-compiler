@@ -5,7 +5,7 @@
  rackunit "../compiler.rkt"
 )
 
-; M3/M4 Tests
+M3/M4 Tests
 (test-case "assign-registers 1"
     (check-equal? 
         (assign-registers
@@ -191,3 +191,191 @@
                 (if (begin (set! x.1 2) (set! y.2 3) (> y.2 x.1)) (halt x.1) (halt c.4)))
             (begin (set! x.4 x.5) (jump x.1 rsp fv1 y.1)))))
 
+(test-case "assign-registers 6 - textbook example 1"
+    (check-equal? 
+        (assign-registers 
+        '(module
+            ((locals (tmp-ra.14))
+            (conflicts
+                ((tmp-ra.14 (fv0 fv1 rbp))
+                (rbp (r15 fv0 fv1 tmp-ra.14))
+                (fv1 (r15 fv0 rbp tmp-ra.14))
+                (fv0 (r15 rbp fv1 tmp-ra.14))
+                (r15 (rbp fv0 fv1))))
+            (assignment ()))
+
+            (define L.swap.1
+
+                ((locals (z.3 x.1 y.2))
+
+                (conflicts
+                ((y.2 (rbp tmp-ra.11 x.1 nfv.13))
+                (x.1 (y.2 rbp tmp-ra.11 fv1))
+                (tmp-ra.11 (y.2 x.1 rbp fv1 fv0 rax z.3))
+                (z.3 (rbp tmp-ra.11))
+                (nfv.13 (r15 nfv.12 rbp y.2))
+                (nfv.12 (r15 rbp nfv.13))
+                (rbp (y.2 x.1 tmp-ra.11 rax z.3 r15 nfv.12 nfv.13))
+                (r15 (rbp nfv.12 nfv.13))
+                (rax (rbp tmp-ra.11))
+                (fv0 (tmp-ra.11))
+                (fv1 (x.1 tmp-ra.11))))
+
+                (assignment ((tmp-ra.11 fv2) (nfv.12 fv3) (nfv.13 fv4))))
+
+                (begin
+                (set! tmp-ra.11 r15)
+                (set! x.1 fv0)
+                (set! y.2 fv1)
+                (if (< y.2 x.1)
+                    (begin (set! rax x.1) (jump tmp-ra.11 rbp rax))
+                    (begin
+                    (begin
+                        (set! rbp (- rbp 24))
+                        (return-point L.rp.4
+                        (begin
+                            (set! nfv.13 x.1)
+                            (set! nfv.12 y.2)
+                            (set! r15 L.rp.4)
+                            (jump L.swap.1 rbp r15 nfv.12 nfv.13)))
+                        (set! rbp (+ rbp 24)))
+                    (set! z.3 rax)
+                    (set! rax z.3)
+                    (jump tmp-ra.11 rbp rax)))))
+            (begin
+                (set! tmp-ra.14 r15)
+                (set! fv1 2)
+                (set! fv0 1)
+                (set! r15 tmp-ra.14)
+                (jump L.swap.1 rbp r15 fv0 fv1))))
+
+        '(module
+            ((locals ())
+            (conflicts
+                ((tmp-ra.14 (fv0 fv1 rbp))
+                (rbp (r15 fv0 fv1 tmp-ra.14))
+                (fv1 (r15 fv0 rbp tmp-ra.14))
+                (fv0 (r15 rbp fv1 tmp-ra.14))
+                (r15 (rbp fv0 fv1))))
+
+            (assignment ((tmp-ra.14 r15))))
+
+            (define L.swap.1
+
+                ((locals ())
+
+                (conflicts
+                ((y.2 (rbp tmp-ra.11 x.1 nfv.13))
+                (x.1 (y.2 rbp tmp-ra.11 fv1))
+                (tmp-ra.11 (y.2 x.1 rbp fv1 fv0 rax z.3))
+                (z.3 (rbp tmp-ra.11))
+                (nfv.13 (r15 nfv.12 rbp y.2))
+                (nfv.12 (r15 rbp nfv.13))
+                (rbp (y.2 x.1 tmp-ra.11 rax z.3 r15 nfv.12 nfv.13))
+                (r15 (rbp nfv.12 nfv.13))
+                (rax (rbp tmp-ra.11))
+                (fv0 (tmp-ra.11))
+                (fv1 (x.1 tmp-ra.11))))
+
+                (assignment
+                ((tmp-ra.11 fv2) (nfv.12 fv3) (nfv.13 fv4) (y.2 r15) (x.1 r14) (z.3 r15))))
+
+                (begin
+                (set! tmp-ra.11 r15)
+                (set! x.1 fv0)
+                (set! y.2 fv1)
+                (if (< y.2 x.1)
+                    (begin (set! rax x.1) (jump tmp-ra.11 rbp rax))
+                    (begin
+                    (begin
+                        (set! rbp (- rbp 24))
+                        (return-point L.rp.4
+                            (begin
+                            (set! nfv.13 x.1)
+                            (set! nfv.12 y.2)
+                            (set! r15 L.rp.4)
+                            (jump L.swap.1 rbp r15 nfv.12 nfv.13)))
+                        (set! rbp (+ rbp 24)))
+                    (set! z.3 rax)
+                    (set! rax z.3)
+                    (jump tmp-ra.11 rbp rax)))))
+            (begin
+                (set! tmp-ra.14 r15)
+                (set! fv1 2)
+                (set! fv0 1)
+                (set! r15 tmp-ra.14)
+                (jump L.swap.1 rbp r15 fv0 fv1)))))
+
+(test-case "assign-registers 7"
+    (check-equal? 
+        (assign-registers 
+            '(module
+                ((locals (tmp-ra.14))
+                 (conflicts
+                    ((tmp-ra.14 (fv0 fv1 rbp))
+                     (rbp (r15 fv0 fv1 tmp-ra.14))
+                     (fv1 (r15 fv0 rbp tmp-ra.14))
+                     (fv0 (r15 rbp fv1 tmp-ra.14))
+                     (r15 (rbp fv0 fv1))))
+                 (assignment ()))
+
+                (begin
+                    (set! tmp-ra.14 r15)
+                    (set! fv1 2)
+                    (set! fv0 1)
+                    (set! r15 tmp-ra.14)
+                    (jump L.swap.1 rbp r15 fv0 fv1))))
+
+        '(module
+            ((locals ())
+             (conflicts
+                ((tmp-ra.14 (fv0 fv1 rbp))
+                 (rbp (r15 fv0 fv1 tmp-ra.14))
+                 (fv1 (r15 fv0 rbp tmp-ra.14))
+                 (fv0 (r15 rbp fv1 tmp-ra.14))
+                 (r15 (rbp fv0 fv1))))
+            (assignment ((tmp-ra.14 r15))))
+            (begin
+                (set! tmp-ra.14 r15)
+                (set! fv1 2)
+                (set! fv0 1)
+                (set! r15 tmp-ra.14)
+                (jump L.swap.1 rbp r15 fv0 fv1)))))
+
+; new tests
+
+(test-case "assign-registers 8 - "
+    (check-equal? 
+        (assign-registers 
+            '(module
+                ((locals (tmp-ra.14))
+                 (conflicts
+                    ((tmp-ra.14 (r15 fv0 fv1 rbp))
+                     (rbp (r15 fv0 fv1 tmp-ra.14))
+                     (fv1 (r15 fv0 rbp tmp-ra.14))
+                     (fv0 (r15 rbp fv1 tmp-ra.14))
+                     (r15 (rbp fv0 fv1))))
+                 (assignment ()))
+
+                (begin
+                    (set! tmp-ra.14 r15)
+                    (set! fv1 2)
+                    (set! fv0 1)
+                    (set! r15 tmp-ra.14)
+                    (jump L.swap.1 rbp r15 fv0 fv1))))
+
+        '(module
+            ((locals ())
+             (conflicts
+                ((tmp-ra.14 (r15 fv0 fv1 rbp))
+                 (rbp (r15 fv0 fv1 tmp-ra.14))
+                 (fv1 (r15 fv0 rbp tmp-ra.14))
+                 (fv0 (r15 rbp fv1 tmp-ra.14))
+                 (r15 (rbp fv0 fv1))))
+            (assignment ((tmp-ra.14 r14))))
+            (begin
+                (set! tmp-ra.14 r15)
+                (set! fv1 2)
+                (set! fv0 1)
+                (set! r15 tmp-ra.14)
+                (jump L.swap.1 rbp r15 fv0 fv1)))))
