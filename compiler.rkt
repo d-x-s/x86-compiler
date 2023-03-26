@@ -1691,7 +1691,7 @@
   
   (define (fvar->addr fvar)
     ; Convert an fvar into a statement of the form (currentfbp - offset)
-    (list (current-frame-base-pointer-register) `- (* (fvar->index fvar) 8)))
+    (list (current-frame-base-pointer-register) `- (* (fvar->index fvar) (current-word-size-bytes))))
 
   (define (f-statement->s s)
     ; Given a statement, convert addresses into fvars.
