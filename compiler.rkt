@@ -1727,31 +1727,53 @@
 (define (implement-fvars p)
   (define (f-program->p p)
     (match p
-      [`(begin ,s ...)
-       `(begin ,@(map f-statement->s s))]))
+      [`(module ,defines ... ,tail)
+       `(module ,@(map fvars-defines defines) ,(implement-t tail))]))
   
+  (define (fvars-defines d)
+    (match d
+      [`(define ,label ,tail)
+        `(define ,label ,(implement-t tail))]))
+
   (define (fvar->addr fvar)
     ; Convert an fvar into a statement of the form (currentfbp - offset)
-    (list (current-frame-base-pointer-register) `- (* (fvar->index fvar) (current-word-size-bytes))))
-
-  (define (f-statement->s s)
+    (if (fvar? fvar)
+      (list (current-frame-base-pointer-register) `- (* (fvar->index fvar) (current-word-size-bytes)))
+      fvar))
+  (define (implement-t t)
     ; Given a statement, convert addresses into fvars.
-    (match s
-      [`(set! ,fvar ,val) #:when (fvar? fvar)   ; (set! fvar <int32|reg>)
-          `(set! ,(fvar->addr fvar) ,val)]       
-      [`(set! ,reg ,fvar) #:when (fvar? fvar)   ; (set! reg fvar)
-          `(set! ,reg ,(fvar->addr fvar))]
-      [`(set! ,reg1 (,binop ...))               ; (set! reg1 (binop reg1 <int32|reg|fvar>))
-          `(set! ,reg1 ,(f-binop->b binop))]
-      [`(with-label ,label ,s)                  ; (with-label label s)
-          `(with-label ,label ,(f-statement->s s))]
-      [_ s]))  ; everything else
+    (match t
+      [`(jump ,trg)
+        `(jump ,(fvar->addr trg))]
+      [`(begin ,effects ... ,tail)
+        `(begin ,@(map implement-e effects) ,(implement-t tail))]
+      [`(if ,pred ,tail1 ,tail2)
+        `(if ,(implement-pred pred) ,(implement-t tail1) ,(implement-t tail2))]))
 
-  (define (f-binop->b b)
-    (match b
-      [`(,binop ,r1 ,fvar) #:when (fvar? fvar)
-          `(,binop ,r1 ,(fvar->addr fvar))]
-      [_ b]))  ; everything else
+  (define (implement-pred pred)
+    (match pred
+      [`(not ,pred)
+        `(not ,(implement-pred pred))]
+      [`(begin ,effects ... ,pred)
+        `(begin ,@(map implement-e effects) ,(implement-pred pred))]
+      [`(if ,pred1 ,pred2 ,pred3)
+        `(if ,(implement-pred pred1) ,(implement-pred pred2) ,(implement-pred pred3))]
+      [`(,relop ,loc ,opand)
+        `(,relop ,(fvar->addr loc) ,(fvar->addr opand))]
+      [_ pred]))
+
+  (define (implement-e e)
+    (match e
+      [`(set! ,loc_1 (,binop ,loc_1 ,opand))
+        `(set! ,(fvar->addr loc_1) (,binop ,(fvar->addr loc_1) ,(fvar->addr opand)))]
+      [`(set! ,loc ,triv)
+        `(set! ,(fvar->addr loc) ,(fvar->addr triv))]
+      [`(begin ,effects ... )
+        `(begin ,@(map implement-e effects))]
+      [`(if ,pred ,effect1 ,effect2)
+        `(if ,(implement-pred pred) ,(implement-e effect1) ,(implement-e effect2))]
+      [`(return-point ,label ,tail)
+        `(return-point ,label ,(implement-t tail))]))
        
   (f-program->p p))
 
