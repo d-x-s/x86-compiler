@@ -397,32 +397,73 @@
 (define (impose-calling-conventions p)
 
   (define cpr (current-parameter-registers))
-
   (define cfbp (current-frame-base-pointer-register))
-
+  (define cra (current-return-address-register))
+  (define crv (current-return-value-register))
   (define cprLen (length cpr))
+  (define new-frames `())
+  (define new-framesL `())
   
   (define (impose-p p)
     (match p
       [`(module ,defines ... ,tail)
-       `(module ,@(map impose-d defines) ,(impose-t tail))]))
+        (define tmp (fresh 'tmp-ra))
+        (let* ([i-tail `(begin (set! ,tmp ,cra) ,(impose-t tail tmp))]
+               [frames new-frames])
+               `(module ((new-frames ,frames)) ,@(map impose-d defines) ,i-tail))]))
 
   (define (impose-d d)
     (match d
       [`(define ,label (lambda (,alocs ...) ,tail))
-       `(define ,label (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) 
-                              ,(impose-t tail)))]))
+        (define tmpL (fresh 'tmp-ra))
+        (let* ([i-tail `(begin (set! ,tmpL ,cra) (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) 
+                              ,(impose-t tail tmpL)))]
+               [framesL new-framesL])
+       `(define ,label ((new-frames ,framesL)) ,i-tail))]))
 
-  (define (impose-t t)
+  (define (impose-t t tmp)
     (match t
       [`(call ,triv ,opands ...)
        `(begin ,@(set-block opands)
+               (set! ,cra ,tmp)
                ,(create-jump triv (length opands)))]
       [`(begin ,effects ... ,tail)
-        `(begin ,@effects ,(impose-t tail))]
+        `(begin ,@(map (curry impose-e tmp) effects) ,(impose-t tail tmp))]
       [`(if ,pred ,tail1 ,tail2)
-        `(if ,pred ,(impose-t tail1) ,(impose-t tail2))]
-      [value value]))
+        `(if ,(impose-pred pred tmp) ,(impose-t tail1 tmp) ,(impose-t tail2 tmp))]
+      [value 
+        `(begin
+            (set! ,crv ,t)
+            (jump ,tmp ,cfbp ,crv))]))
+
+  (define (impose-pred pred tmp)
+    (match pred
+      [`(not ,pred)
+        `(not ,(impose-pred pred tmp))]
+      [`(begin ,effects ... ,pred)
+        `(begin ,@(map (curry impose-e tmp) effects) ,(impose-pred pred tmp))]
+      [`(if ,pred1 ,pred2 ,pred3)
+        `(if ,(impose-pred pred1 tmp) ,(impose-pred pred2 tmp) ,(impose-pred pred3 tmp))]
+      [_ pred]))
+
+  (define (impose-e tmp e)
+    (match e
+      [`(set! ,aloc (call ,triv ,opands ...))
+        (set! new-frames (append new-frames '(())))
+        (define rp-label (fresh-label 'rp))
+        `(begin
+         (return-point ,rp-label
+            (begin
+              ,@(set-block opands)
+              (set! ,cra ,rp-label)
+              ,(create-jump triv (length opands))))
+          (set! ,aloc ,crv))]
+      [`(set! ,aloc ,value)
+        `(set! ,aloc ,value)]
+      [`(begin ,effects ... )
+        `(begin ,@(map (curry impose-e tmp) effects))]
+      [`(if ,pred ,effect1 ,effect2)
+        `(if ,(impose-pred pred tmp),(impose-e tmp effect1) ,(impose-e tmp effect2))]))
 
   (define (make-para-list len)
     (if (> len cprLen)
@@ -436,7 +477,7 @@
     `(set! ,r ,o))
 
   (define (create-jump t len)
-    `(jump ,t ,cfbp ,@(make-para-list len)))  
+    `(jump ,t ,cfbp ,cra ,@(make-para-list len)))  
 
   (impose-p p))
 
