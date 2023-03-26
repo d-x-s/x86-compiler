@@ -131,7 +131,7 @@
 ;    > finally, add the assignment for the "x" to the result of the recursive call
 
 ; What is the purpose?
-; > assigns each variable that is live across a call to a frame variable (instead of producign new moves)
+; > assigns each variable that is live across a call to a frame variable (instead of producing new moves)
 ; > results in a partial assignment of abstract locations to frame variables (register allocator works form here)
 
 ; Notes:
@@ -255,9 +255,10 @@
   (define (allocate-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
+        (define defines-res (map allocate-def defines))
         (find-framesize! info)
        `(module ,(update-info info)
-                ,@(map allocate-def defines)
+                ,@defines-res
                 ,(allocate-t tail))]))
   
   (define (allocate-def d)
