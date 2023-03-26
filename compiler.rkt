@@ -1698,6 +1698,12 @@
       [`(compare ,reg ,addr1) #:when (address? addr1)
           `((set! ,i-reg1 ,addr1)
             (compare ,reg ,i-reg1))]
+      [`(compare ,addr1 ,reg) #:when (address? addr1)
+          `((set! ,i-reg1 ,addr1)
+            (compare ,i-reg1 ,reg ))]
+      [`(compare ,addr1 ,int64) #:when (and (address? addr1) (int64? int64))
+          `((set! ,i-reg1 ,addr1)
+            (compare ,i-reg1 ,int64))]
       [`(jump-if ,relop ,trg) #:when (not (label? trg))
           `((jump-if ,(patch-relop relop) L.tmp.1)
             (jump ,trg)
