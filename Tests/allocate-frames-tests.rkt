@@ -222,7 +222,7 @@
                 (set! rbp (+ rbp 16))))
             (jump L.start.14 x.11 rax x.100)))))
 
-(test-case "allocate 5 - largest assignment = call-undead length"
+(test-case "allocate 5 - n = fv referenced in assignment"
     (check-match
         (allocate-frames
             `(module
@@ -273,72 +273,6 @@
                 (return-point L.return.2 (jump x.2))
                 (set! rbp (+ rbp 16))))
             (jump L.start.14 x.11 rax x.100)))))
-
-(test-case "allocate 6 - public test 1"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (tmp-ra.3))
-                (call-undead ())
-                (undead-out ((tmp-ra.3 rbp) (tmp-ra.3 fv0 rbp) (fv0 r15 rbp) (fv0 r15 rbp)))
-                (conflicts
-                    ((tmp-ra.3 (fv0 rbp))
-                    (rbp (r15 fv0 tmp-ra.3))
-                    (fv0 (r15 rbp tmp-ra.3))
-                    (r15 (rbp fv0))))
-                (assignment ()))
-                (define L.id.1
-                    ((new-frames ())
-                    (locals (tmp-ra.2 x.1))
-                    (undead-out
-                    ((fv0 tmp-ra.2 rbp) (x.1 tmp-ra.2 rbp) (tmp-ra.2 rax rbp) (rax rbp)))
-                    (call-undead ())
-                    (conflicts
-                    ((tmp-ra.2 (rax x.1 rbp fv0))
-                    (x.1 (rbp tmp-ra.2))
-                    (fv0 (tmp-ra.2))
-                    (rbp (rax x.1 tmp-ra.2))
-                    (rax (rbp tmp-ra.2))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.2 r15)
-                    (set! x.1 fv0)
-                    (set! rax x.1)
-                    (jump tmp-ra.2 rbp rax)))
-                (begin
-                    (set! tmp-ra.3 r15)
-                    (set! fv0 5)
-                    (set! r15 tmp-ra.3)
-                    (jump L.id.1 rbp r15 fv0))))
-
-     `(module
-        ((locals (tmp-ra.3))
-        (conflicts
-            ((tmp-ra.3 (fv0 rbp))
-            (rbp (r15 fv0 tmp-ra.3))
-            (fv0 (r15 rbp tmp-ra.3))
-            (r15 (rbp fv0))))
-        (assignment ()))
-        (define L.id.1
-            ((locals (tmp-ra.2 x.1))
-            (conflicts
-            ((tmp-ra.2 (rax x.1 rbp fv0))
-            (x.1 (rbp tmp-ra.2))
-            (fv0 (tmp-ra.2))
-            (rbp (rax x.1 tmp-ra.2))
-            (rax (rbp tmp-ra.2))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.2 r15)
-            (set! x.1 fv0)
-            (set! rax x.1)
-            (jump tmp-ra.2 rbp rax)))
-        (begin
-            (set! tmp-ra.3 r15)
-            (set! fv0 5)
-            (set! r15 tmp-ra.3)
-            (jump L.id.1 rbp r15 fv0)))))
 
 (test-case "allocate 7 - public test 2"
     (check-match
@@ -398,7 +332,7 @@
             (rbp (rax y.2 r15 nfv.5 tmp-ra.4))
             (r15 (rbp nfv.5))
             (rax (rbp tmp-ra.4 y.2))))
-        (assignment ((nfv.5 fv1) (tmp-ra.4 fv0))))
+        (assignment ((tmp-ra.4 fv0) (nfv.5 fv1))))
         (define L.id.1
             ((locals (tmp-ra.3 x.1))
             (conflicts
@@ -426,521 +360,7 @@
             (set! rax (+ rax y.2))
             (jump tmp-ra.4 rbp rax)))))
 
-(test-case "allocate 8 - public test 3"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (tmp-ra.7))
-                (call-undead ())
-                (undead-out ((tmp-ra.7 rbp) (tmp-ra.7 fv0 rbp) (fv0 r15 rbp) (fv0 r15 rbp)))
-                (conflicts
-                    ((tmp-ra.7 (fv0 rbp))
-                    (rbp (r15 fv0 tmp-ra.7))
-                    (fv0 (r15 rbp tmp-ra.7))
-                    (r15 (rbp fv0))))
-                (assignment ()))
-                (define L.odd?.1
-                    ((new-frames ())
-                    (locals (x.1 tmp-ra.5 y.2))
-                    (undead-out
-                    ((fv0 tmp-ra.5 rbp)
-                    (x.1 tmp-ra.5 rbp)
-                    ((x.1 tmp-ra.5 rbp)
-                        ((tmp-ra.5 rax rbp) (rax rbp))
-                        ((y.2 tmp-ra.5 rbp)
-                        (y.2 tmp-ra.5 rbp)
-                        (tmp-ra.5 fv0 rbp)
-                        (fv0 r15 rbp)
-                        (fv0 r15 rbp)))))
-                    (call-undead ())
-                    (conflicts
-                    ((x.1 (rbp tmp-ra.5))
-                    (tmp-ra.5 (x.1 rbp rax fv0 y.2))
-                    (y.2 (rbp tmp-ra.5))
-                    (rbp (x.1 tmp-ra.5 rax r15 fv0 y.2))
-                    (fv0 (r15 rbp tmp-ra.5))
-                    (r15 (rbp fv0))
-                    (rax (rbp tmp-ra.5))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.5 r15)
-                    (set! x.1 fv0)
-                    (if (= x.1 0)
-                        (begin (set! rax 0) (jump tmp-ra.5 rbp rax))
-                        (begin
-                        (set! y.2 x.1)
-                        (set! y.2 (+ y.2 -1))
-                        (set! fv0 y.2)
-                        (set! r15 tmp-ra.5)
-                        (jump L.even?.2 rbp r15 fv0)))))
-                (define L.even?.2
-                    ((new-frames ())
-                    (locals (x.3 tmp-ra.6 y.4))
-                    (undead-out
-                    ((fv0 tmp-ra.6 rbp)
-                    (x.3 tmp-ra.6 rbp)
-                    ((x.3 tmp-ra.6 rbp)
-                        ((tmp-ra.6 rax rbp) (rax rbp))
-                        ((y.4 tmp-ra.6 rbp)
-                        (y.4 tmp-ra.6 rbp)
-                        (tmp-ra.6 fv0 rbp)
-                        (fv0 r15 rbp)
-                        (fv0 r15 rbp)))))
-                    (call-undead ())
-                    (conflicts
-                    ((x.3 (rbp tmp-ra.6))
-                    (tmp-ra.6 (x.3 rbp rax fv0 y.4))
-                    (y.4 (rbp tmp-ra.6))
-                    (rbp (x.3 tmp-ra.6 rax r15 fv0 y.4))
-                    (fv0 (r15 rbp tmp-ra.6))
-                    (r15 (rbp fv0))
-                    (rax (rbp tmp-ra.6))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.6 r15)
-                    (set! x.3 fv0)
-                    (if (= x.3 0)
-                        (begin (set! rax 1) (jump tmp-ra.6 rbp rax))
-                        (begin
-                        (set! y.4 x.3)
-                        (set! y.4 (+ y.4 -1))
-                        (set! fv0 y.4)
-                        (set! r15 tmp-ra.6)
-                        (jump L.odd?.1 rbp r15 fv0)))))
-                (begin
-                    (set! tmp-ra.7 r15)
-                    (set! fv0 5)
-                    (set! r15 tmp-ra.7)
-                    (jump L.even?.2 rbp r15 fv0))))
-
-     `(module
-        ((locals (tmp-ra.7))
-        (conflicts
-            ((tmp-ra.7 (fv0 rbp))
-            (rbp (r15 fv0 tmp-ra.7))
-            (fv0 (r15 rbp tmp-ra.7))
-            (r15 (rbp fv0))))
-        (assignment ()))
-        (define L.odd?.1
-            ((locals (x.1 tmp-ra.5 y.2))
-            (conflicts
-            ((x.1 (rbp tmp-ra.5))
-            (tmp-ra.5 (x.1 rbp rax fv0 y.2))
-            (y.2 (rbp tmp-ra.5))
-            (rbp (x.1 tmp-ra.5 rax r15 fv0 y.2))
-            (fv0 (r15 rbp tmp-ra.5))
-            (r15 (rbp fv0))
-            (rax (rbp tmp-ra.5))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.5 r15)
-            (set! x.1 fv0)
-            (if (= x.1 0)
-                (begin (set! rax 0) (jump tmp-ra.5 rbp rax))
-                (begin
-                (set! y.2 x.1)
-                (set! y.2 (+ y.2 -1))
-                (set! fv0 y.2)
-                (set! r15 tmp-ra.5)
-                (jump L.even?.2 rbp r15 fv0)))))
-        (define L.even?.2
-            ((locals (x.3 tmp-ra.6 y.4))
-            (conflicts
-            ((x.3 (rbp tmp-ra.6))
-            (tmp-ra.6 (x.3 rbp rax fv0 y.4))
-            (y.4 (rbp tmp-ra.6))
-            (rbp (x.3 tmp-ra.6 rax r15 fv0 y.4))
-            (fv0 (r15 rbp tmp-ra.6))
-            (r15 (rbp fv0))
-            (rax (rbp tmp-ra.6))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.6 r15)
-            (set! x.3 fv0)
-            (if (= x.3 0)
-                (begin (set! rax 1) (jump tmp-ra.6 rbp rax))
-                (begin
-                (set! y.4 x.3)
-                (set! y.4 (+ y.4 -1))
-                (set! fv0 y.4)
-                (set! r15 tmp-ra.6)
-                (jump L.odd?.1 rbp r15 fv0)))))
-        (begin
-            (set! tmp-ra.7 r15)
-            (set! fv0 5)
-            (set! r15 tmp-ra.7)
-            (jump L.even?.2 rbp r15 fv0)))))
-
-(test-case "allocate 9 - public test 4"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (tmp-ra.6))
-                (call-undead ())
-                (undead-out ((tmp-ra.6 rbp) (tmp-ra.6 rax rbp) (rax rbp)))
-                (conflicts ((tmp-ra.6 (rax rbp)) (rbp (rax tmp-ra.6)) (rax (rbp tmp-ra.6))))
-                (assignment ()))
-                (define L.zero.1
-                    ((new-frames ())
-                    (locals (tmp-ra.5 v0.4 v1.3 v2.2 v3.1))
-                    (undead-out
-                    ((fv0 fv1 fv2 fv3 tmp-ra.5 rbp)
-                    (fv1 fv2 fv3 tmp-ra.5 rbp)
-                    (fv2 fv3 tmp-ra.5 rbp)
-                    (fv3 tmp-ra.5 rbp)
-                    (tmp-ra.5 rbp)
-                    (tmp-ra.5 rax rbp)
-                    (rax rbp)))
-                    (call-undead ())
-                    (conflicts
-                    ((tmp-ra.5 (rax v3.1 v2.2 v1.3 v0.4 rbp fv3 fv2 fv1 fv0))
-                    (v0.4 (rbp tmp-ra.5 fv3 fv2 fv1))
-                    (v1.3 (rbp tmp-ra.5 fv3 fv2))
-                    (v2.2 (rbp tmp-ra.5 fv3))
-                    (v3.1 (rbp tmp-ra.5))
-                    (fv0 (tmp-ra.5))
-                    (fv1 (v0.4 tmp-ra.5))
-                    (fv2 (v1.3 v0.4 tmp-ra.5))
-                    (fv3 (v2.2 v1.3 v0.4 tmp-ra.5))
-                    (rbp (rax v3.1 v2.2 v1.3 v0.4 tmp-ra.5))
-                    (rax (rbp tmp-ra.5))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.5 r15)
-                    (set! v0.4 fv0)
-                    (set! v1.3 fv1)
-                    (set! v2.2 fv2)
-                    (set! v3.1 fv3)
-                    (set! rax 0)
-                    (jump tmp-ra.5 rbp rax)))
-                (begin (set! tmp-ra.6 r15) (set! rax 0) (jump tmp-ra.6 rbp rax))))
-
-     `(module
-        ((locals (tmp-ra.6))
-        (conflicts ((tmp-ra.6 (rax rbp)) (rbp (rax tmp-ra.6)) (rax (rbp tmp-ra.6))))
-        (assignment ()))
-        (define L.zero.1
-            ((locals (tmp-ra.5 v0.4 v1.3 v2.2 v3.1))
-            (conflicts
-            ((tmp-ra.5 (rax v3.1 v2.2 v1.3 v0.4 rbp fv3 fv2 fv1 fv0))
-            (v0.4 (rbp tmp-ra.5 fv3 fv2 fv1))
-            (v1.3 (rbp tmp-ra.5 fv3 fv2))
-            (v2.2 (rbp tmp-ra.5 fv3))
-            (v3.1 (rbp tmp-ra.5))
-            (fv0 (tmp-ra.5))
-            (fv1 (v0.4 tmp-ra.5))
-            (fv2 (v1.3 v0.4 tmp-ra.5))
-            (fv3 (v2.2 v1.3 v0.4 tmp-ra.5))
-            (rbp (rax v3.1 v2.2 v1.3 v0.4 tmp-ra.5))
-            (rax (rbp tmp-ra.5))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.5 r15)
-            (set! v0.4 fv0)
-            (set! v1.3 fv1)
-            (set! v2.2 fv2)
-            (set! v3.1 fv3)
-            (set! rax 0)
-            (jump tmp-ra.5 rbp rax)))
-        (begin (set! tmp-ra.6 r15) (set! rax 0) (jump tmp-ra.6 rbp rax)))))
-
-(test-case "allocate 10 - public test 5"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (y.2 tmp-ra.4))
-                (call-undead ())
-                (undead-out
-                    ((tmp-ra.4 rbp)
-                    (tmp-ra.4 y.2 rbp)
-                    (tmp-ra.4 y.2 fv0 rbp)
-                    (y.2 fv0 r15 rbp)
-                    (fv0 r15 rbp)))
-                (conflicts
-                    ((y.2 (r15 fv0 rbp tmp-ra.4))
-                    (tmp-ra.4 (fv0 y.2 rbp))
-                    (rbp (r15 fv0 y.2 tmp-ra.4))
-                    (fv0 (r15 rbp y.2 tmp-ra.4))
-                    (r15 (rbp fv0 y.2))))
-                (assignment ()))
-                (define L.id.1
-                    ((new-frames ())
-                    (locals (tmp-ra.3 x.1))
-                    (undead-out
-                    ((fv0 tmp-ra.3 rbp) (x.1 tmp-ra.3 rbp) (tmp-ra.3 rax rbp) (rax rbp)))
-                    (call-undead ())
-                    (conflicts
-                    ((tmp-ra.3 (rax x.1 rbp fv0))
-                    (x.1 (rbp tmp-ra.3))
-                    (fv0 (tmp-ra.3))
-                    (rbp (rax x.1 tmp-ra.3))
-                    (rax (rbp tmp-ra.3))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.3 r15)
-                    (set! x.1 fv0)
-                    (set! rax x.1)
-                    (jump tmp-ra.3 rbp rax)))
-                (begin
-                    (set! tmp-ra.4 r15)
-                    (set! y.2 L.id.1)
-                    (set! fv0 5)
-                    (set! r15 tmp-ra.4)
-                    (jump y.2 rbp r15 fv0))))
-
-     `(module
-        ((locals (y.2 tmp-ra.4))
-        (conflicts
-            ((y.2 (r15 fv0 rbp tmp-ra.4))
-            (tmp-ra.4 (fv0 y.2 rbp))
-            (rbp (r15 fv0 y.2 tmp-ra.4))
-            (fv0 (r15 rbp y.2 tmp-ra.4))
-            (r15 (rbp fv0 y.2))))
-        (assignment ()))
-        (define L.id.1
-            ((locals (tmp-ra.3 x.1))
-            (conflicts
-            ((tmp-ra.3 (rax x.1 rbp fv0))
-            (x.1 (rbp tmp-ra.3))
-            (fv0 (tmp-ra.3))
-            (rbp (rax x.1 tmp-ra.3))
-            (rax (rbp tmp-ra.3))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.3 r15)
-            (set! x.1 fv0)
-            (set! rax x.1)
-            (jump tmp-ra.3 rbp rax)))
-        (begin
-            (set! tmp-ra.4 r15)
-            (set! y.2 L.id.1)
-            (set! fv0 5)
-            (set! r15 tmp-ra.4)
-            (jump y.2 rbp r15 fv0)))))
-
-(test-case "allocate 11 - public test 6"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (y.3 tmp-ra.6))
-                (call-undead ())
-                (undead-out
-                    ((tmp-ra.6 rbp)
-                    ((tmp-ra.6 rbp) (tmp-ra.6 y.3 rbp) (tmp-ra.6 y.3 rbp))
-                    (tmp-ra.6 y.3 fv0 rbp)
-                    (y.3 fv0 r15 rbp)
-                    (fv0 r15 rbp)))
-                (conflicts
-                    ((y.3 (r15 fv0 rbp tmp-ra.6))
-                    (tmp-ra.6 (fv0 y.3 rbp))
-                    (rbp (r15 fv0 y.3 tmp-ra.6))
-                    (fv0 (r15 rbp y.3 tmp-ra.6))
-                    (r15 (rbp fv0 y.3))))
-                (assignment ()))
-                (define L.id1.1
-                    ((new-frames ())
-                    (locals (tmp-ra.4 x.1))
-                    (undead-out
-                    ((fv0 tmp-ra.4 rbp) (x.1 tmp-ra.4 rbp) (tmp-ra.4 rax rbp) (rax rbp)))
-                    (call-undead ())
-                    (conflicts
-                    ((tmp-ra.4 (rax x.1 rbp fv0))
-                    (x.1 (rbp tmp-ra.4))
-                    (fv0 (tmp-ra.4))
-                    (rbp (rax x.1 tmp-ra.4))
-                    (rax (rbp tmp-ra.4))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.4 r15)
-                    (set! x.1 fv0)
-                    (set! rax x.1)
-                    (jump tmp-ra.4 rbp rax)))
-                (define L.id2.2
-                    ((new-frames ())
-                    (locals (tmp-ra.5 x.2))
-                    (undead-out
-                    ((fv0 tmp-ra.5 rbp) (x.2 tmp-ra.5 rbp) (tmp-ra.5 rax rbp) (rax rbp)))
-                    (call-undead ())
-                    (conflicts
-                    ((tmp-ra.5 (rax x.2 rbp fv0))
-                    (x.2 (rbp tmp-ra.5))
-                    (fv0 (tmp-ra.5))
-                    (rbp (rax x.2 tmp-ra.5))
-                    (rax (rbp tmp-ra.5))))
-                    (assignment ()))
-                    (begin
-                    (set! tmp-ra.5 r15)
-                    (set! x.2 fv0)
-                    (set! rax x.2)
-                    (jump tmp-ra.5 rbp rax)))
-                (begin
-                    (set! tmp-ra.6 r15)
-                    (if (true) (set! y.3 L.id1.1) (set! y.3 L.id2.2))
-                    (set! fv0 5)
-                    (set! r15 tmp-ra.6)
-                    (jump y.3 rbp r15 fv0))))
-
-     `(module
-        ((locals (y.3 tmp-ra.6))
-        (conflicts
-            ((y.3 (r15 fv0 rbp tmp-ra.6))
-            (tmp-ra.6 (fv0 y.3 rbp))
-            (rbp (r15 fv0 y.3 tmp-ra.6))
-            (fv0 (r15 rbp y.3 tmp-ra.6))
-            (r15 (rbp fv0 y.3))))
-        (assignment ()))
-        (define L.id1.1
-            ((locals (tmp-ra.4 x.1))
-            (conflicts
-            ((tmp-ra.4 (rax x.1 rbp fv0))
-            (x.1 (rbp tmp-ra.4))
-            (fv0 (tmp-ra.4))
-            (rbp (rax x.1 tmp-ra.4))
-            (rax (rbp tmp-ra.4))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.4 r15)
-            (set! x.1 fv0)
-            (set! rax x.1)
-            (jump tmp-ra.4 rbp rax)))
-        (define L.id2.2
-            ((locals (tmp-ra.5 x.2))
-            (conflicts
-            ((tmp-ra.5 (rax x.2 rbp fv0))
-            (x.2 (rbp tmp-ra.5))
-            (fv0 (tmp-ra.5))
-            (rbp (rax x.2 tmp-ra.5))
-            (rax (rbp tmp-ra.5))))
-            (assignment ()))
-            (begin
-            (set! tmp-ra.5 r15)
-            (set! x.2 fv0)
-            (set! rax x.2)
-            (jump tmp-ra.5 rbp rax)))
-        (begin
-            (set! tmp-ra.6 r15)
-            (if (true) (set! y.3 L.id1.1) (set! y.3 L.id2.2))
-            (set! fv0 5)
-            (set! r15 tmp-ra.6)
-            (jump y.3 rbp r15 fv0)))))
-
-(test-case "allocate 12 - public test 7"
-    (check-match
-        (allocate-frames
-            `(module
-                ((new-frames ())
-                (locals (tmp-ra.6))
-                (call-undead ())
-                (undead-out ((tmp-ra.6 rbp) (tmp-ra.6 fv0 rbp) (fv0 r15 rbp) (fv0 r15 rbp)))
-                (conflicts
-                    ((tmp-ra.6 (fv0 rbp))
-                    (rbp (r15 fv0 tmp-ra.6))
-                    (fv0 (r15 rbp tmp-ra.6))
-                    (r15 (rbp fv0))))
-                (assignment ()))
-                (define L.fact.1
-                    ((new-frames ((nfv.5)))
-                    (locals (y.3 nfv.5 z.2))
-                    (undead-out
-                    ((fv0 tmp-ra.4 rbp)
-                    (x.1 tmp-ra.4 rbp)
-                    ((x.1 tmp-ra.4 rbp)
-                        ((tmp-ra.4 rax rbp) (rax rbp))
-                        ((z.2 x.1 tmp-ra.4 rbp)
-                        (z.2 x.1 tmp-ra.4 rbp)
-                        ((rax x.1 tmp-ra.4 rbp) ((nfv.5 rbp) (nfv.5 r15 rbp) (nfv.5 r15 rbp)))
-                        (x.1 y.3 tmp-ra.4 rbp)
-                        (y.3 rax tmp-ra.4 rbp)
-                        (tmp-ra.4 rax rbp)
-                        (rax rbp)))))
-                    (call-undead (x.1 tmp-ra.4))
-                    (conflicts
-                    ((x.1 (rbp tmp-ra.4 y.3 z.2))
-                    (tmp-ra.4 (x.1 rbp fv0 rax y.3 z.2))
-                    (y.3 (rax rbp tmp-ra.4 x.1))
-                    (nfv.5 (r15 rbp))
-                    (z.2 (x.1 rbp tmp-ra.4))
-                    (rbp (x.1 tmp-ra.4 rax y.3 r15 nfv.5 z.2))
-                    (r15 (rbp nfv.5))
-                    (rax (rbp tmp-ra.4 y.3))
-                    (fv0 (tmp-ra.4))))
-                    (assignment ((tmp-ra.4 fv1) (x.1 fv0))))
-                    (begin
-                    (set! tmp-ra.4 r15)
-                    (set! x.1 fv0)
-                    (if (= x.1 0)
-                        (begin (set! rax 1) (jump tmp-ra.4 rbp rax))
-                        (begin
-                        (set! z.2 x.1)
-                        (set! z.2 (+ z.2 -1))
-                        (return-point L.rp.2
-                            (begin
-                            (set! nfv.5 z.2)
-                            (set! r15 L.rp.2)
-                            (jump L.fact.1 rbp r15 nfv.5)))
-                        (set! y.3 rax)
-                        (set! rax x.1)
-                        (set! rax (* rax y.3))
-                        (jump tmp-ra.4 rbp rax)))))
-                (begin
-                    (set! tmp-ra.6 r15)
-                    (set! fv0 5)
-                    (set! r15 tmp-ra.6)
-                    (jump L.fact.1 rbp r15 fv0))))
-
-     `(module
-        ((locals (tmp-ra.6))
-        (conflicts
-            ((tmp-ra.6 (fv0 rbp))
-            (rbp (r15 fv0 tmp-ra.6))
-            (fv0 (r15 rbp tmp-ra.6))
-            (r15 (rbp fv0))))
-        (assignment ()))
-        (define L.fact.1
-            ((locals (y.3 z.2))
-            (conflicts
-            ((x.1 (rbp tmp-ra.4 y.3 z.2))
-            (tmp-ra.4 (x.1 rbp fv0 rax y.3 z.2))
-            (y.3 (rax rbp tmp-ra.4 x.1))
-            (nfv.5 (r15 rbp))
-            (z.2 (x.1 rbp tmp-ra.4))
-            (rbp (x.1 tmp-ra.4 rax y.3 r15 nfv.5 z.2))
-            (r15 (rbp nfv.5))
-            (rax (rbp tmp-ra.4 y.3))
-            (fv0 (tmp-ra.4))))
-            (assignment ((nfv.5 fv2) (tmp-ra.4 fv1) (x.1 fv0))))
-            (begin
-            (set! tmp-ra.4 r15)
-            (set! x.1 fv0)
-            (if (= x.1 0)
-                (begin (set! rax 1) (jump tmp-ra.4 rbp rax))
-                (begin
-                (set! z.2 x.1)
-                (set! z.2 (+ z.2 -1))
-                (begin
-                    (set! rbp (- rbp 16))
-                    (return-point
-                    L.rp.2
-                    (begin
-                    (set! nfv.5 z.2)
-                    (set! r15 L.rp.2)
-                    (jump L.fact.1 rbp r15 nfv.5)))
-                    (set! rbp (+ rbp 16)))
-                (set! y.3 rax)
-                (set! rax x.1)
-                (set! rax (* rax y.3))
-                (jump tmp-ra.4 rbp rax)))))
-        (begin
-            (set! tmp-ra.6 r15)
-            (set! fv0 5)
-            (set! r15 tmp-ra.6)
-            (jump L.fact.1 rbp r15 fv0)))))
-
-(test-case "allocate 13 - non-empty new-frames, frame size from assignment"
+(test-case "allocate 8 - non-empty new-frames, frame size from assignment reference"
     (check-match
         (allocate-frames
             `(module
@@ -1037,7 +457,7 @@
             (rax (rbp tmp-ra.1))
             (fv0 (tmp-ra.1))
             (fv1 (x.1 tmp-ra.1))))
-            (assignment ((nfv.3 fv4) (nfv.2 fv3) (tmp-ra.1 fv2)))) 
+            (assignment ((tmp-ra.1 fv2) (nfv.2 fv3) (nfv.3 fv4)))) 
             (begin
             (set! tmp-ra.1 r15)
             (set! x.1 fv0)
@@ -1065,3 +485,85 @@
             (set! r15 tmp-ra.4)
             (jump L.swap.1 rbp r15 fv0 fv1)))))
 
+(test-case "allocate 9 - multiple frames in new-frames, dupes in new-frames, n = call-undead length"
+    (check-match
+        (allocate-frames
+            `(module
+                ((new-frames ((nfv.1 nfv.2 nfv.2) (nfv.3 nfv.4)))
+                (locals (x.3 y.1 nfv.1 nfv.2 nfv.3 nfv.4))
+                (call-undead (x.1 x.2 fv0))
+                (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+                (assignment ((tmp.1 fv50))))
+
+                (begin 
+                    (set! rax (+ rax x.3)) 
+                    (return-point L.one.1 (jump y.1)) 
+                    (jump rax))))
+
+     `(module
+        ((locals (x.3 y.1))
+        (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+        (assignment ((tmp.1 fv50) (nfv.1 fv3) (nfv.2 fv5) (nfv.3 fv3) (nfv.4 fv4))))
+        (begin
+            (set! rax (+ rax x.3))
+            (begin
+            (set! rbp (- rbp 24))
+            (return-point L.one.1 (jump y.1))
+            (set! rbp (+ rbp 24)))
+            (jump rax)))))
+
+(test-case "allocate 10 - n = fvar in call-undead"
+    (check-match
+        (allocate-frames
+            `(module
+                ((new-frames ((nfv.1 nfv.2 nfv.2) (nfv.3 nfv.4)))
+                (locals (x.3 y.1 nfv.1 nfv.2 nfv.3 nfv.4))
+                (call-undead (x.1 x.2 fv20))
+                (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+                (assignment ((tmp.1 fv50))))
+
+                (begin 
+                    (set! rax (+ rax x.3)) 
+                    (return-point L.one.1 (jump y.1)) 
+                    (jump rax))))
+
+     `(module
+        ((locals (x.3 y.1))
+        (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+        (assignment
+            ((tmp.1 fv50) (nfv.1 fv21) (nfv.2 fv23) (nfv.3 fv21) (nfv.4 fv22))))
+        (begin
+            (set! rax (+ rax x.3))
+            (begin
+            (set! rbp (- rbp 168))
+            (return-point L.one.1 (jump y.1))
+            (set! rbp (+ rbp 168)))
+            (jump rax)))))
+
+(test-case "allocate 11 - n = assignment reference"
+    (check-match
+        (allocate-frames
+            `(module
+                ((new-frames ((nfv.1 nfv.2 nfv.2) (nfv.3 nfv.4)))
+                (locals (x.3 y.1 nfv.1 nfv.2 nfv.3 nfv.4))
+                (call-undead (x.1 x.2 fv20 tmp.1))
+                (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+                (assignment ((tmp.1 fv50))))
+
+                (begin 
+                    (set! rax (+ rax x.3)) 
+                    (return-point L.one.1 (jump y.1)) 
+                    (jump rax))))
+
+     `(module
+        ((locals (x.3 y.1))
+        (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+        (assignment
+            ((tmp.1 fv50) (nfv.1 fv51) (nfv.2 fv53) (nfv.3 fv51) (nfv.4 fv52))))
+        (begin
+            (set! rax (+ rax x.3))
+            (begin
+            (set! rbp (- rbp 408))
+            (return-point L.one.1 (jump y.1))
+            (set! rbp (+ rbp 408)))
+            (jump rax)))))

@@ -218,12 +218,18 @@
   
   (define framesize 0)
 
-  ; Return the integer x corresponding to the largest frame value fvx in assignment.
-  ; if assignment is empty, return -1.
-  (define (find-largest-frame assignment)
-    (foldr (lambda (p rest) (max (fvar->index (second p)) rest)) 
+  ; Return the integer x corresponding to the largest frame value fvx in call-undead,
+  ; and if a call-undead is assigned, check its associated fvar.
+  ; if call-undead is empty, return -1.
+  (define (find-largest-frame call-undead assignment)
+    ; dereference entries in call-undead
+    (define deref-undead (map (lambda (x) (if (dict-has-key? assignment x)
+                                              (first (dict-ref assignment x))
+                                              x))
+                              call-undead))
+    (foldr (lambda (p rest) (max p rest)) 
                             -1
-                            assignment))
+                            (map fvar->index (filter fvar? deref-undead))))
 
   ; The size of a frame n (in slots) for a given non-tail call is the maximum of:
   ;   - the number of locations in the call-undead, or
@@ -233,7 +239,7 @@
     (define assignment (info-ref info 'assignment))
     (set! framesize (* (current-word-size-bytes) 
                        (max (length call-undead)
-                            (+ 1 (find-largest-frame assignment))))))
+                            (+ 1 (find-largest-frame call-undead assignment))))))
   
   ; Create a new assignment for every entry fr in new-frames. 
   ; The assignment is (fr fvi) where the 'i's in assignment form an ascending sequence.
@@ -241,16 +247,24 @@
   ; Return the updated info.
   (define (update-info info)
     (define locals (info-ref info 'locals))
-    (define assignment (info-ref info 'assignment))
-    (define new-frames (flatten (info-ref info 'new-frames)))
-    (define-values (x new-loc new-as)
-      (for/fold ([i (+ 1 (find-largest-frame assignment))]
-                 [loc locals]
+    (define assignment (map (lambda (x) `(,(first x) . ,(second x))) (info-ref info 'assignment)))
+    (define new-frames (info-ref info 'new-frames))
+    ; double loop over entries of new-frames. i resets with every (frame ...). 
+    (define-values (new-loc new-as)
+      (for/fold ([loc locals]
                  [as assignment])
-                ([f new-frames])
-                (values (+ i 1) (set-remove loc f) (cons `(,f ,(make-fvar i)) as))))
+                ([frame new-frames])
+
+                (define-values (x new-a)
+                  (for/fold ([i (/ framesize (current-word-size-bytes))]
+                             [currA as])
+                            ([f frame])
+                            (values (+ i 1) (dict-set currA f (make-fvar i)))))
+
+                (values (foldr (lambda (f rest) (set-remove rest f)) loc frame) new-a)))
+
     (define new-info (info-remove (info-remove (info-remove info 'new-frames) 'call-undead) 'undead-out))
-    (info-set (info-set new-info 'locals new-loc) 'assignment new-as))
+    (info-set (info-set new-info 'locals new-loc) 'assignment (map list (dict-keys new-as) (dict-values new-as))))
 
   (define (allocate-p p)
     (match p
@@ -303,7 +317,7 @@
             (return-point ,label ,(allocate-t tail))
             (set! ,bpr (+ ,bpr ,framesize)))]))
 
-  (allocate-p p)) 
+  (allocate-p p))
 
 
 ; Input: asm-pred-lang-v6/spilled
