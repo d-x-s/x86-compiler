@@ -2,7 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- cpsc411/2c-run-time
+ cpsc411/2c-ptr-run-time
  cpsc411/graph-lib)
 
 (provide
