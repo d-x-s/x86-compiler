@@ -153,46 +153,35 @@
       [`(,aloc ,value)
        `(,aloc ,(remop-v value))]))
   
-  ; Process the parameters of a call of the form (call triv params ...) and return the new instruction.
-  ; processedParams: accumulator for the base case. Initialize as empty.
-  (define (handle-call triv params processedParams)
-    (match params
+  ; Process a list of values, doing recursive handling for complex values and constructing
+  ; a let-expression for each. Return the new instruction.
+  ; This function is used for both binops and call because they only differ in the base case.
+  ; base: the container for the base case. e.g. `(call ,triv) or `(+)
+  ; processedLst: accumulator for the base case. Initialize as empty.
+  (define (handle-vals base lst processedLst)
+    (match lst
       ['()
-       `(call ,triv ,@(reverse processedParams))]
+       (append base (reverse processedLst))]
       [(cons p pRest) #:when (not (list? p)) ; head is atomic
-       (handle-call triv pRest (cons p processedParams))]
+       (handle-vals base pRest (cons p processedLst))]
       [(cons p pRest)
        (define tmp (fresh))
        (define headRes (remop-v p))
-       (define tailRes (handle-call triv pRest (cons tmp processedParams)))
+       (define tailRes (handle-vals base pRest (cons tmp processedLst)))
       `(let ([,tmp ,headRes]) ,tailRes)]))
 
   ; Return an instruction.
   (define (remop-v v)
     (match v
       [`(call ,triv ,values ...)
-        (handle-call triv values '())]
+        (handle-vals `(call ,triv) values '())]
       [`(let ([,aloc ,value] ...) ,val) 
        `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
              ,(remop-v val))]
       [`(if ,pred ,val1 ,val2)
        `(if ,(remop-pr pred) ,(remop-v val1) ,(remop-v val2))]
-      [`(,binop ,val1 ,val2) #:when (and (list? val1) (list? val2))  ; case: both vals are not atomic
-        (define tmp1 (fresh))
-        (define val1Res (remop-v val1))
-        (define tmp2 (fresh))
-        (define val2Res (remop-v val2))
-        `(let ([,tmp1 ,val1Res])
-              (let ([,tmp2 ,val2Res]) 
-                   (,binop ,tmp1 ,tmp2)))]
-      [`(,binop ,val1 ,val2) #:when (or (list? val1) (list? val2))  ; case: one val is atomic
-        (define val1atom? (list? val2))
-        (define tmp (fresh))
-        (define nonatomRes (if val1atom? (remop-v val2) (remop-v val1)))
-        (define letVal (if val1atom? `(,binop ,val1 ,tmp) `(,binop ,tmp ,val2)))
-        `(let ([,tmp ,nonatomRes]) ,letVal)]
-      [`(,binop ,val1 ,val2) ; case: both vals are atomic
-        v]
+      [`(,binop ,values ...)
+        (handle-vals `(,binop) values '())]
       [_ v])) ; int, aloc, or label
   
   (remop-p p))

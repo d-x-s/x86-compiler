@@ -118,9 +118,3 @@
                 (let ((tmp.21 (if (>= 3 4) 3 4))) (* tmp.20 tmp.21))))))
         (let ((tmp.22 (+ 1 2))) (call L.fn.1 1 tmp.22 3)))))
 
-; (test-case "remop - "
-;     (check-match
-;         (remove-complex-opera*
-;             `.)
-
-;      `.))
