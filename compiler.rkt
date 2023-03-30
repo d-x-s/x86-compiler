@@ -3,7 +3,6 @@
 (require
  cpsc411/compiler-lib
  cpsc411/ptr-run-time
- cpsc411/2c-run-time
  cpsc411/graph-lib)
 
 (provide
@@ -32,29 +31,30 @@
  generate-x64)
 
 ;; Stubs; remove or replace with your definitions.
-(define-values (uniquify
-                implement-safe-primops
-                specify-representation
-                remove-complex-opera*
-                sequentialize-let
-                normalize-bind
-                impose-calling-conventions
-                select-instructions
-                uncover-locals
-                undead-analysis
-                conflict-analysis
-                assign-call-undead-variables
-                allocate-frames
-                assign-registers
-                assign-frame-variables
-                replace-locations
-                implement-fvars
-                optimize-predicates
-                expose-basic-blocks
-                resolve-predicates
-                flatten-program
-                patch-instructions
-                generate-x64)
+(define-values (;uniquify
+                ;implement-safe-primops
+                ;specify-representation
+                ;remove-complex-opera*
+                ;sequentialize-let
+                ;normalize-bind
+                ;impose-calling-conventions
+                ;select-instructions
+                ;uncover-locals
+                ;undead-analysis
+                ;conflict-analysis
+                ;assign-call-undead-variables
+                ;allocate-frames
+                ;assign-registers
+                ;assign-frame-variables
+                ;replace-locations
+                ;implement-fvars
+                ;optimize-predicates
+                ;expose-basic-blocks
+                ;resolve-predicates
+                ;flatten-program
+                ;patch-instructions
+                ;generate-x64
+                )
   (values
    ;values
    ;values
@@ -120,11 +120,82 @@
 
 ; =============== M7 Passes ================
 
-; Input: 
-; Output: 
-; Purpose: 
+; Input:   exprs-unique-lang-v6.5
+; Output:  values-unique-lang-v6
+; Purpose: Performs the monadic form transformation, unnesting all non-trivial operators and operands 
+;          to binops, and calls making data flow explicit and simple to implement imperatively.
+;          All operands are evaluated from left to right.
 (define (remove-complex-opera* p)
-  p)
+  
+  (define (remop-p p)
+    (match p
+      [`(module ,defines ... ,value)
+       `(module ,@(map remop-def defines) ,(remop-v value))]))
+
+  (define (remop-def d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,value))
+       `(define ,label (lambda ,aloc ,(remop-v value)))]))
+    
+  (define (remop-pr pr)
+    (match pr
+      [`(not ,pred)
+       `(not ,(remop-pr pred))]
+      [`(if ,pred1 ,pred2 ,pred3)
+       `(if ,(remop-pr pred1) ,(remop-pr pred2) ,(remop-pr pred3))]
+      [`(let ([,aloc ,value] ...) ,pred)
+       `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
+             ,(remop-pr pred))]
+      [_ pr])) ; relop or bool
+
+  (define (remop-bind b)
+    (match b
+      [`(,aloc ,value)
+       `(,aloc ,(remop-v value))]))
+  
+  ; Process the parameters of a call of the form (call triv params ...) and return the new instruction.
+  ; processedParams: accumulator for the base case. Initialize as empty.
+  (define (handle-call triv params processedParams)
+    (match params
+      ['()
+       `(call ,triv ,@(reverse processedParams))]
+      [(cons p pRest) #:when (not (list? p)) ; head is atomic
+       (handle-call triv pRest (cons p processedParams))]
+      [(cons p pRest)
+       (define tmp (fresh))
+       (define headRes (remop-v p))
+       (define tailRes (handle-call triv pRest (cons tmp processedParams)))
+      `(let ([,tmp ,headRes]) ,tailRes)]))
+
+  ; Return an instruction.
+  (define (remop-v v)
+    (match v
+      [`(call ,triv ,values ...)
+        (handle-call triv values '())]
+      [`(let ([,aloc ,value] ...) ,val) 
+       `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
+             ,(remop-v val))]
+      [`(if ,pred ,val1 ,val2)
+       `(if ,(remop-pr pred) ,(remop-v val1) ,(remop-v val2))]
+      [`(,binop ,val1 ,val2) #:when (and (list? val1) (list? val2))  ; case: both vals are not atomic
+        (define tmp1 (fresh))
+        (define val1Res (remop-v val1))
+        (define tmp2 (fresh))
+        (define val2Res (remop-v val2))
+        `(let ([,tmp1 ,val1Res])
+              (let ([,tmp2 ,val2Res]) 
+                   (,binop ,tmp1 ,tmp2)))]
+      [`(,binop ,val1 ,val2) #:when (or (list? val1) (list? val2))  ; case: one val is atomic
+        (define val1atom? (list? val2))
+        (define tmp (fresh))
+        (define nonatomRes (if val1atom? (remop-v val2) (remop-v val1)))
+        (define letVal (if val1atom? `(,binop ,val1 ,tmp) `(,binop ,tmp ,val2)))
+        `(let ([,tmp ,nonatomRes]) ,letVal)]
+      [`(,binop ,val1 ,val2) ; case: both vals are atomic
+        v]
+      [_ v])) ; int, aloc, or label
+  
+  (remop-p p))
 
 ; Input: 
 ; Output: 
