@@ -8,13 +8,22 @@
 (test-case "uniquify 1 - trivial value"
     (check-match
      (uniquify 
-     '(module (+ 2 2)))
+     '(module 10))
 
-     `(module (+ 2 2))
+     `(module 10)
     )
 )
 
-(test-case "uniquify 2 - trivial block"
+(test-case "uniquify 2 - trivial call"
+    (check-match
+     (uniquify 
+     '(module (call 1 2)))
+
+     `(module (call 1 2)) 
+    )
+)
+
+(test-case "uniquify 3 - trivial block"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -26,7 +35,7 @@
     )
 )
 
-(test-case "uniquify 3 - trivial blocks"
+(test-case "uniquify 4 - trivial blocks"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -42,7 +51,7 @@
     )
 )
 
-(test-case "uniquify 4 - trivial identically named blocks"
+(test-case "uniquify 5 - trivial identically named blocks"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -58,7 +67,7 @@
     )
 )
 
-(test-case "uniquify 5 - trivial identical blocks"
+(test-case "uniquify 6 - trivial identical blocks"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -74,7 +83,7 @@
     )
 )
 
-(test-case "uniquify 6 - call in tail position"
+(test-case "uniquify 7 - call in tail position"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -110,7 +119,7 @@
     )
 )
 
-(test-case "uniquify 7 - call in tail position and identical blocks"
+(test-case "uniquify 8 - call in tail position and identical blocks"
     (check-match
       (uniquify 
           '(module (define x (lambda (y z) 10))
@@ -134,7 +143,7 @@
     )
 )
 
-(test-case "uniquify 8 - let with predicate and call"
+(test-case "uniquify 9 - let with predicate and call"
     (check-match
       (uniquify 
         '(module 
@@ -149,7 +158,7 @@
     )
 )
 
-(test-case "uniquify 9 - let with call"
+(test-case "uniquify 10 - let with call"
     (check-match
      (uniquify '(module 
                     (define id (lambda (x) x)) 
@@ -161,28 +170,28 @@
     )
 )
 
-(test-case "uniquify 10 - simple nested lets"
+(test-case "uniquify 11 - simple nested lets"
     (check-match
      (uniquify '(module 
-                    (let ((foo (let ((bar 1)) bar)) (bar 2)) (+ foo bar))))
+                    (let ((foo (let ((bar 1)) bar)) (bar 2)) (call foo bar))))
 
-     `(module (let ((,foo.2 (let ((,bar.3 1)) ,bar.3)) (,bar.1 2)) (+ ,foo.2 ,bar.1)))
+     `(module (let ((,foo.2 (let ((,bar.3 1)) ,bar.3)) (,bar.1 2)) (call ,foo.2 ,bar.1)))
     )
 )
 
-(test-case "uniquify 11 - complex nested lets"
+(test-case "uniquify 12 - complex nested lets"
     (check-match
-        (uniquify '(module (let ((x 1)) (let ((y (let ((z 3)) z))) (let ((z (let ((y 2)) (+ y y)))) (if (let ((x 6)) (> x 7)) 9 10))))))
+        (uniquify '(module (let ((x 1)) (let ((y (let ((z 3)) z))) (let ((z (let ((y 2)) (call y y)))) (if (let ((x 6)) (call x 7)) 9 10))))))
 
      `(module
         (let ((,x.1 1))
             (let ((,y.2 (let ((,z.3 3)) ,z.3)))
-            (let ((,z.4 (let ((,y.5 2)) (+ ,y.5 ,y.5))))
-                (if (let ((,x.6 6)) (> ,x.6 7)) 9 10)))))
+            (let ((,z.4 (let ((,y.5 2)) (call ,y.5 ,y.5))))
+                (if (let ((,x.6 6)) (call ,x.6 7)) 9 10)))))
     )
 )
 
-(test-case "uniquify 12 - call in value position"
+(test-case "uniquify 13 - call in value position"
     (check-match
         (uniquify 
             '(module 
@@ -199,21 +208,21 @@
     )
 )
 
-(test-case "uniquify 13 - binops in value position"
+(test-case "uniquify 14 - various calls in value position"
     (check-match
         (uniquify 
                 '(module 
-                    (define id1 (lambda (x) (+ 10 2))) 
-                    (define id2 (lambda (x) (- x x)))
-                    (define id3 (lambda (x) (* x 5)))
+                    (define id1 (lambda (x) (call 10 2))) 
+                    (define id2 (lambda (x) (call x x)))
+                    (define id3 (lambda (x) (call x 5)))
                     (let ((y (call id1 10))) (call y 5))
                 )
         )
 
      `(module
-        (define ,L.id1.1 (lambda (,x.1) (+ 10 2)))
-        (define ,L.id2.2 (lambda (,x.2) (- ,x.2 ,x.2)))
-        (define ,L.id3.3 (lambda (,x.3) (* ,x.3 5)))
+        (define ,L.id1.1 (lambda (,x.1) (call 10 2)))
+        (define ,L.id2.2 (lambda (,x.2) (call ,x.2 ,x.2)))
+        (define ,L.id3.3 (lambda (,x.3) (call ,x.3 5)))
         (let ((,y.4 (call ,L.id1.1 10))) (call ,y.4 5)))
     )
 )

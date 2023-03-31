@@ -165,3 +165,25 @@
          "mov QWORD [rbp - 16], -1\nmov r10, 0\nmov rax, 10\nadd rax, 1024\nimul rbx, rcx\nsub rbx, QWORD [rbp - 16]\nL.x.1:\nadd rax, QWORD [rbp - 16]\ncmp rax, r10\njg L.x.1\n"
     )
 )
+
+(test-case "generate-x64 14 - new binary operations"
+    (check-equal?
+        (generate-x64
+           '(begin 
+            (set! (rbp - 16) -1) 
+            (set! r10 0) 
+            (set! rax 10)
+            (set! rax (+ rax 1024))
+            (set! rbx (* rbx rcx))
+            (set! rbx (- rbx (rbp - 16)))
+            (set! rbx (bitwise-and rbx rcx))
+            (set! rbx (bitwise-ior rbx rcx))
+            (set! rbx (bitwise-xor rbx rcx))
+            (set! rbx (arithmetic-shift-right rbx rcx))
+            (with-label L.x.1 (set! rax (+ rax (rbp - 16)))) 
+            (compare rax r10) 
+            (jump-if > L.x.1)))
+
+         "mov QWORD [rbp - 16], -1\nmov r10, 0\nmov rax, 10\nadd rax, 1024\nimul rbx, rcx\nsub rbx, QWORD [rbp - 16]\nand rbx, rcx\nor rbx, rcx\nxor rbx, rcx\nsar rbx, rcx\nL.x.1:\nadd rax, QWORD [rbp - 16]\ncmp rax, r10\njg L.x.1\n"
+    )
+)
