@@ -1245,136 +1245,91 @@
   (assign-p p))
 
 
-; Input:   Values-lang-v6
-; Output:  Values-unique-lang v6
+; Input:   exprs-lang-v7
+; Output:  exprs-unique-lang-v7
 ; Purpose: Compiles Values-lang v6 to Values-unique-lang v6 by resolving top-level lexical identifiers 
 ;          into unique labels, and all other lexical identifiers into unique abstract locations.
 (define (uniquify p) 
 
   (define label-binds-box (box '()))
 
-  ; Input: tail, a list of possibly nested let statements
-  ; Output: Values-unique-lang-v3
-  ; Purpose: matches on p, which is a list of (nested) let statements
+  ; destructures the module statement and calls the appropriate uniquify recursive functions
   (define (uniquify-p p dict-acc)
     (match p
-      [`(module ,def ... ,t)
+      [`(module ,def ... ,v)
         (define uniquified-labels (map (lambda (d) (uniquify-define-labels d dict-acc)) def))
        `(module ,@(map (lambda (d) (uniquify-define d dict-acc)) uniquified-labels)
-                ,(uniquify-tail t dict-acc))]))
+                ,(uniquify-value v dict-acc))]))
 
-  ; Purpose: generate unique labels for the define statements blocks
+  ; generate unique labels for the define statements blocks
   (define (uniquify-define-labels def def-binds)
     (match def
-      [`(define ,x (lambda (,xs ...) ,tail))
+      [`(define ,x (lambda (,xs ...) ,value))
         (define label-binds (unbox label-binds-box))
         (if (dict-has-key? label-binds x)
             (set-box! label-binds-box label-binds)
             (set-box! label-binds-box (dict-set label-binds x (fresh-label x))))
-       `(define ,(dict-ref (unbox label-binds-box) x) (lambda (,@xs) ,tail))]))
+       `(define ,(dict-ref (unbox label-binds-box) x) (lambda (,@xs) ,value))]))
   
-  ; Purpose: generate unique alocs for the variables in the define statement bodies
+  ; generate unique alocs for the variables in the define statement bodies
   (define (uniquify-define def def-binds)
     (match def
       [`(define ,uniquified-label (lambda (,xs ...) ,t))
         (define new-def-binds (construct-binds xs def-binds))
        `(define ,uniquified-label
-                (lambda ,(map (lambda (x) (dict-ref new-def-binds x)) xs) 
-                        ,(uniquify-tail t new-def-binds)))]))
+                (lambda ,(map (lambda (x) (try-lookup x new-def-binds)) xs) 
+                        ,(uniquify-value t new-def-binds)))]))
 
-  ; Input: value, a let statement or a binary operation
-  ; Output: uniquified version of this expression
-  ; Purpose: recursively uniquify a single expression
-  (define (uniquify-tail t binds)
+  ; recursively uniquify a single value
+  (define (uniquify-value t binds)
     (match t 
-      [`(let ([,as ,vs] ...) ,tail)
-        (define new-binds (construct-binds as binds)) 
-        `(let ,(for/list ([a as][v vs])
-                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
-              ,(uniquify-tail tail new-binds))]          
+      [`(let ([,xs ,vs] ...) ,value)
+        (define new-binds (construct-binds xs binds)) 
+        `(let ,(for/list ([x xs][v vs])
+                        `[,(try-lookup x new-binds) ,(uniquify-value v binds)])     
+              ,(uniquify-value value new-binds))]          
       
-      [`(if ,p ,t1 ,t2)
-       `(if ,(uniquify-pred       p binds)
-            ,(uniquify-tail      t1 binds) 
-            ,(uniquify-tail      t2 binds))]
+      [`(if ,v0 ,v1 ,v2)
+       `(if ,(uniquify-value v0 binds)
+            ,(uniquify-value v1 binds) 
+            ,(uniquify-value v2 binds))]
       
       [`(call ,vs ...)
        `(call ,@(map (lambda (v) (uniquify-value v binds)) vs))]
       
-      [value (uniquify-value value binds)]))
+      [triv (update-bind triv binds)]))
 
-  ; Purpose: uniquify a single value
-  (define (uniquify-value v binds)
-    (match v
-       [`(if ,p ,v1 ,v2)
-        `(if ,(uniquify-pred       p binds) 
-             ,(uniquify-value     v1 binds)
-             ,(uniquify-value     v2 binds))]
-
-       [`(,binop ,opand1 ,opand2)
-         #:when (or (equal? binop '*) (equal? binop '+) (equal? binop '-))
-        `(,binop ,(uniquify-value opand1 binds) ,(uniquify-value opand2 binds))]
-
-      [`(let ([,as ,vs] ...) ,body)
-        (define new-binds (construct-binds as binds)) 
-        `(let ,(for/list ([a as][v vs])
-                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
-              ,(uniquify-value body new-binds))]   
-
-      [`(call ,triv ,os ...)
-       `(call ,(update-bind triv binds) ,@(map (lambda (o) (uniquify-value o binds)) os))]
-
-       [triv
-        (update-bind triv binds)]
-      )
-  )
-
-  ; Purpose: uniquify a predicate
-  (define (uniquify-pred p binds)
-    (match p
-      [`(,relop ,triv1 ,triv2)
-      #:when (relop? relop)
-      `(,relop ,(uniquify-value triv1 binds) ,(uniquify-value triv2 binds))]
-
-      [`(true)  `(true)]
-
-      [`(false) `(false)]
-
-      [`(not ,pred)
-       `(not ,(uniquify-pred pred binds))]
-
-      [`(let ([,as ,vs] ...) ,pred)
-        (define new-binds (construct-binds as binds)) 
-        `(let ,(for/list ([a as][v vs])
-                        `[,(dict-ref new-binds a) ,(uniquify-value v binds)])     
-              ,(uniquify-pred pred new-binds))]         
-
-      [`(if ,p1 ,p2 ,p3)
-       `(if ,(uniquify-pred p1 binds)
-            ,(uniquify-pred p2 binds)
-            ,(uniquify-pred p3 binds))]))
-
-  ; Input: triv and binding dictionary
-  ; Output: int64 or aloc, opand, or label
-  ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
+  ; return the triv itself if it is an int64, otherwise look up the bind in the dictionary
   (define (update-bind x binds)
     (match x
-      [(? integer?) x]
-      [(? symbol?) (assign-aloc-or-label x binds)]))
+      [(? binop?) x]
+      [(? name?) (try-lookup x binds)]
+      [_ x]))
 
-  ; Input: aloc and binding dictionary
-  ; Output: a new binding dictionary
-  ; uses fresh to assign a unique aloc? to each name? at the current scope
+  ; uses fresh to give a unique assignment to each name at the current scope
   (define (construct-binds xs binds)
-    (for/fold ([new-binds binds]) ; accumulator
-              ([x xs])            ; x is an element, xs is the list
+    (for/fold ([new-binds binds])
+              ([x xs])           
       (dict-set new-binds x (fresh x))))    
 
-  ; Purpose: lookup the associated key in a binding dictionary, prioritizng label binds first 
-  (define (assign-aloc-or-label x binds)
+  ; tries to lookup the associated key in a binding dictionary, prioritizng label binds first 
+  (define (try-lookup x binds)
     (if (dict-has-key? (unbox label-binds-box) x)
         (dict-ref (unbox label-binds-box) x)
-        (dict-ref binds x)))                                
+        (if (dict-has-key? binds x)
+            (dict-ref binds x)
+             x))) 
+
+  ;  return true if binop according to Exprs-lang v7, false otherwise                            
+  (define (binop? b)
+    (or (equal? b '*)
+        (equal? b '+)
+        (equal? b '-)
+        (equal? b 'eq?)
+        (equal? b '<)
+        (equal? b '<=)
+        (equal? b '>)
+        (equal? b '>=)))
 
   (uniquify-p p '()))
 
