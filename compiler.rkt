@@ -3,7 +3,8 @@
 (require
  cpsc411/compiler-lib
  cpsc411/ptr-run-time
- cpsc411/graph-lib)
+ cpsc411/graph-lib
+ racket/syntax)
 
 (provide
  uniquify
@@ -186,17 +187,104 @@
   
   (remop-p p))
 
+
 ; Input: 
 ; Output: 
 ; Purpose: 
 (define (specify-representation p)
   p)
 
-; Input: 
-; Output: 
-; Purpose: 
+
+; Input:   exprs-unique-lang-v7
+; Output:  exprs-unsafe-data-lang-v7
+; Purpose: Implement safe primitive operations by inserting procedure definitions for each primitive 
+;          operation which perform dynamic tag checking, to ensure type safety.
 (define (implement-safe-primops p) 
-  p)
+  
+  (define fn-acc '()) ; list of all the functions created
+  (define label-dict (make-hash)) ; mapping between primops and labels
+
+  ; map binops and unops to numbers.
+  ; for binop, doubles as error code.
+  (define binops #hash((* . 1) (+ . 2) (- . 3) (< . 4) 
+                       (<= . 5) (> . 6) (>= . 7) (eq? . 8)))
+  (define unops #hash((fixnum? . 17) (boolean? . 18) (empty? . 19) (void? . 20)
+                       (ascii-char? . 21) (error? . 22) (not . 23)))
+  
+  ; binop function generator. Returns a label.
+  (define (generate-binop binop)
+    ; each (binop . x) has function (lambda (tmp.a tmp.b) ...) where
+    ;  a = x*2-1
+    ;  b = a+1
+    (define id (dict-ref binops binop))
+    (define tmp-a (format-symbol "tmp.~a" (- (* id 2) 1)))
+    (define tmp-b (format-symbol "tmp.~a" (* id 2)))
+    (define new-fn (if (equal? binop 'eq?)
+                      `(lambda (,tmp-a ,tmp-b) (eq? ,tmp-a ,tmp-b))
+                      `(lambda (,tmp-a ,tmp-b)
+                                (if (fixnum? ,tmp-b)
+                                    (if (fixnum? ,tmp-a)
+                                        (,(format-symbol "unsafe-fx~a" binop) ,tmp-a ,tmp-b)
+                                        (error ,id))
+                                    (error ,id)))))
+    (define new-label (format-symbol "L.~a.~a" binop (+ 1 (length fn-acc))))
+    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
+    (dict-set! label-dict binop new-label)
+    new-label)
+  
+  ; unop function generator. Returns a label.
+  (define (generate-unop unop)
+    (define id (dict-ref unops unop))
+    (define tmp (format-symbol "tmp.~a" id))
+    (define new-fn `(lambda (,tmp) (,unop ,tmp)))
+    (define new-label (format-symbol "L.~a.~a" unop (+ 1 (length fn-acc))))
+    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
+    (dict-set! label-dict unop new-label)
+    new-label)
+
+
+  (define (primop-p p)
+    (match p
+      [`(module ,defines ... ,value)
+        (define definesRes (map primop-def defines))
+        (define valRes (primop-v value))
+       `(module ,@fn-acc ,@definesRes ,valRes)]))
+
+  (define (primop-def d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,value))
+       `(define ,label (lambda ,aloc ,(primop-v value)))]))
+
+  (define (primop-v v)
+    (match v
+      [`(call ,val ,values ...)
+        (define valsRes (map primop-v values))
+        (define valRes (primop-v val))
+       `(call ,valRes ,@valsRes)]
+      [`(let ([,aloc ,value] ...) ,val)
+        (define valsRes (map list aloc (map primop-v value))) ; zip alocs with processed vals
+        (define valRes (primop-v val))
+       `(let ,valsRes ,valRes)]
+      [`(if ,val1 ,val2 ,val3)
+       `(if ,(primop-v val1) ,(primop-v val2) ,(primop-v val3))]
+      [triv 
+        (primop-triv triv)]))
+  
+  ; Generate a function and add to the accumulator if it is not there already.
+  ; Return the appropriate label, or t if t is not a primop.
+  (define (primop-triv t)
+    (match t
+      [binop #:when (dict-has-key? binops binop)
+        (if (dict-has-key? label-dict binop)
+            (dict-ref label-dict binop)
+            (generate-binop binop))]
+      [unop #:when (dict-has-key? unops unop)
+        (if (dict-has-key? label-dict unop)
+            (dict-ref label-dict unop)
+            (generate-unop unop))]
+      [_ t])) ; everything else
+      
+  (primop-p p))
 
 ; =============== M6 Passes ================
 
