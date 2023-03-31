@@ -101,7 +101,7 @@
 (define (extract-dict i key)
   (first (dict-ref i key)))
 
-; return true if the value is an address (by the m6 definition), otherwise false
+; return true if the value is an address, otherwise false
 (define (address? addr)
   (and (list? addr)
         (frame-base-pointer-register? (first addr))
@@ -116,7 +116,6 @@
       (equal? relop '>=)
       (equal? relop '> )
       (equal? relop '!=)))
-
 
 ; =============== M7 Passes ================
 
@@ -1318,9 +1317,9 @@
         (dict-ref (unbox label-binds-box) x)
         (if (dict-has-key? binds x)
             (dict-ref binds x)
-             x))) 
+             x)))
 
-  ;  return true if binop according to Exprs-lang v7, false otherwise                            
+  ;  return true if binop according to M7, false otherwise                            
   (define (binop? b)
     (or (equal? b '*)
         (equal? b '+)
@@ -1329,7 +1328,7 @@
         (equal? b '<)
         (equal? b '<=)
         (equal? b '>)
-        (equal? b '>=)))
+        (equal? b '>=))) 
 
   (uniquify-p p '()))
 
@@ -1840,7 +1839,7 @@
        
   (f-program->p p))
 
-; Input:   paren-x64-v6
+; Input:   paren-x64-v7
 ; Output:  x64-instructions
 ; Purpose: Compile the Paren-x64 v6 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
@@ -1914,11 +1913,17 @@
   (define (triv? triv)
     (or (trg? triv) (int64? triv)))
 
-  (define (binop? b)
-    (or (equal? b '*) (equal? b '+) (equal? b '-)))
-
   (define (opand? opand)
     (or (int64? opand) (register? opand)))
+
+  (define (binop? b)
+    (or (equal? b '*)
+        (equal? b '+)
+        (equal? b '-)
+        (equal? b 'bitwise-and)
+        (equal? b 'bitwise-ior)
+        (equal? b 'bitwise-xor)
+        (equal? b 'arithmetic-shift-right)))
 
   (define (loc->ins loc)
     (if (register? loc)
@@ -1937,30 +1942,25 @@
                    (number->string(third addr))
                    "]"))
 
-  ; rather verbose, but I believe repeating the cases is more readable than abstracting everything
-  ; into tiny helper functions
   (define (math->ins binop reg target)
-    (cond [(and (int32? target)   (equal? '* binop)) 
-           (string-append "imul " (symbol->string reg) ", " (number->string target))]
-          [(and (int32? target)   (equal? '+ binop)) 
-           (string-append "add "  (symbol->string reg) ", " (number->string target))]
-          [(and (int32? target)   (equal? '- binop)) 
-           (string-append "sub "  (symbol->string reg) ", " (number->string target))]
+      (string-append (binop->ins binop) " " (symbol->string reg) ", " (target->ins target)))
 
-          [(and (register? target)(equal? '* binop)) 
-           (string-append "imul " (symbol->string reg) ", " (symbol->string target))]
-          [(and (address? target) (equal? '* binop)) 
-           (string-append "imul " (symbol->string reg) ", " (addr->ins target))]
+  (define (binop->ins binop)
+      (cond [(equal? '* binop)                      "imul"]
+            [(equal? '+ binop)                      "add"]
+            [(equal? '- binop)                      "sub"]
+            [(equal? 'bitwise-and binop)            "and"]
+            [(equal? 'bitwise-ior binop)            "or"]
+            [(equal? 'bitwise-xor binop)            "xor"]
+            [(equal? 'arithmetic-shift-right binop) "sar"]))
 
-          [(and (register? target)(equal? '+ binop)) 
-           (string-append "add "  (symbol->string reg) ", " (symbol->string target))]
-          [(and (address? target) (equal? '+ binop)) 
-           (string-append "add "  (symbol->string reg) ", " (addr->ins target))]
-
-          [(and (register? target)(equal? '- binop)) 
-           (string-append "sub "  (symbol->string reg) ", " (symbol->string target))]
-          [(and (address? target) (equal? '- binop)) 
-           (string-append "sub "  (symbol->string reg) ", " (addr->ins target))]))
+  (define (target->ins target)
+    (cond [(int32? target)
+           (number->string target)]
+          [(register? target)
+           (symbol->string target)]
+          [(address? target)
+           (addr->ins target)]))
   
   (define (label->ins label) 
     (string-append (sanitize-label label) ":"))
