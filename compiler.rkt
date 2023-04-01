@@ -187,9 +187,10 @@
   (remop-p p))
 
 
-; Input: 
-; Output: 
-; Purpose: 
+; Input:   exprs-unsafe-data-lang-v7
+; Output:  exprs-bits-lang-v7
+; Purpose: Compiles immediate data and primitive operations into their implementations as ptrs 
+;          and primitive bitwise operations on ptrs.
 (define (specify-representation p)
   p)
 
