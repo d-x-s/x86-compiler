@@ -4,7 +4,7 @@
  cpsc411/compiler-lib
  rackunit "../compiler.rkt")
 
-; M6 Tests
+; M7 Tests
 
 (test-case "remop 1 - simple binop"
     (check-match
