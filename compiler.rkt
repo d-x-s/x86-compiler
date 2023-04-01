@@ -120,8 +120,8 @@
 
 ; =============== M7 Passes ================
 
-; Input:   exprs-unique-lang-v6.5
-; Output:  values-unique-lang-v6
+; Input:   exprs-bits-lang-v7
+; Output:  values-bits-lang-v7
 ; Purpose: Performs the monadic form transformation, unnesting all non-trivial operators and operands 
 ;          to binops, and calls making data flow explicit and simple to implement imperatively.
 ;          All operands are evaluated from left to right.
