@@ -159,7 +159,10 @@
                         (if (let ([x.2 #t]) (let ([x.3 #f]) x.3)) 1 2)
                         (if (let ([x.2 #t]) (let ([x.3 #f]) (eq? 1 2))) 1 2)
                         (if (if #t 3 4) 1 2)
-                        (if (if #t (if #f y.1 y.2) 4) 1 (if #t 55 56)))))
+                        (if (if #t (if #f y.1 y.2) 4) 1 (if #t 55 56))
+                        (if (unsafe-fx> 1 2) 1 2)
+                        (if (unsafe-fx* (if 1 2 3) 2) 1 2)
+                        (if (fixnum? (void? x.1)) 1 2))))
 
      `(module
         (call
@@ -177,11 +180,28 @@
         (if (if (!= 14 6) (!= 24 6) (!= 32 6)) 8 16)
         (if (if (!= 14 6) (if (!= 6 6) (!= y.1 6) (!= y.2 6)) (!= 32 6))
             8
-            (if (!= 14 6) 440 448))))))
+            (if (!= 14 6) 440 448))
+        (if (!= (if (> 8 16) 14 6) 6) 8 16)
+        (if (!= (* (if (!= 8 6) 16 24) 2) 6) 8 16)
+        (if (!=
+                (if (= (bitwise-and (if (= (bitwise-and x.1 255) 30) 14 6) 7) 0) 14 6)
+                6)
+            8
+            16)))))
 
-; (test-case "specrep  - "
-;     (check-match
-;         (specify-representation
-;             `.)
+(test-case "specrep 11 - define functions"
+    (check-match
+        (specify-representation
+            `(module
+                (define L.s.1 (lambda (x.1) (call L.start.1 L.s.1 x.1 5)))
+                (define L.s.2 (lambda (x.1) (unsafe-fx- 
+                                                (eq? 1 (unsafe-fx> 5 6)) 
+                                                (unsafe-fx>= 7 8))))
+                (let ([x.1 (unsafe-fx+ 1 2)] [x.2 L.start.1] [x.3 #t]) (call x.1 x.2 x.3 4))))
 
-;      `.))
+     `(module
+        (define L.s.1 (lambda (x.1) (call L.start.1 L.s.1 x.1 40)))
+        (define L.s.2
+            (lambda (x.1)
+            (- (if (= 8 (if (> 40 48) 14 6)) 14 6) (if (>= 56 64) 14 6))))
+        (let ((x.1 (+ 8 16)) (x.2 L.start.1) (x.3 14)) (call x.1 x.2 x.3 32)))))
