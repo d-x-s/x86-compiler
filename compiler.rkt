@@ -1716,9 +1716,9 @@
   (replace-loc-p p))
 
 
-; Input:   asm-pred-lang-v6
-; Output:  asm-pred-lang-v6/locals
-; Purpose: Compiles Asm-pred-lang v6 to Asm-pred-lang v6/locals, analysing which abstract locations 
+; Input:   asm-pred-lang-v7
+; Output:  asm-pred-lang-v7/locals
+; Purpose: Compiles Asm-pred-lang v7 to Asm-pred-lang v7/locals, analysing which abstract locations 
 ;          are used in each block, and decorating each block and the module with the set of variables 
 ;          in an info? field.
 (define (uncover-locals p)
@@ -1926,6 +1926,7 @@
         `(return-point ,label ,(implement-t tail))]))
        
   (f-program->p p))
+
 
 ; Input:   paren-x64-v7
 ; Output:  x64-instructions

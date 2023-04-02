@@ -275,3 +275,14 @@
         (set! fv0 1)
         (set! r15 tmp-ra.4)
         (jump L.swap.1 rbp r15 fv0 fv1)))))
+
+; M7 Tests
+
+(test-case "uncover 13 - extend binops"
+  (check-equal?
+    (uncover-locals
+      '(module ((new-frames (()))) (begin (set! rax (bitwise-and rax x.3)) (jump rax))))
+      
+    '(module
+      ((new-frames (())) (locals (x.3)))
+      (begin (set! rax (bitwise-and rax x.3)) (jump rax)))))
