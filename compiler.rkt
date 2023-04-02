@@ -1246,10 +1246,10 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v6/framed
-; Output:   asm-pred-lang-v6/spilled
+; Input:    asm-pred-lang-v7/framed
+; Output:   asm-pred-lang-v7/spilled
 ; Purpose:  Performs graph-colouring register allocation, 
-;           compiling Asm-pred-lang v6/framed to Asm-pred-lang v6/spilled by decorating programs with their register assignments.
+;           compiling Asm-pred-lang v7/framed to Asm-pred-lang v7/spilled by decorating programs with their register assignments.
 (define (assign-registers p)
   ; a list consisting of '(rsp rbx rcx rdx rsi rdi r8 r9 r13 r14 r15)
   (define car (current-assignable-registers))

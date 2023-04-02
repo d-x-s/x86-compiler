@@ -2,8 +2,7 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
 (test-case "assign-registers 1 - textbook example"
     (check-equal? 
@@ -307,4 +306,39 @@
                 (set! r15 tmp-ra.14)
                 (jump L.swap.1 rbp r15 fv0 fv1)))))
 
+; M7 Tests
 
+(test-case "assign-registers 7 - extend binops"
+    (check-equal? 
+        (assign-registers 
+            '(module
+                ((locals (tmp-ra.14))
+                 (conflicts
+                    ((tmp-ra.14 (fv0 fv1 rbp))
+                     (rbp (r15 fv0 fv1 tmp-ra.14))
+                     (fv1 (r15 fv0 rbp tmp-ra.14))
+                     (fv0 (r15 rbp fv1 tmp-ra.14))
+                     (r15 (rbp fv0 fv1))))
+                 (assignment ()))
+                (begin
+                    (set! tmp-ra.14 r15)
+                    (set! fv1 2)
+                    (set! fv0 (bitwise-xor fv0 1))
+                    (set! r15 tmp-ra.14)
+                    (jump L.swap.1 rbp r15 fv0 fv1))))
+
+        '(module
+            ((locals ())
+            (conflicts
+                ((tmp-ra.14 (fv0 fv1 rbp))
+                (rbp (r15 fv0 fv1 tmp-ra.14))
+                (fv1 (r15 fv0 rbp tmp-ra.14))
+                (fv0 (r15 rbp fv1 tmp-ra.14))
+                (r15 (rbp fv0 fv1))))
+            (assignment ((tmp-ra.14 r15))))
+            (begin
+                (set! tmp-ra.14 r15)
+                (set! fv1 2)
+                (set! fv0 (bitwise-xor fv0 1))
+                (set! r15 tmp-ra.14)
+                (jump L.swap.1 rbp r15 fv0 fv1)))))
