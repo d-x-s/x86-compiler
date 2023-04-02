@@ -1645,35 +1645,29 @@
   (sel-ins-p p))
 
 
-; Input:   asm-pred-lang-v5/assignments
-; Output:  nested-asm-lang-v5
+; Input:   asm-pred-lang-v7/assignments
+; Output:  nested-asm-lang-v7
 ; Purpose: Replaces all abstract location with physical locations using the assignment described in the 
 ;          assignment info field, and dropping any register-allocation-related metadata from the program.
 (define (replace-locations p)
-  ; Compiles Asm-lang v2/assignments to Nested-asm-lang v2, replacing each 
-  ; abstract location with its assigned physical location from the assignment info field.
 
   (define (replace-loc-p p)
     (match p
-      [`(module ,info ,tail)
-       `(module ,(replace-loc-t tail info))]
-      [`(module ,info ,label ... ,tail)
-       `(module ,@(map replace-loc-l label) ,(replace-loc-t tail info))]))
+      [`(module ,info ,defines ... ,tail)
+       `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail info))]))
 
-  (define (replace-loc-l l)
-    (match l
+  (define (replace-loc-def d)
+    (match d
       [`(define ,label ,info ,tail)
        `(define ,label ,(replace-loc-t tail info))]))
-
+  
+  ; given an abstract location 'aloc' return its replacement as defined
+  ; in the list of assignments 'as'.
   (define (get-repl aloc as)
-    ; given an abstract location 'aloc' return its replacement as defined
-    ; in the list of assignments 'as'.
-    (info-ref
-    (info-ref as 'assignment)
-    aloc))
-
+    (info-ref (info-ref as 'assignment) aloc))
+  
+  ; return a tail with locations replaced.
   (define (replace-loc-t t as)
-    ; return a tail with locations replaced.
     (match t
       [`(begin ,effects ... ,tail)
         `(begin ,@(map (curry replace-loc-e as) effects) ,(replace-loc-t tail as))]
@@ -1705,10 +1699,7 @@
         `(begin ,@(map (curry replace-loc-e as) effect) ,(replace-loc-pred as pred))]
       [`(,relop ,loc ,opand)
         `(,relop ,(replace-loc loc as) ,(replace-loc opand as))]
-      [`(true)
-        `(true)]
-      [`(false)
-        `(false)]))
+      [_ p])) ; boolean
 
   (define (replace-loc loc as)
     (if (aloc? loc) (get-repl loc as) loc))
