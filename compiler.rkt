@@ -1553,11 +1553,10 @@
   (n-bind-p p))
 
 
-; Input:   imp-cmf-lang-v6
-; Output:  asm-pred-lang-v6
-; Purpose: Compiles Imp-cmf-lang v6 to Asm-pred-lang v6, selecting appropriate sequences of
+; Input:   imp-cmf-lang-v7
+; Output:  asm-pred-lang-v7
+; Purpose: Compiles Imp-cmf-lang v7 to Asm-pred-lang v7, selecting appropriate sequences of
 ;          abstract assembly instructions to implement the operations of the source language.
-; M5 > M6 : remove support for halt, tail is no longer value, add return-points. 
 (define (select-instructions p)
 
   (define (sel-ins-p p)

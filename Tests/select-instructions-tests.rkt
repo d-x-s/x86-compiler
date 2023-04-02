@@ -272,3 +272,20 @@
                 (set! y.59 (- y.59 -1))
                 (set! rdi y.59)
                 (jump x.0 rbp rdi)))))
+
+; M7 Tests
+
+(test-case "select 15 - extend binops"
+   (check-equal?
+        (select-instructions
+            `(module ((new-frames ())) 
+                     (begin 
+                        (set! y.59 (arithmetic-shift-right x.58 -1)) 
+                        (jump x.0 rbp rdi))))
+        
+        `(module
+            ((new-frames ()))
+            (begin
+                (set! y.59 x.58)
+                (set! y.59 (arithmetic-shift-right y.59 -1))
+                (jump x.0 rbp rdi)))))
