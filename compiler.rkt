@@ -495,9 +495,9 @@
   (allocate-p p))
 
 
-; Input: asm-pred-lang-v6/spilled
-; Output: asm-pred-lang-v6/assignments
-; Purpose: Compiles Asm-pred-lang-v6/spilled to Asm-pred-lang-v6/assignments 
+; Input:   asm-pred-lang-v7/spilled
+; Output:  asm-pred-lang-v7/assignments
+; Purpose: Compiles Asm-pred-lang-v7/spilled to Asm-pred-lang-v7/assignments 
 ;          by allocating all abstract locations in the locals set to free frame variables.
 (define (assign-frame-variables p)
 
