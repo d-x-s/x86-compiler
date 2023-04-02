@@ -973,9 +973,9 @@
   (resolve-p p))
 
 
-; Input:   block-asm-lang-v4
-; Output:  para-asm-lang-v4
-; Purpose: Compile Block-asm-lang v4 to Para-asm-lang v4 by flattening basic blocks into labeled instructions.
+; Input:   block-asm-lang-v7
+; Output:  para-asm-lang-v7
+; Purpose: Compile Block-asm-lang v7 to Para-asm-lang v7 by flattening basic blocks into labeled instructions.
 (define (flatten-program p)
 
   (define (flatten-p p)
@@ -992,25 +992,21 @@
     (match b
       [`(define ,label ,tail)
         (let ([ft (flatten-t tail)])
-          (append acc `((with-label ,label ,(first ft))) (rest ft)))]))
+             (append acc `((with-label ,label ,(first ft))) (rest ft)))]))
 
   (define (flatten-t t)
      (match t
-      [`(halt ,opand)
-      `((halt ,opand))]
-
       [`(jump ,trg)
       `((jump ,trg))]
-      
       [`(begin ,effects ...  ,tail)
        `(,@effects ,@(flatten-t tail))]
-
       [`(if (,relop, loc ,opand) (jump ,trg1) (jump ,trg2))
-       `((compare ,loc   ,opand)
+       `((compare ,loc ,opand)
          (jump-if ,relop ,trg1)
-         (jump    ,trg2))]))
+         (jump ,trg2))]))
 
   (flatten-p p))
+
 
 ; =============== M3 Passes ================
 
