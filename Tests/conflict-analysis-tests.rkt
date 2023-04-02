@@ -704,3 +704,29 @@
                 (set! fv0 5)
                 (set! r15 ra.12)
                 (jump L.fact.4 rbp r15 fv0)))))
+
+; M7 Tests
+
+(test-case "conflict 15 - extend binops"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((new-frames (())) (locals (x.1 w.2 p.1 t.6))
+                 (call-undead ()) 
+                 (undead-out ((t.6) (w.2 t.6) ((w.2 t.6) (t.6) ()))))
+                (begin
+                    (set! x.1 42)
+                    (set! w.2 46)
+                    (begin (set! p.1 -1) (set! t.6 (bitwise-xor t.6 w.2)) (jump t.6)))))
+        
+        `(module
+            ((new-frames (()))
+            (locals (x.1 w.2 p.1 t.6))
+            (call-undead ())
+            (undead-out ((t.6) (w.2 t.6) ((w.2 t.6) (t.6) ())))
+            (conflicts
+                ((t.6 (p.1 w.2 x.1)) (p.1 (t.6 w.2)) (w.2 (p.1 t.6)) (x.1 (t.6)))))
+            (begin
+                (set! x.1 42)
+                (set! w.2 46)
+                (begin (set! p.1 -1) (set! t.6 (bitwise-xor t.6 w.2)) (jump t.6))))))

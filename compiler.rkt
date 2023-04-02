@@ -1151,10 +1151,10 @@
   (undead-p p))
 
 
-; Input:   asm-pred-lang-v6/undead
-; Output:  asm-pred-lang-v6/conflicts
-; Purpose: Performs conflict analysis, compiling Asm-pred-lang v6/undead to 
-;          Asm-pred-lang v6/conflicts by decorating programs with their conflict graph.
+; Input:   asm-pred-lang-v7/undead
+; Output:  asm-pred-lang-v7/conflicts
+; Purpose: Performs conflict analysis, compiling Asm-pred-lang v7/undead to 
+;          Asm-pred-lang v7/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
