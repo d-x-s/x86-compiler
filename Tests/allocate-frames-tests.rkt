@@ -567,3 +567,32 @@
             (return-point L.one.1 (jump y.1))
             (set! rbp (+ rbp 408)))
             (jump rax)))))
+
+; M7 Tests
+
+(test-case "allocate 12 - extend binops"
+    (check-match
+        (allocate-frames
+            `(module
+                ((new-frames (()))
+                (locals (x.3 y.1))
+                (call-undead ())
+                (undead-out ((y.1) ((rax) ()) ()))
+                (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+                (assignment ()))
+                (begin 
+                    (set! rax (bitwise-and rax x.3)) 
+                    (return-point L.one.1 (jump y.1)) 
+                    (jump rax))))
+
+     `(module
+        ((locals (x.3 y.1))
+        (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
+        (assignment ()))
+        (begin
+            (set! rax (bitwise-and rax x.3))
+            (begin
+            (set! rbp (- rbp 0))
+            (return-point L.one.1 (jump y.1))
+            (set! rbp (+ rbp 0)))
+            (jump rax)))))

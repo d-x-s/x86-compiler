@@ -383,9 +383,9 @@
   (assign-call-undead-p p))
 
 
-; Input:   asm-pred-lang-v6/pre-framed
-; Output:  asm-pred-lang-v6/framed
-; Purpose: Compiles Asm-pred-lang-v6/pre-framed to Asm-pred-lang-v6/framed by allocating frames for 
+; Input:   asm-pred-lang-v7/pre-framed
+; Output:  asm-pred-lang-v7/framed
+; Purpose: Compiles Asm-pred-lang-v7/pre-framed to Asm-pred-lang-v7/framed by allocating frames for 
 ;          each non-tail call, and assigning all new-frame variables to frame variables in the new frame.
 (define (allocate-frames p) 
   
