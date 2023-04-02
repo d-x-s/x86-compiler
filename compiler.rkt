@@ -942,18 +942,15 @@
   (expose-p p))
   
 
-; Input:   block-pred-lang-v5
-; Output:  block-asm-lang-v4
-; Purpose: Compile the Block-pred-lang v4 to Block-asm-lang v4 by manipulating the 
+; Input:   block-pred-lang-v7
+; Output:  block-asm-lang-v7
+; Purpose: Compile the Block-pred-lang v7 to Block-asm-lang v7 by manipulating the 
 ;          branches of if statements to resolve branches.
 (define (resolve-predicates p)
   (define (resolve-p p) 
     (match p
       [`(module ,bs ...)
-       `(module ,@(resolve-bs bs))]))
-
-  (define (resolve-bs bs)
-    (map resolve-b bs))
+       `(module ,@(map resolve-b bs))]))
 
   (define (resolve-b b)
     (match b 
@@ -961,16 +958,11 @@
         `(define ,label ,(resolve-t tail))]))
 
   (define (resolve-t t)
-    (match t 
-      [`(halt ,opand)
-       `(halt ,opand)]
-
+    (match t
       [`(jump ,trg)
        `(jump ,trg)]
-
       [`(begin ,effects ... ,tail)
        `(begin ,@effects ,(resolve-t tail))]
-
       [`(if ,pred (jump ,trg1) (jump ,trg2))
         (match pred
           [`(,relop ,loc ,opand) `(if ,pred (jump ,trg1) (jump ,trg2))]
