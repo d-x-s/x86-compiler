@@ -2,78 +2,64 @@
 
 (require
  cpsc411/compiler-lib
- rackunit "../compiler.rkt"
-)
+ rackunit "../compiler.rkt")
 
- (test-case "patch 1 - simple addresses"
-   (check-equal?
-   (patch-instructions
-    '(begin 
-      (set! rax 10)
-      (set! rax L.tmp.1)
-      (set! (rbp - 8) L.tmp.2)
-      (set! (rbp - 8) rcx)
-     )
-    ) 
+(test-case "patch 1 - simple addresses"
+  (check-equal?
+    (patch-instructions
+      '(begin 
+        (set! rax 10)
+        (set! rax L.tmp.1)
+        (set! (rbp - 8) L.tmp.2)
+        (set! (rbp - 8) rcx)))
+
     '(begin
         (set! rax 10)
         (set! rax L.tmp.1)
         (set! r10 L.tmp.2)
         (set! (rbp - 8) r10)
-        (set! (rbp - 8) rcx))
-    )
- )
+        (set! (rbp - 8) rcx))))
 
- (test-case "patch 2 - set! with address replacement cases"
-   (check-equal?
-   (patch-instructions
-    '(begin 
-        (set! (rbp - 8) L.tmp.2)
-        (set! (rbp - 8) (rbp - 16))
-        (set! (rbp - 8) 10)
-        (set! (rbp - 8) rcx) ; not a case that needs replacing
-        )
-    )
+(test-case "patch 2 - set! with address replacement cases"
+  (check-equal?
+    (patch-instructions
+      '(begin 
+          (set! (rbp - 8) L.tmp.2)
+          (set! (rbp - 8) (rbp - 16))
+          (set! (rbp - 8) 10)
+          (set! (rbp - 8) rcx))) ; not a case that needs replacing
+
     '(begin
         (set! r10 L.tmp.2)
         (set! (rbp - 8) r10)
         (set! r10 (rbp - 16))
         (set! (rbp - 8) r10)
         (set! (rbp - 8) 10)
-        (set! (rbp - 8) rcx))
-    )
- )
+        (set! (rbp - 8) rcx))))
 
- (test-case "patch 3 - jump with address replacement cases"
-   (check-equal?
+(test-case "patch 3 - jump with address replacement cases"
+  (check-equal?
     (patch-instructions
-    '(begin 
-        (jump L.tmp.1)      ; not a case taht needs replacing
-        (jump rax)          ; not a case that needs replacing
-        (jump (rbp - 8))
-        )
-    )
+      '(begin 
+          (jump L.tmp.1)      ; not a case taht needs replacing
+          (jump rax)          ; not a case that needs replacing
+          (jump (rbp - 8))))
       
     '(begin 
         (jump L.tmp.1) 
         (jump rax) 
         (set! r10 (rbp - 8)) 
-        (jump r10))
+        (jump r10))))
 
-    )
- )
-
- (test-case "patch 4 - complex jump and single block"
+(test-case "patch 4 - complex jump and single block"
    (check-equal?
-   (patch-instructions
-   ' (begin 
-       (set! (rbp - 8) 0) 
-       (set! (rbp - 16) 1) 
-       (compare (rbp - 8) (rbp - 16)) 
-       (jump-if > L.foo.1) 
-       (with-label L.foo.1 (jump rax))
-     )
-   )
+    (patch-instructions
+      '(begin 
+        (set! (rbp - 8) 0) 
+        (set! (rbp - 16) 1) 
+        (compare (rbp - 8) (rbp - 16)) 
+        (jump-if > L.foo.1) 
+        (with-label L.foo.1 (jump rax))))
 
       '(begin
         (set! (rbp - 8) 0)
@@ -82,50 +68,44 @@
         (set! r10 (rbp - 8))
         (compare r10 r11)
         (jump-if > L.foo.1)
-        (with-label L.foo.1 (jump rax)))
-    )
- )
+        (with-label L.foo.1 (jump rax)))))
 
-  (test-case "patch 5 - complex jump and multiple blocks"
+(test-case "patch 5 - complex jump and multiple blocks"
    (check-equal?
-   (patch-instructions
-   '(begin 
-   (with-label L.main.51 (set! r14 1)) 
-   (set! r15 5) 
-   (with-label L.fact_loop.50 (compare r15 0)) 
-   (jump-if = L.nested.54) 
-   (set! r13 r15) 
-   (set! r15 (+ r15 -1)) 
-   (set! r14 (* r14 r13)) 
-   (set! r14 (- r14 r13)) 
-   (jump L.fact_loop.50) 
-   (with-label L.nested.54 (jump rax))))
+    (patch-instructions
+      '(begin 
+        (with-label L.main.51 (set! r14 1)) 
+        (set! r15 5) 
+        (with-label L.fact_loop.50 (compare r15 0)) 
+        (jump-if = L.nested.54) 
+        (set! r13 r15) 
+        (set! r15 (+ r15 -1)) 
+        (set! r14 (* r14 r13)) 
+        (set! r14 (- r14 r13)) 
+        (jump L.fact_loop.50) 
+        (with-label L.nested.54 (jump rax))))
 
       '(begin
-  (with-label L.main.51 (set! r14 1))
-  (set! r15 5)
-  (with-label L.fact_loop.50 (compare r15 0))
-  (jump-if = L.nested.54)
-  (set! r13 r15)
-  (set! r15 (+ r15 -1))
-  (set! r14 (* r14 r13))
-  (set! r14 (- r14 r13))
-  (jump L.fact_loop.50)
-  (with-label L.nested.54 (jump rax)))
-    )
- )
+        (with-label L.main.51 (set! r14 1))
+        (set! r15 5)
+        (with-label L.fact_loop.50 (compare r15 0))
+        (jump-if = L.nested.54)
+        (set! r13 r15)
+        (set! r15 (+ r15 -1))
+        (set! r14 (* r14 r13))
+        (set! r14 (- r14 r13))
+        (jump L.fact_loop.50)
+        (with-label L.nested.54 (jump rax)))))
 
- (test-case "patch 6 - simple jump-if"
+(test-case "patch 6 - simple jump-if"
    (check-equal?
-   (patch-instructions
+    (patch-instructions
       '(begin
-      (jump-if < rax)))
-      '(begin (jump-if >= L.tmp.1) (jump rax) (with-label L.tmp.1 (set! r10 r10)))
-    )
- )
+        (jump-if < rax)))
+    '(begin (jump-if >= L.tmp.1) (jump rax) (with-label L.tmp.1 (set! r10 r10)))))
 
-  (test-case "patch 7 - public 1"
-   (check-equal?
+(test-case "patch 7 - public 1"
+  (check-equal?
     (patch-instructions 
       '(begin (with-label L.__main.40 (set! r15 r15)) 
               (set! rdi 5) 
@@ -174,13 +154,11 @@
             (set! rax (rbp - 8))
             (set! rax (* rax r15))
             (set! r10 (rbp - 0))
-            (jump r10))
-    )
- )
+            (jump r10))))
 
-   (test-case "patch 8 - public 2"
-   (check-equal?
-(patch-instructions 
+(test-case "patch 8 - public 2"
+  (check-equal?
+    (patch-instructions 
       '(begin 
           (with-label L.__main.98 (set! r15 r15)) 
           (set! rdi 5) 
@@ -246,6 +224,7 @@
           (set! r15 rax) 
           (set! rax r15) 
           (jump (rbp - 0))))
+
       '(begin
           (with-label L.__main.98 (set! r15 r15))
           (set! rdi 5)
@@ -315,12 +294,10 @@
           (set! r15 rax)
           (set! rax r15)
           (set! r10 (rbp - 0))
-          (jump r10))
-    )
- )
+          (jump r10))))
 
-  (test-case "patch 9 - new binops"
-   (check-equal?
+(test-case "patch 9 - new binops"
+  (check-equal?
     (patch-instructions 
           '(begin 
               (set! r15 (rbp - 8)) 
@@ -332,6 +309,7 @@
               (set! rbp (bitwise-xor rbp 16))  
               (set! rbp (arithmetic-shift-right rbp 16))  
               (jump (rbp - 0))))
+
       '(begin
           (set! r15 (rbp - 8))
           (set! r15 (+ r15 r14))
@@ -342,6 +320,4 @@
           (set! rbp (bitwise-xor rbp 16))
           (set! rbp (arithmetic-shift-right rbp 16))
           (set! r10 (rbp - 0))
-          (jump r10))
-    )
- )
+          (jump r10))))

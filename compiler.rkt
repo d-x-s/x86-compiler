@@ -1774,7 +1774,7 @@
 
 ; Input:   para-asm-lang-v7
 ; Output:  paren-x64-v7
-; Purpose: Compile the Para-asm-lang v6 to Paren-x64 v6 by patching instructions that have 
+; Purpose: Compile the Para-asm-lang v7 to Paren-x64 v7 by patching instructions that have 
 ;          no x64 analogue into to a sequence of instructions and an auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
   (define i-reg1 (first (current-patch-instructions-registers)))
