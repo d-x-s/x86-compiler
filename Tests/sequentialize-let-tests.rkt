@@ -223,3 +223,12 @@
         
         `(module
             (begin (set! x.5 (if (> 1 2) (call x.8) (call x.9 1 2 3))) (call x.5 2 3 4)))))
+
+; M7 Tests
+
+(test-case "sequentialize 19 - binop extension"
+   (check-equal?
+        (sequentialize-let
+            `(module (bitwise-and 2 3)))
+        
+        `(module (bitwise-and 2 3))))

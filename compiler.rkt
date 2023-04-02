@@ -1422,9 +1422,9 @@
   (uniquify-p p '()))
 
 
-; Input:   values-unique-lang-v6
-; Output:  imp-mf-lang-v6
-; Purpose: Compiles Values-unique-lang v6 to Imp-mf-lang v6 by picking a 
+; Input:   values-bits-lang-v7
+; Output:  imp-mf-lang-v7
+; Purpose: Compiles Values-bits-lang v7 to Imp-mf-lang v7 by picking a 
 ;          particular order to implement let expressions using set!.
 (define (sequentialize-let p)
   
@@ -1795,8 +1795,8 @@
   (uloc-p p))
 
 
-; Input:   para-asm-lang-v6
-; Output:  paren-x64-fvars-v6
+; Input:   para-asm-lang-v7
+; Output:  paren-x64-v7
 ; Purpose: Compile the Para-asm-lang v6 to Paren-x64 v6 by patching instructions that have 
 ;          no x64 analogue into to a sequence of instructions and an auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
