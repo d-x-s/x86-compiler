@@ -578,9 +578,9 @@
 
 ; =============== M5 Passes ================
 
-; Input:   proc-imp-cmf-lang-v6
-; Output:  imp-cmf-lang-v6
-; Purpose: Compiles Proc-imp-cmf-lang v6 to Imp-cmf-lang v6 by imposing calling conventions on all calls 
+; Input:   proc-imp-cmf-lang-v7
+; Output:  imp-cmf-lang-v7
+; Purpose: Compiles Proc-imp-cmf-lang v7 to Imp-cmf-lang v7 by imposing calling conventions on all calls 
 ;          (both tail and non-tail calls), and entry points. The registers used to passing parameters are 
 ;          defined by current-parameter-registers, and the registers used for returning are defined by 
 ;          current-return-address-register and current-return-value-register.
