@@ -1486,9 +1486,9 @@
   (seq-p p))
 
 
-; Input:   imp-mf-lang-v6
-; Output:  proc-imp-cmf-lang-v6
-; Purpose: Compiles Imp-mf-lang v6 to Proc-imp-cmf-lang v6, pushing set! under 
+; Input:   imp-mf-lang-v7
+; Output:  proc-imp-cmf-lang-v7
+; Purpose: Compiles Imp-mf-lang v7 to Proc-imp-cmf-lang v7, pushing set! under 
 ;          begin so that the right-hand-side of each set! is simple value-producing operation.
 (define (normalize-bind p)
 

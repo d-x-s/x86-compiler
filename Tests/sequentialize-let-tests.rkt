@@ -226,7 +226,7 @@
 
 ; M7 Tests
 
-(test-case "sequentialize 19 - binop extension"
+(test-case "sequentialize 20 - binop extension"
    (check-equal?
         (sequentialize-let
             `(module (bitwise-and 2 3)))

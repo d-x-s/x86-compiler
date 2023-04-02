@@ -228,3 +228,11 @@
         
         `(module (begin (set! x.1 (call x.2 1 x.4 5)) 2))))
 
+; M7 Tests
+
+(test-case "normalize 19 - binop extension"
+   (check-equal?
+        (normalize-bind
+            `(module (bitwise-ior 1 2)))
+        
+        `(module (bitwise-ior 1 2))))
