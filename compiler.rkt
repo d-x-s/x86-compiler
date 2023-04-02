@@ -288,9 +288,9 @@
 
 ; =============== M6 Passes ================
 
-; Input: asm-pred-lang-v6/conflicts
-; Output: asm-pred-lang-v6/pre-framed
-; Purpose: Compiles Asm-pred-lang-v6/conflicts to Asm-pred-lang-v6/pre-framed by pre-assigning all 
+; Input: asm-pred-lang-v7/conflicts
+; Output: asm-pred-lang-v7/pre-framed
+; Purpose: Compiles Asm-pred-lang-v7/conflicts to Asm-pred-lang-v7/pre-framed by pre-assigning all 
 ;          variables in the call-undead sets to frame variables.
 
 ; Concept [similar to assign-registers]

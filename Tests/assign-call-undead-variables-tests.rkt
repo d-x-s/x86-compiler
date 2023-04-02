@@ -550,3 +550,55 @@
                         (set! rdi 1)
                         (set! r15 tmp-ra.2)
                         (jump L.swap.1 rbp r15 rdi rsi)))))
+
+; M7 Tests
+
+(test-case "assign-call-undead-variables 9 - extend binops" 
+    (check-equal? 
+        (assign-call-undead-variables 
+        '(module
+            ((new-frames ())
+            (locals (tmp-ra.2))
+            (call-undead (x.1)) 
+            (undead-out
+                ((tmp-ra.2 rbp)
+                (tmp-ra.2 rsi rbp)
+                (tmp-ra.2 rsi rdi rbp)
+                (rsi rdi r15 rbp)
+                (rsi rdi r15 rbp)))
+            (conflicts
+                ((tmp-ra.2 (rdi rsi rbp))
+                (rbp (r15 rdi rsi tmp-ra.2))
+                (rsi (r15 rdi rbp tmp-ra.2))
+                (rdi (r15 rbp rsi tmp-ra.2))
+                (r15 (rbp rdi rsi)))))
+            (begin
+                (set! tmp-ra.2 r15)
+                (set! rsi (+ rsi 2))
+                (set! rdi (arithmetic-shift-right rdi 5))
+                (set! r15 tmp-ra.2)
+                (jump L.swap.1 rbp r15 rdi rsi))))
+
+            '(module
+                ((new-frames ())
+                (locals (tmp-ra.2))
+                (call-undead (x.1))
+                (undead-out
+                    ((tmp-ra.2 rbp)
+                    (tmp-ra.2 rsi rbp)
+                    (tmp-ra.2 rsi rdi rbp)
+                    (rsi rdi r15 rbp)
+                    (rsi rdi r15 rbp)))
+                (conflicts
+                    ((tmp-ra.2 (rdi rsi rbp))
+                    (rbp (r15 rdi rsi tmp-ra.2))
+                    (rsi (r15 rdi rbp tmp-ra.2))
+                    (rdi (r15 rbp rsi tmp-ra.2))
+                    (r15 (rbp rdi rsi))))
+                (assignment ((x.1 fv0))))
+                (begin
+                    (set! tmp-ra.2 r15)
+                    (set! rsi (+ rsi 2))
+                    (set! rdi (arithmetic-shift-right rdi 5))
+                    (set! r15 tmp-ra.2)
+                    (jump L.swap.1 rbp r15 rdi rsi)))))
