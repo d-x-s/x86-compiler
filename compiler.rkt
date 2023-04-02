@@ -1023,9 +1023,9 @@
 
 ; =============== M3 Passes ================
 
-; Input:   asm-pred-lang-v6/locals
-; Output:  asm-pred-lang-v6/undead
-; Purpose: Performs undead analysis, compiling Asm-pred-lang v6/locals to Asm-pred-lang v6/undead 
+; Input:   asm-pred-lang-v7/locals
+; Output:  asm-pred-lang-v7/undead
+; Purpose: Performs undead analysis, compiling Asm-pred-lang v7/locals to Asm-pred-lang v7/undead 
 ;          by decorating programs with their undead-set trees.
 (define (undead-analysis p)
 

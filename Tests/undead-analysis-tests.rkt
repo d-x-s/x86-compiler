@@ -672,3 +672,21 @@
                 (set! fv0 5)
                 (set! r15 ra.12)
                 (jump L.fact.4 rbp r15 fv0)))))
+
+; M6 Tests
+
+(test-case "undead 14 - extend binops"
+   (check-equal?
+        (undead-analysis
+            `(module ((new-frames (())) (locals (x.1 x.3 p.1)))
+                (begin
+                    (set! x.1 42)
+                    (set! x.3 (bitwise-ior x.3 p.1))
+                    (jump x.1))))
+
+        `(module
+            ((new-frames (()))
+            (locals (x.1 x.3 p.1))
+            (call-undead ())
+            (undead-out ((x.3 p.1 x.1) (x.1) ())))
+            (begin (set! x.1 42) (set! x.3 (bitwise-ior x.3 p.1)) (jump x.1)))))
