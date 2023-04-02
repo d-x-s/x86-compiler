@@ -422,3 +422,18 @@
         (define L.tmp.72 (if (false) (jump L.__nested.68) (jump L.__nested.69)))
         (define L.__nested.68 (jump L.y.5))
         (define L.__nested.69 (jump L.y.6)))))
+
+; M7 Tests
+
+(test-case "expose-basic-blocks 19 - extend binops"
+    (check-match
+        (expose-basic-blocks
+            `(module 
+                (begin 
+                    (set! rax 10)
+                    (set! r12 (bitwise-ior r12 rdx))
+                    (jump r8))))
+
+     `(module
+        (define L.__main.74
+            (begin (set! rax 10) (set! r12 (bitwise-ior r12 rdx)) (jump r8))))))

@@ -830,11 +830,10 @@
   (optimize-p p))
 
 
-; Input:   nested-asm-lang-v6
-; Output:  block-pred-lang-v6
-; Purpose: Compile the Nested-asm-lang v6 to Block-pred-lang v6,
+; Input:   nested-asm-lang-v7
+; Output:  block-pred-lang-v7
+; Purpose: Compile the Nested-asm-lang v7 to Block-pred-lang v7,
 ;          eliminating all nested expressions by generating fresh basic blocks and jumps.
-; M5 > M6 : all the instructions following a return point go into a new block.
 (define (expose-basic-blocks p)
 
   ; a list of basic blocks to return (a mutable variable)
@@ -1862,9 +1861,9 @@
   (patch-p p))
 
 
-; Input:   paren-x64-fvars-v4
-; Output:  paren-x64-v4
-; Purpose: Compile the Paren-x64-fvars v4 to Paren-x64 v4 by reifying fvars into displacement mode operands.
+; Input:   nested-asm-lang-fvars-v7
+; Output:  nested-asm-lang-v7
+; Purpose: Compile nested-asm-lang-fvars-v7 to nested-asm-lang-v7 by reifying fvars into displacement mode operands.
 (define (implement-fvars p)
   (define (f-program->p p)
     (match p
