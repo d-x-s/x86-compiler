@@ -125,7 +125,6 @@
 ; Output:  exprs-bits-lang-v7
 ; Purpose: Compiles immediate data and primitive operations into their implementations as 
 ;          ptrs and primitive bitwise operations on ptrs.
-
 (define (specify-representation p)
   
   (define (specify-p p)
@@ -252,7 +251,9 @@
       [`(let ([,aloc ,value] ...) ,pred)
        `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
              ,(remop-pr pred))]
-      [_ pr])) ; relop or bool
+      [`(,relop ,values ...)
+       (handle-vals `(,relop) values '())]
+      [_ pr])) ; bool
 
   (define (remop-bind b)
     (match b
