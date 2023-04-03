@@ -126,58 +126,56 @@
 ;          ptrs and primitive bitwise operations on ptrs.
 (define (specify-representation p)
   
+  (define binops #hash((unsafe-fx* . *) (unsafe-fx+ . +) (unsafe-fx- . -) (eq? . =) 
+                       (unsafe-fx< . <) (unsafe-fx<= . <=) (unsafe-fx> . >) (unsafe-fx>= . >=)))
+  (define unops  #hash((fixnum? . fixnum) (boolean? . boolean) 
+                       (empty? . empty) (void? . void) 
+                       (ascii-char? . ascii-char) (error? . error) 
+                       (not . not)))
+
+  (define (primop? p)
+    (or (dict-has-key? binops p) (dict-has-key? unops p)))
+
   (define (specify-p p)
     (match p
       [`(module ,defines ... ,value)
-        `(module ,@(map specify-d defines) ,(specify-v value))]))
+       `(module ,@(map specify-d defines) ,(specify-v value))]))
 
   (define (specify-d d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,value))
-        `(define ,label (lambda (,@aloc) ,(specify-v value)))]))
+       `(define ,label (lambda ,aloc ,(specify-v value)))]))
 
   (define (specify-v v)
     (match v
       [`(call ,values ...)
-        `(call ,@(map specify-v values))]
+       `(call ,@(map specify-v values))]
       [`(let (,assigns ...) ,value)
-        `(let ,(map specify-assign assigns) ,(specify-v value))]
+       `(let ,(map specify-assign assigns) ,(specify-v value))]
       [`(if ,value1 ,value2 ,value3)
-        `(if ,(specify-pred value1) ,(specify-v value2) ,(specify-v value3))]
-      [`(,primop ,values ...)
-        #:when (primop? primop)
+       `(if ,(specify-pred value1) ,(specify-v value2) ,(specify-v value3))]
+      [`(,primop ,values ...) #:when (primop? primop)
         (specify-primop primop values)]
       [triv
-        (specify-t triv)]))
+        (specify-triv triv)]))
+
+  ; Given an aloc and a value, return the same pair but with the processed value.
+  (define (specify-assign a)
+    (match a
+      [`(,aloc ,value)
+       `(,aloc ,(specify-v value))]))
 
   (define (specify-pred p)
     (match p
       [`(not ,pred)
-        `(not ,(specify-pred pred))]
+       `(not ,(specify-pred pred))]
       [`(let (,assigns ...) ,pred) 
        `(let ,(map specify-assign assigns) ,(specify-pred pred))]
       [`(if ,pred ,pred1 ,pred2)
        `(if ,(specify-pred pred) ,(specify-pred pred1) ,(specify-pred pred2))]
       [_ `(!= ,(specify-v p) ,(current-false-ptr))]))
 
-  (define (primop? p)
-    (or (equal? p 'unsafe-fx*)
-        (equal? p 'unsafe-fx+)
-        (equal? p 'unsafe-fx-)
-        (equal? p 'eq?)
-        (equal? p 'unsafe-fx<)
-        (equal? p 'unsafe-fx<=)
-        (equal? p 'unsafe-fx>)
-        (equal? p 'unsafe-fx>=)
-        (equal? p 'fixnum?)
-        (equal? p 'boolean?)
-        (equal? p 'empty?)
-        (equal? p 'void?)
-        (equal? p 'ascii-char?)
-        (equal? p 'error?)
-        (equal? p 'not)))
-
-  (define (specify-t t)
+  (define (specify-triv t)
     (match t
       ['#t (current-true-ptr)]
       ['#f (current-false-ptr)]
@@ -185,41 +183,31 @@
       [`(void) (current-void-ptr)]
       [`(error ,uint8)
         (bitwise-ior (arithmetic-shift uint8 (current-error-shift)) (current-error-tag))]
-      [ascii-char-literal
-        #:when (ascii-char-literal? ascii-char-literal)
+      [ascii-char-literal #:when (ascii-char-literal? ascii-char-literal)
         (bitwise-ior (arithmetic-shift (char->integer ascii-char-literal) (current-ascii-char-shift)) (current-ascii-char-tag))]
-      [fixnum
-        #:when (int61? fixnum)
+      [fixnum #:when (int61? fixnum)
         (bitwise-ior (arithmetic-shift fixnum (current-fixnum-shift)) (current-fixnum-tag))]
-      [_ t]))
+      [_ t])) ; label or aloc
 
   (define (specify-primop p v)
     (match p
-      ['fixnum? `(if (= (bitwise-and ,@(map specify-v v) ,(current-fixnum-mask)) ,(current-fixnum-tag)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['boolean? `(if (= (bitwise-and ,@(map specify-v v) ,(current-boolean-mask)) ,(current-boolean-tag)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['empty? `(if (= (bitwise-and ,@(map specify-v v) ,(current-empty-mask)) ,(current-empty-tag)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['void? `(if (= (bitwise-and ,@(map specify-v v) ,(current-void-mask)) ,(current-void-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['fixnum?     `(if (= (bitwise-and ,@(map specify-v v) ,(current-fixnum-mask)) ,(current-fixnum-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['boolean?    `(if (= (bitwise-and ,@(map specify-v v) ,(current-boolean-mask)) ,(current-boolean-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['empty?      `(if (= (bitwise-and ,@(map specify-v v) ,(current-empty-mask)) ,(current-empty-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['void?       `(if (= (bitwise-and ,@(map specify-v v) ,(current-void-mask)) ,(current-void-tag)) ,(current-true-ptr) ,(current-false-ptr))]
       ['ascii-char? `(if (= (bitwise-and ,@(map specify-v v) ,(current-ascii-char-mask)) ,(current-ascii-char-tag)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['error? `(if (= (bitwise-and ,@(map specify-v v) ,(current-error-mask)) ,(current-error-tag)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['not `(if (!= ,@(map specify-v v) ,(current-false-ptr)) ,(current-false-ptr) ,(current-true-ptr))]
+      ['error?      `(if (= (bitwise-and ,@(map specify-v v) ,(current-error-mask)) ,(current-error-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['not         `(if (!= ,@(map specify-v v) ,(current-false-ptr)) ,(current-false-ptr) ,(current-true-ptr))]
       ['unsafe-fx* 
         (if (int61? (first (map specify-v v)))
             `(* ,(arithmetic-shift (first (map specify-v v)) (- (current-fixnum-shift))) ,(second (map specify-v v)))
             (if (int61? (second (map specify-v v)))
               `(* ,(first (map specify-v v)) ,(arithmetic-shift (second (map specify-v v)) (- (current-fixnum-shift))))
               `(* ,(first (map specify-v v)) (arithmetic-shift-right ,(second (map specify-v v)) ,(current-fixnum-shift)))))]
-      ['unsafe-fx+ `(+ ,@(map specify-v v))]
-      ['unsafe-fx- `(- ,@(map specify-v v))]
-      ['eq? `(if (= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['unsafe-fx< `(if (< ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['unsafe-fx<= `(if (<= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['unsafe-fx> `(if (> ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
-      ['unsafe-fx>= `(if (>= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]))
-
-  (define (specify-assign a)
-    (match a
-      [`(,aloc ,value)
-        `(,aloc ,(specify-v value))]))
+      [binop
+        (if (or (equal? binop 'unsafe-fx+) (equal? binop 'unsafe-fx-))
+           `(,(dict-ref binops binop) ,@(map specify-v v))
+           `(if (,(dict-ref binops binop) ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr)))]))
 
   (specify-p p))
 
