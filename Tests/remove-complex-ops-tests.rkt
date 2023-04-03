@@ -134,7 +134,7 @@
                 (let ((tmp.26 (arithmetic-shift-right 1 2)))
                 (call x.1 tmp.23 tmp.24 tmp.25 tmp.26))))))))
 
-(test-case "remop 11 - extend with bitwise ops and shift"
+(test-case "remop 12 - complex factorial"
     (check-match
         (remove-complex-opera*
             `(module 

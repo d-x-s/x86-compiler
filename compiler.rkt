@@ -120,7 +120,6 @@
 
 ; =============== M7 Passes ================
 
-
 ; Input:   exprs-unsafe-data-lang-v7
 ; Output:  exprs-bits-lang-v7
 ; Purpose: Compiles immediate data and primitive operations into their implementations as 
@@ -222,8 +221,7 @@
       [`(,aloc ,value)
         `(,aloc ,(specify-v value))]))
 
-  (specify-p p)
-)
+  (specify-p p))
 
 ; Input:   exprs-bits-lang-v7
 ; Output:  values-bits-lang-v7
@@ -292,6 +290,7 @@
       [_ v])) ; int, aloc, or label
   
   (remop-p p))
+
 
 ; Input:   exprs-unique-lang-v7
 ; Output:  exprs-unsafe-data-lang-v7
