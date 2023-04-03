@@ -120,6 +120,112 @@
 
 ; =============== M7 Passes ================
 
+
+; Input:   exprs-unsafe-data-lang-v7
+; Output:  exprs-bits-lang-v7
+; Purpose: Compiles immediate data and primitive operations into their implementations as 
+;          ptrs and primitive bitwise operations on ptrs.
+
+(define (specify-representation p)
+  
+  (define (specify-p p)
+    (match p
+      [`(module ,defines ... ,value)
+        `(module ,@(map specify-d defines) ,(specify-v value))]))
+
+  (define (specify-d d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,value))
+        `(define ,label (lambda (,@aloc) ,(specify-v value)))]))
+
+  (define (specify-v v)
+    (match v
+      [`(call ,values ...)
+        `(call ,@(map specify-v values))]
+      [`(let (,assigns ...) ,value)
+        `(let ,(map specify-assign assigns) ,(specify-v value))]
+      [`(if ,value1 ,value2 ,value3)
+        `(if ,(specify-pred value1) ,(specify-v value2) ,(specify-v value3))]
+      [`(,primop ,values ...)
+        #:when (primop? primop)
+        (specify-primop primop values)]
+      [triv
+        (specify-t triv)]))
+
+  (define (specify-pred p)
+    (match p
+      [`(not ,pred)
+        `(not ,(specify-pred pred))]
+      [`(let (,assigns ...) ,pred) 
+       `(let ,(map specify-assign assigns) ,(specify-pred pred))]
+      [`(if ,pred ,pred1 ,pred2)
+       `(if ,(specify-pred pred) ,(specify-pred pred1) ,(specify-pred pred2))]
+      [_ `(!= ,(specify-v p) ,(current-false-ptr))]))
+
+  (define (primop? p)
+    (or (equal? p 'unsafe-fx*)
+        (equal? p 'unsafe-fx+)
+        (equal? p 'unsafe-fx-)
+        (equal? p 'eq?)
+        (equal? p 'unsafe-fx<)
+        (equal? p 'unsafe-fx<=)
+        (equal? p 'unsafe-fx>)
+        (equal? p 'unsafe-fx>=)
+        (equal? p 'fixnum?)
+        (equal? p 'boolean?)
+        (equal? p 'empty?)
+        (equal? p 'void?)
+        (equal? p 'ascii-char?)
+        (equal? p 'error?)
+        (equal? p 'not)))
+
+  (define (specify-t t)
+    (match t
+      ['#t (current-true-ptr)]
+      ['#f (current-false-ptr)]
+      ['empty (current-empty-ptr)]
+      [`(void) (current-void-ptr)]
+      [`(error ,uint8)
+        (bitwise-ior (arithmetic-shift uint8 (current-error-shift)) (current-error-tag))]
+      [ascii-char-literal
+        #:when (ascii-char-literal? ascii-char-literal)
+        (bitwise-ior (arithmetic-shift (char->integer ascii-char-literal) (current-ascii-char-shift)) (current-ascii-char-tag))]
+      [fixnum
+        #:when (int61? fixnum)
+        (bitwise-ior (arithmetic-shift fixnum (current-fixnum-shift)) (current-fixnum-tag))]
+      [_ t]))
+
+  (define (specify-primop p v)
+    (match p
+      ['fixnum? `(if (= (bitwise-and ,@(map specify-v v) ,(current-fixnum-mask)) ,(current-fixnum-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['boolean? `(if (= (bitwise-and ,@(map specify-v v) ,(current-boolean-mask)) ,(current-boolean-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['empty? `(if (= (bitwise-and ,@(map specify-v v) ,(current-empty-mask)) ,(current-empty-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['void? `(if (= (bitwise-and ,@(map specify-v v) ,(current-void-mask)) ,(current-void-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['ascii-char? `(if (= (bitwise-and ,@(map specify-v v) ,(current-ascii-char-mask)) ,(current-ascii-char-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['error? `(if (= (bitwise-and ,@(map specify-v v) ,(current-error-mask)) ,(current-error-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['not `(if (!= ,@(map specify-v v) ,(current-false-ptr)) ,(current-false-ptr) ,(current-true-ptr))]
+      ['unsafe-fx* 
+        (if (int61? (first (map specify-v v)))
+            `(* ,(arithmetic-shift (first (map specify-v v)) (- (current-fixnum-shift))) ,(second (map specify-v v)))
+            (if (int61? (second (map specify-v v)))
+              `(* ,(first (map specify-v v)) ,(arithmetic-shift (second (map specify-v v)) (- (current-fixnum-shift))))
+              `(* ,(first (map specify-v v)) (arithmetic-shift-right ,(second (map specify-v v)) ,(current-fixnum-shift)))))]
+      ['unsafe-fx+ `(+ ,@(map specify-v v))]
+      ['unsafe-fx- `(- ,@(map specify-v v))]
+      ['eq? `(if (= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['unsafe-fx< `(if (< ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['unsafe-fx<= `(if (<= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['unsafe-fx> `(if (> ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['unsafe-fx>= `(if (>= ,@(map specify-v v)) ,(current-true-ptr) ,(current-false-ptr))]))
+
+  (define (specify-assign a)
+    (match a
+      [`(,aloc ,value)
+        `(,aloc ,(specify-v value))]))
+
+  (specify-p p)
+)
+
 ; Input:   exprs-bits-lang-v7
 ; Output:  values-bits-lang-v7
 ; Purpose: Performs the monadic form transformation, unnesting all non-trivial operators and operands 
@@ -185,15 +291,6 @@
       [_ v])) ; int, aloc, or label
   
   (remop-p p))
-
-
-; Input:   exprs-unsafe-data-lang-v7
-; Output:  exprs-bits-lang-v7
-; Purpose: Compiles immediate data and primitive operations into their implementations as ptrs 
-;          and primitive bitwise operations on ptrs.
-(define (specify-representation p)
-  p)
-
 
 ; Input:   exprs-unique-lang-v7
 ; Output:  exprs-unsafe-data-lang-v7

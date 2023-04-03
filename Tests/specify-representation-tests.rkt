@@ -18,7 +18,7 @@
         (specify-representation
             `(module (call L.start.1 #t #f)))
 
-     `(module (call L.start.1 14 6 14))))
+     `(module (call L.start.1 14 6))))
 
 (test-case "specrep 3 - empty, void, errors"
     (check-match
@@ -205,3 +205,27 @@
             (lambda (x.1)
             (- (if (= 8 (if (> 40 48) 14 6)) 14 6) (if (>= 56 64) 14 6))))
         (let ((x.1 (+ 8 16)) (x.2 L.start.1) (x.3 14)) (call x.1 x.2 x.3 32)))))
+
+
+(test-case "specrep 12 - binops2"
+    (check-match
+        (specify-representation
+            `(module (call x.1 
+                        (unsafe-fx+ y.1 2) 
+                        (unsafe-fx- 1 2) 
+                        (eq? 1 #t) 
+                        (unsafe-fx< 1 2) 
+                        (unsafe-fx<= 1 2) 
+                        (unsafe-fx> 1 x.2) 
+                        (unsafe-fx>= 1 2))))
+
+     `(module
+        (call
+        x.1
+        (+ y.1 16)
+        (- 8 16)
+        (if (= 8 14) 14 6)
+        (if (< 8 16) 14 6)
+        (if (<= 8 16) 14 6)
+        (if (> 8 x.2) 14 6)
+        (if (>= 8 16) 14 6)))))
