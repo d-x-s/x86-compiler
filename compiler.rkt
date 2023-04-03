@@ -536,7 +536,7 @@
                 (values (foldr (lambda (f rest) (set-remove rest f)) loc frame) new-a)))
 
     (define new-info (info-remove (info-remove (info-remove info 'new-frames) 'call-undead) 'undead-out))
-    (info-set (info-set new-info 'locals new-loc) 'assignment (map list (dict-keys new-as) (dict-values new-as))))
+    (info-set (info-set new-info 'locals (reverse new-loc)) 'assignment (map list (dict-keys new-as) (dict-values new-as))))
 
   (define (allocate-p p)
     (match p

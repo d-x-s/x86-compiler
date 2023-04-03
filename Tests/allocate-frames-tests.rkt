@@ -22,7 +22,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1))
+        ((locals (y.1 x.3))
         (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
         (assignment ()))
         (begin
@@ -64,7 +64,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1 y.2))
+        ((locals (y.2 y.1 x.3))
         (conflicts
             ((x.3 ())
             (y.1 (rax))
@@ -134,7 +134,7 @@
                     (jump L.start.14 x.11 rax x.100))))
 
      `(module
-        ((locals (x.1 x.11))
+        ((locals (x.11 x.1))
         (conflicts
             ((x.4 (rax))
             (x.1 (rax x.100 x.12 x.2 x.7))
@@ -199,7 +199,7 @@
                     (jump L.start.14 x.11 rax x.100))))
 
      `(module
-        ((locals (x.4 x.1 x.2))
+        ((locals (x.2 x.1 x.4))
         (conflicts
             ((x.4 (rax))
             (x.1 (x.11 x.100 x.2))
@@ -251,7 +251,7 @@
                     (jump L.start.14 x.11 rax x.100))))
 
      `(module
-        ((locals (x.4 x.1 x.2))
+        ((locals (x.2 x.1 x.4))
         (conflicts
             ((x.4 (rax))
             (x.1 (x.11 x.100 x.2))
@@ -334,7 +334,7 @@
             (rax (rbp tmp-ra.4 y.2))))
         (assignment ((tmp-ra.4 fv0) (nfv.5 fv1))))
         (define L.id.1
-            ((locals (tmp-ra.3 x.1))
+            ((locals (x.1 tmp-ra.3))
             (conflicts
             ((tmp-ra.3 (rax x.1 rbp fv0))
             (x.1 (rbp tmp-ra.3))
@@ -501,7 +501,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1))
+        ((locals (y.1 x.3))
         (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
         (assignment ((tmp.1 fv50) (nfv.1 fv3) (nfv.2 fv5) (nfv.3 fv3) (nfv.4 fv4))))
         (begin
@@ -528,7 +528,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1))
+        ((locals (y.1 x.3))
         (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
         (assignment
             ((tmp.1 fv50) (nfv.1 fv21) (nfv.2 fv23) (nfv.3 fv21) (nfv.4 fv22))))
@@ -556,7 +556,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1))
+        ((locals (y.1 x.3))
         (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
         (assignment
             ((tmp.1 fv50) (nfv.1 fv51) (nfv.2 fv53) (nfv.3 fv51) (nfv.4 fv52))))
@@ -586,7 +586,7 @@
                     (jump rax))))
 
      `(module
-        ((locals (x.3 y.1))
+        ((locals (y.1 x.3))
         (conflicts ((x.3 ()) (y.1 (rax)) (rax (y.1))))
         (assignment ()))
         (begin
