@@ -1556,7 +1556,7 @@
   ; return the triv itself if it is an int64, otherwise look up the bind in the dictionary
   (define (update-bind x binds)
     (match x
-      [(? binop?) x]
+      [(? prim-f?) x]
       [(? name?) (try-lookup x binds)]
       [_ x]))
 
@@ -1574,16 +1574,32 @@
             (dict-ref binds x)
              x)))
 
-  ;  return true if binop according to M7, false otherwise                            
-  (define (binop? b)
+  ;  return true if prim-f according to M8, false otherwise                            
+  (define (prim-f? b)
     (or (equal? b '*)
         (equal? b '+)
         (equal? b '-)
-        (equal? b 'eq?)
         (equal? b '<)
         (equal? b '<=)
         (equal? b '>)
-        (equal? b '>=))) 
+        (equal? b '>=)
+        (equal? b 'eq?)
+        (equal? b 'fixnum?)
+        (equal? b 'boolean?)
+        (equal? b 'empty?)
+        (equal? b 'void?)
+        (equal? b 'ascii-char?)
+        (equal? b 'error?)
+        (equal? b 'not)
+        (equal? b 'pair?)
+        (equal? b 'vector?)
+        (equal? b 'cons)
+        (equal? b 'car)
+        (equal? b 'cdr)
+        (equal? b 'make-vector)
+        (equal? b 'vector-length)
+        (equal? b 'vector-set!)
+        (equal? b 'vector-ref))) 
 
   (uniquify-p p '()))
 
