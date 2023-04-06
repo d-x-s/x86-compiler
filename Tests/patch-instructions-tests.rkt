@@ -1,0 +1,323 @@
+#lang racket
+
+(require
+ cpsc411/compiler-lib
+ rackunit "../compiler.rkt")
+
+(test-case "patch 1 - simple addresses"
+  (check-equal?
+    (patch-instructions
+      '(begin 
+        (set! rax 10)
+        (set! rax L.tmp.1)
+        (set! (rbp - 8) L.tmp.2)
+        (set! (rbp - 8) rcx)))
+
+    '(begin
+        (set! rax 10)
+        (set! rax L.tmp.1)
+        (set! r10 L.tmp.2)
+        (set! (rbp - 8) r10)
+        (set! (rbp - 8) rcx))))
+
+(test-case "patch 2 - set! with address replacement cases"
+  (check-equal?
+    (patch-instructions
+      '(begin 
+          (set! (rbp - 8) L.tmp.2)
+          (set! (rbp - 8) (rbp - 16))
+          (set! (rbp - 8) 10)
+          (set! (rbp - 8) rcx))) ; not a case that needs replacing
+
+    '(begin
+        (set! r10 L.tmp.2)
+        (set! (rbp - 8) r10)
+        (set! r10 (rbp - 16))
+        (set! (rbp - 8) r10)
+        (set! (rbp - 8) 10)
+        (set! (rbp - 8) rcx))))
+
+(test-case "patch 3 - jump with address replacement cases"
+  (check-equal?
+    (patch-instructions
+      '(begin 
+          (jump L.tmp.1)      ; not a case taht needs replacing
+          (jump rax)          ; not a case that needs replacing
+          (jump (rbp - 8))))
+      
+    '(begin 
+        (jump L.tmp.1) 
+        (jump rax) 
+        (set! r10 (rbp - 8)) 
+        (jump r10))))
+
+(test-case "patch 4 - complex jump and single block"
+   (check-equal?
+    (patch-instructions
+      '(begin 
+        (set! (rbp - 8) 0) 
+        (set! (rbp - 16) 1) 
+        (compare (rbp - 8) (rbp - 16)) 
+        (jump-if > L.foo.1) 
+        (with-label L.foo.1 (jump rax))))
+
+      '(begin
+        (set! (rbp - 8) 0)
+        (set! (rbp - 16) 1)
+        (set! r11 (rbp - 16))
+        (set! r10 (rbp - 8))
+        (compare r10 r11)
+        (jump-if > L.foo.1)
+        (with-label L.foo.1 (jump rax)))))
+
+(test-case "patch 5 - complex jump and multiple blocks"
+   (check-equal?
+    (patch-instructions
+      '(begin 
+        (with-label L.main.51 (set! r14 1)) 
+        (set! r15 5) 
+        (with-label L.fact_loop.50 (compare r15 0)) 
+        (jump-if = L.nested.54) 
+        (set! r13 r15) 
+        (set! r15 (+ r15 -1)) 
+        (set! r14 (* r14 r13)) 
+        (set! r14 (- r14 r13)) 
+        (jump L.fact_loop.50) 
+        (with-label L.nested.54 (jump rax))))
+
+      '(begin
+        (with-label L.main.51 (set! r14 1))
+        (set! r15 5)
+        (with-label L.fact_loop.50 (compare r15 0))
+        (jump-if = L.nested.54)
+        (set! r13 r15)
+        (set! r15 (+ r15 -1))
+        (set! r14 (* r14 r13))
+        (set! r14 (- r14 r13))
+        (jump L.fact_loop.50)
+        (with-label L.nested.54 (jump rax)))))
+
+(test-case "patch 6 - simple jump-if"
+   (check-equal?
+    (patch-instructions
+      '(begin
+        (jump-if < rax)))
+    '(begin (jump-if >= L.tmp.1) (jump rax) (with-label L.tmp.1 (set! r10 r10)))))
+
+(test-case "patch 7 - public 1"
+  (check-equal?
+    (patch-instructions 
+      '(begin (with-label L.__main.40 (set! r15 r15)) 
+              (set! rdi 5) 
+              (set! r15 r15) 
+              (jump L.fact.1)
+              (with-label L.fact.1 (set! (rbp - 0) r15)) 
+              (set! (rbp - 8) rdi) 
+              (compare (rbp - 8) 0) 
+              (jump-if = L.__nested.38) 
+              (jump L.__nested.39) 
+              (with-label L.__nested.38 (set! rax 1)) 
+              (jump (rbp - 0)) 
+              (with-label L.__nested.39 (set! r15 (rbp - 8))) 
+              (set! r15 (+ r15 -1)) 
+              (set! rbp (- rbp 16)) 
+              (set! rdi r15) 
+              (set! r15 L.rp.21) 
+              (jump L.fact.1) 
+              (with-label L.rp.21 (set! rbp (+ rbp 16))) 
+              (set! r15 rax) 
+              (set! rax (rbp - 8)) 
+              (set! rax (* rax r15))
+              (jump (rbp - 0))))
+      '(begin
+            (with-label L.__main.40 (set! r15 r15))
+            (set! rdi 5)
+            (set! r15 r15)
+            (jump L.fact.1)
+            (with-label L.fact.1 (set! (rbp - 0) r15))
+            (set! (rbp - 8) rdi)
+            (set! r10 (rbp - 8))
+            (compare r10 0)
+            (jump-if = L.__nested.38)
+            (jump L.__nested.39)
+            (with-label L.__nested.38 (set! rax 1))
+            (set! r10 (rbp - 0))
+            (jump r10)
+            (with-label L.__nested.39 (set! r15 (rbp - 8)))
+            (set! r15 (+ r15 -1))
+            (set! rbp (- rbp 16))
+            (set! rdi r15)
+            (set! r15 L.rp.21)
+            (jump L.fact.1)
+            (with-label L.rp.21 (set! rbp (+ rbp 16)))
+            (set! r15 rax)
+            (set! rax (rbp - 8))
+            (set! rax (* rax r15))
+            (set! r10 (rbp - 0))
+            (jump r10))))
+
+(test-case "patch 8 - public 2"
+  (check-equal?
+    (patch-instructions 
+      '(begin 
+          (with-label L.__main.98 (set! r15 r15)) 
+          (set! rdi 5) 
+          (set! r15 r15) 
+          (jump L.fact.7) 
+          (with-label L.identity.6 (set! (rbp - 0) r15)) 
+          (set! r15 rdi) 
+          (compare r15 0) 
+          (jump-if = L.__nested.96) 
+          (jump L.__nested.97) 
+          (with-label L.__nested.96 (set! rax 0)) 
+          (jump (rbp - 0)) 
+          (with-label L.__nested.97 (set! r15 r15)) 
+          (set! r15 (- r15 1)) 
+          (set! rbp (- rbp 8)) 
+          (set! rdi r15) 
+          (set! r15 L.rp.14) 
+          (jump L.identity.6) 
+          (with-label L.rp.14 (set! rbp (+ rbp 8))) 
+          (set! r15 rax) 
+          (set! rax 1) 
+          (set! rax (+ rax r15)) 
+          (jump (rbp - 0)) 
+          (with-label L.fact.7 (set! (rbp - 0) r15)) 
+          (set! r15 rdi) 
+          (set! rbp (- rbp 16)) 
+          (set! rdi r15) 
+          (set! r15 L.rp.15) 
+          (jump L.identity.6) 
+          (with-label L.rp.15 (set! rbp (+ rbp 16))) 
+          (set! (rbp - 8) rax) 
+          (set! rbp (- rbp 16)) 
+          (set! rdi 0) 
+          (set! r15 L.rp.16) 
+          (jump L.identity.6) 
+          (with-label L.rp.16 (set! rbp (+ rbp 16))) 
+          (set! r15 rax) 
+          (compare (rbp - 8) r15) 
+          (jump-if = L.__nested.94) 
+          (jump L.__nested.95) 
+          (with-label L.__nested.94 (set! rbp (- rbp 16))) 
+          (set! rdi 1) 
+          (set! r15 L.rp.17) 
+          (jump L.identity.6) 
+          (with-label L.__nested.95 (set! rbp (- rbp 16))) 
+          (set! rdi 1) 
+          (set! r15 L.rp.18) 
+          (jump L.identity.6) 
+          (with-label L.rp.18 (set! rbp (+ rbp 16))) 
+          (set! r14 rax) 
+          (set! r15 (rbp - 8)) 
+          (set! r15 (- r15 r14)) 
+          (set! rbp (- rbp 16)) 
+          (set! rdi r15) 
+          (set! r15 L.rp.19) 
+          (jump L.fact.7) 
+          (with-label L.rp.19 (set! rbp (+ rbp 16))) 
+          (set! r15 rax) 
+          (set! rax (rbp - 8)) 
+          (set! rax (* rax r15)) 
+          (jump (rbp - 0)) 
+          (with-label L.rp.17 (set! rbp (+ rbp 16))) 
+          (set! r15 rax) 
+          (set! rax r15) 
+          (jump (rbp - 0))))
+
+      '(begin
+          (with-label L.__main.98 (set! r15 r15))
+          (set! rdi 5)
+          (set! r15 r15)
+          (jump L.fact.7)
+          (with-label L.identity.6 (set! (rbp - 0) r15))
+          (set! r15 rdi)
+          (compare r15 0)
+          (jump-if = L.__nested.96)
+          (jump L.__nested.97)
+          (with-label L.__nested.96 (set! rax 0))
+          (set! r10 (rbp - 0))
+          (jump r10)
+          (with-label L.__nested.97 (set! r15 r15))
+          (set! r15 (- r15 1))
+          (set! rbp (- rbp 8))
+          (set! rdi r15)
+          (set! r15 L.rp.14)
+          (jump L.identity.6)
+          (with-label L.rp.14 (set! rbp (+ rbp 8)))
+          (set! r15 rax)
+          (set! rax 1)
+          (set! rax (+ rax r15))
+          (set! r10 (rbp - 0))
+          (jump r10)
+          (with-label L.fact.7 (set! (rbp - 0) r15))
+          (set! r15 rdi)
+          (set! rbp (- rbp 16))
+          (set! rdi r15)
+          (set! r15 L.rp.15)
+          (jump L.identity.6)
+          (with-label L.rp.15 (set! rbp (+ rbp 16)))
+          (set! (rbp - 8) rax)
+          (set! rbp (- rbp 16))
+          (set! rdi 0)
+          (set! r15 L.rp.16)
+          (jump L.identity.6)
+          (with-label L.rp.16 (set! rbp (+ rbp 16)))
+          (set! r15 rax)
+          (set! r10 (rbp - 8))
+          (compare r10 r15)
+          (jump-if = L.__nested.94)
+          (jump L.__nested.95)
+          (with-label L.__nested.94 (set! rbp (- rbp 16)))
+          (set! rdi 1)
+          (set! r15 L.rp.17)
+          (jump L.identity.6)
+          (with-label L.__nested.95 (set! rbp (- rbp 16)))
+          (set! rdi 1)
+          (set! r15 L.rp.18)
+          (jump L.identity.6)
+          (with-label L.rp.18 (set! rbp (+ rbp 16)))
+          (set! r14 rax)
+          (set! r15 (rbp - 8))
+          (set! r15 (- r15 r14))
+          (set! rbp (- rbp 16))
+          (set! rdi r15)
+          (set! r15 L.rp.19)
+          (jump L.fact.7)
+          (with-label L.rp.19 (set! rbp (+ rbp 16)))
+          (set! r15 rax)
+          (set! rax (rbp - 8))
+          (set! rax (* rax r15))
+          (set! r10 (rbp - 0))
+          (jump r10)
+          (with-label L.rp.17 (set! rbp (+ rbp 16)))
+          (set! r15 rax)
+          (set! rax r15)
+          (set! r10 (rbp - 0))
+          (jump r10))))
+
+(test-case "patch 9 - new binops"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! r15 (rbp - 8)) 
+              (set! r15 (+ r15 r14)) 
+              (set! rbp (- rbp 16))
+              (set! r15 (* r15 r14)) 
+              (set! rbp (bitwise-and rbp 16)) 
+              (set! r15 (bitwise-ior r15 r14)) 
+              (set! rbp (bitwise-xor rbp 16))  
+              (set! rbp (arithmetic-shift-right rbp 16))  
+              (jump (rbp - 0))))
+
+      '(begin
+          (set! r15 (rbp - 8))
+          (set! r15 (+ r15 r14))
+          (set! rbp (- rbp 16))
+          (set! r15 (* r15 r14))
+          (set! rbp (bitwise-and rbp 16))
+          (set! r15 (bitwise-ior r15 r14))
+          (set! rbp (bitwise-xor rbp 16))
+          (set! rbp (arithmetic-shift-right rbp 16))
+          (set! r10 (rbp - 0))
+          (jump r10))))
