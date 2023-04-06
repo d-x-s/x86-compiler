@@ -3,6 +3,7 @@
 (require
  cpsc411/compiler-lib
  cpsc411/ptr-run-time
+ cpsc411/graph-lib
  racket/syntax)
 
 (provide
@@ -134,10 +135,197 @@
 ; Input:   
 ; Output:  
 ; Purpose: 
-(define (expose-allocation-pointer)
+(define (expose-allocation-pointer p)
   p)
 
 ; =============== M7 Passes ================
+
+; Input:   exprs-unique-lang-v8
+; Output:  exprs-unsafe-data-lang-v8
+; Purpose: Implement safe primitive operations by inserting procedure definitions for each primitive 
+;          operation which perform dynamic tag checking, to ensure type safety.
+(define (implement-safe-primops p) 
+  
+  (define fn-acc '()) ; list of all the functions created
+  (define fn-count 5) ; number of functions added (not including hardcoded ones). Starts at 5.
+  (define label-dict (make-hash)) ; mapping between primops and labels
+
+  ; map binops and unops to numbers.
+  ; for binop, doubles as error code.
+  (define binops #hash((* . 1) (+ . 2) (- . 3) (< . 4) 
+                       (<= . 5) (> . 6) (>= . 7) (eq? . 18)
+                       (cons . 17)))
+  (define unops #hash((fixnum? . 37) (boolean? . 38) (empty? . 39) (void? . 40)
+                       (ascii-char? . 41) (error? . 42) (not . 45)
+                       (pair? . 43) (vector? . 44) (car . 35) (cdr . 36) 
+                       (vector-length . 29)))
+  
+  ; binop function generator. Create the function and add it to label-dict and fn-acc.
+  ; Returns a label.
+  (define (generate-binop binop)
+    ; each (binop . x) has errorcode = x and function (lambda (tmp.a tmp.b) ...) where
+    ;  a = 12 + x*2
+    ;  b = a+1
+    (define id (dict-ref binops binop))
+    (define tmp-a (format-symbol "tmp.~a" (+ 12 (* id 2))))
+    (define tmp-b (format-symbol "tmp.~a" (+ 13 (* id 2))))
+    (define new-fn (case binop
+                      [(eq? cons) `(lambda (,tmp-a ,tmp-b) (,binop ,tmp-a ,tmp-b))]
+                      [else `(lambda (,tmp-a ,tmp-b)
+                                     (if (fixnum? ,tmp-b)
+                                         (if (fixnum? ,tmp-a)
+                                             (,(format-symbol "unsafe-fx~a" binop) ,tmp-a ,tmp-b)
+                                             (error ,id))
+                                         (error ,id)))]))
+    (define new-label (format-symbol "L.~a.~a" binop fn-count))
+    (set! fn-count (+ fn-count 1))
+    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
+    (dict-set! label-dict binop new-label)
+    new-label)
+  
+  ; unop function generator. Create the function and add it to label-dict and fn-acc.
+  ; Returns a label.
+  (define (generate-unop unop)
+    (define id (dict-ref unops unop))
+    (define tmp (format-symbol "tmp.~a" id))
+    (define new-label (format-symbol "L.~a.~a" unop fn-count))
+    (set! fn-count (+ fn-count 1))
+    (define new-fn (case unop
+                      [(car cdr) 
+                      `(lambda (,tmp) (if (pair? ,tmp) (,(format-symbol "unsafe-~a" unop) ,tmp) (error ,(+ 12 (- id 35)))))]
+                      [(vector-length)
+                       '(lambda (tmp.29) (if (vector? tmp.29) (unsafe-vector-length tmp.29) (error 9)))]
+                      [else `(lambda (,tmp) (,unop ,tmp))]))
+    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
+    (dict-set! label-dict unop new-label)
+    new-label)
+
+  ; Generate make-vector function and add the two functions needed for 
+  ; make-vector, make-init-vector and vector-init-loop.
+  ; Returns a label.
+  (define (generate-make-vec)
+    (define new-label (format-symbol "L.make-vector.~a" fn-count))
+    (set! fn-count (+ fn-count 1))
+    (define make-vec `(define ,new-label 
+                          (lambda (tmp.28) (if (fixnum? tmp.28) (call L.make-init-vector.1 tmp.28) (error 8)))))
+    (define make-init '(define L.make-init-vector.1
+                          (lambda (tmp.1)
+                          (if (unsafe-fx>= tmp.1 0)
+                              (let ((tmp.2 (unsafe-make-vector tmp.1)))
+                              (call L.vector-init-loop.4 tmp.1 0 tmp.2))
+                              (error 12)))))
+    (define init-loop '(define L.vector-init-loop.4
+                          (lambda (len.3 i.5 vec.4)
+                          (if (eq? len.3 i.5)
+                              vec.4
+                              (begin
+                              (unsafe-vector-set! vec.4 i.5 0)
+                              (call L.vector-init-loop.4 len.3 (unsafe-fx+ i.5 1) vec.4))))))
+    (set! fn-acc (cons init-loop (cons make-init (cons make-vec fn-acc))))
+    (dict-set! label-dict 'make-vector new-label)
+    new-label)
+
+  ; Generate vector-set! function and add the unsafe-vector-set! function needed.
+  ; Returns a label.
+  (define (generate-vec-set)
+    (define new-label (format-symbol "L.vector-set!.~a" fn-count))
+    (set! fn-count (+ fn-count 1))
+    (define vec-set `(define ,new-label 
+                      (lambda (tmp.30 tmp.31 tmp.32)
+                        (if (fixnum? tmp.31)
+                            (if (vector? tmp.30)
+                            (call L.unsafe-vector-set!.2 tmp.30 tmp.31 tmp.32)
+                            (error 10))
+                            (error 10)))))
+    (define unsafe-set '(define L.unsafe-vector-set!.2
+                        (lambda (tmp.6 tmp.7 tmp.8)
+                        (if (unsafe-fx< tmp.7 (unsafe-vector-length tmp.6))
+                            (if (unsafe-fx>= tmp.7 0)
+                            (begin (unsafe-vector-set! tmp.6 tmp.7 tmp.8) (void))
+                            (error 10))
+                            (error 10)))))
+    (set! fn-acc (cons unsafe-set (cons vec-set fn-acc)))
+    (dict-set! label-dict 'vector-set! new-label)
+    new-label)
+
+  ; Generate vector-ref function and add the unsafe-vector-ref! function needed.
+  ; Returns a label.
+  (define (generate-vec-ref)
+    (define new-label (format-symbol "L.vector-ref.~a" fn-count))
+    (set! fn-count (+ fn-count 1))
+    (define vec-ref `(define ,new-label 
+                      (lambda (tmp.33 tmp.34)
+                      (if (fixnum? tmp.34)
+                          (if (vector? tmp.33)
+                          (call L.unsafe-vector-ref.3 tmp.33 tmp.34)
+                          (error 11))
+                          (error 11)))))
+    (define unsafe-ref '(define L.unsafe-vector-ref.3
+                          (lambda (tmp.11 tmp.12)
+                          (if (unsafe-fx< tmp.12 (unsafe-vector-length tmp.11))
+                              (if (unsafe-fx>= tmp.12 0)
+                              (unsafe-vector-ref tmp.11 tmp.12)
+                              (error 11))
+                              (error 11)))))
+    (set! fn-acc (cons unsafe-ref (cons vec-ref fn-acc)))
+    (dict-set! label-dict 'vector-ref new-label)
+    new-label)
+
+  (define (primop-p p)
+    (match p
+      [`(module ,defines ... ,value)
+        (define definesRes (map primop-def defines))
+        (define valRes (primop-v value))
+       `(module ,@fn-acc ,@definesRes ,valRes)]))
+
+  (define (primop-def d)
+    (match d
+      [`(define ,label (lambda (,aloc ...) ,value))
+       `(define ,label (lambda ,aloc ,(primop-v value)))]))
+
+  (define (primop-v v)
+    (match v
+      [`(call ,val ,values ...)
+        (define valsRes (map primop-v values))
+        (define valRes (primop-v val))
+       `(call ,valRes ,@valsRes)]
+      [`(let ([,aloc ,value] ...) ,val)
+        (define valsRes (map list aloc (map primop-v value))) ; zip alocs with processed vals
+        (define valRes (primop-v val))
+       `(let ,valsRes ,valRes)]
+      [`(if ,val1 ,val2 ,val3)
+       `(if ,(primop-v val1) ,(primop-v val2) ,(primop-v val3))]
+      [triv 
+        (primop-triv triv)]))
+  
+  ; Generate a function and add to the accumulator if it is not there already.
+  ; Return the appropriate label, or t if t is not a primop.
+  (define (primop-triv t)
+    (match t
+      [binop #:when (dict-has-key? binops binop)
+        (if (dict-has-key? label-dict binop)
+            (dict-ref label-dict binop)
+            (generate-binop binop))]
+      ['make-vector
+        (if (dict-has-key? label-dict 'make-vector)
+            (dict-ref label-dict 'make-vector)
+            (generate-make-vec))]
+      ['vector-set!
+        (if (dict-has-key? label-dict 'vector-set!)
+            (dict-ref label-dict 'vector-set!)
+            (generate-vec-set))]
+      ['vector-ref
+        (if (dict-has-key? label-dict 'vector-ref)
+            (dict-ref label-dict 'vector-ref)
+            (generate-vec-ref))]
+      [unop #:when (dict-has-key? unops unop)
+        (if (dict-has-key? label-dict unop)
+            (dict-ref label-dict unop)
+            (generate-unop unop))]
+      [_ t])) ; everything else
+      
+  (primop-p p))
+
 
 ; Input:   exprs-unsafe-data-lang-v7
 ; Output:  exprs-bits-lang-v7
@@ -230,6 +418,7 @@
 
   (specify-p p))
 
+
 ; Input:   exprs-bits-lang-v7
 ; Output:  values-bits-lang-v7
 ; Purpose: Performs the monadic form transformation, unnesting all non-trivial operators and operands 
@@ -298,97 +487,6 @@
   
   (remop-p p))
 
-
-; Input:   exprs-unique-lang-v7
-; Output:  exprs-unsafe-data-lang-v7
-; Purpose: Implement safe primitive operations by inserting procedure definitions for each primitive 
-;          operation which perform dynamic tag checking, to ensure type safety.
-(define (implement-safe-primops p) 
-  
-  (define fn-acc '()) ; list of all the functions created
-  (define label-dict (make-hash)) ; mapping between primops and labels
-
-  ; map binops and unops to numbers.
-  ; for binop, doubles as error code.
-  (define binops #hash((* . 1) (+ . 2) (- . 3) (< . 4) 
-                       (<= . 5) (> . 6) (>= . 7) (eq? . 8)))
-  (define unops #hash((fixnum? . 17) (boolean? . 18) (empty? . 19) (void? . 20)
-                       (ascii-char? . 21) (error? . 22) (not . 23)))
-  
-  ; binop function generator. Returns a label.
-  (define (generate-binop binop)
-    ; each (binop . x) has function (lambda (tmp.a tmp.b) ...) where
-    ;  a = x*2-1
-    ;  b = a+1
-    (define id (dict-ref binops binop))
-    (define tmp-a (format-symbol "tmp.~a" (- (* id 2) 1)))
-    (define tmp-b (format-symbol "tmp.~a" (* id 2)))
-    (define new-fn (if (equal? binop 'eq?)
-                      `(lambda (,tmp-a ,tmp-b) (eq? ,tmp-a ,tmp-b))
-                      `(lambda (,tmp-a ,tmp-b)
-                                (if (fixnum? ,tmp-b)
-                                    (if (fixnum? ,tmp-a)
-                                        (,(format-symbol "unsafe-fx~a" binop) ,tmp-a ,tmp-b)
-                                        (error ,id))
-                                    (error ,id)))))
-    (define new-label (format-symbol "L.~a.~a" binop (+ 1 (length fn-acc))))
-    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
-    (dict-set! label-dict binop new-label)
-    new-label)
-  
-  ; unop function generator. Returns a label.
-  (define (generate-unop unop)
-    (define id (dict-ref unops unop))
-    (define tmp (format-symbol "tmp.~a" id))
-    (define new-fn `(lambda (,tmp) (,unop ,tmp)))
-    (define new-label (format-symbol "L.~a.~a" unop (+ 1 (length fn-acc))))
-    (set! fn-acc (cons `(define ,new-label ,new-fn) fn-acc))
-    (dict-set! label-dict unop new-label)
-    new-label)
-
-
-  (define (primop-p p)
-    (match p
-      [`(module ,defines ... ,value)
-        (define definesRes (map primop-def defines))
-        (define valRes (primop-v value))
-       `(module ,@fn-acc ,@definesRes ,valRes)]))
-
-  (define (primop-def d)
-    (match d
-      [`(define ,label (lambda (,aloc ...) ,value))
-       `(define ,label (lambda ,aloc ,(primop-v value)))]))
-
-  (define (primop-v v)
-    (match v
-      [`(call ,val ,values ...)
-        (define valsRes (map primop-v values))
-        (define valRes (primop-v val))
-       `(call ,valRes ,@valsRes)]
-      [`(let ([,aloc ,value] ...) ,val)
-        (define valsRes (map list aloc (map primop-v value))) ; zip alocs with processed vals
-        (define valRes (primop-v val))
-       `(let ,valsRes ,valRes)]
-      [`(if ,val1 ,val2 ,val3)
-       `(if ,(primop-v val1) ,(primop-v val2) ,(primop-v val3))]
-      [triv 
-        (primop-triv triv)]))
-  
-  ; Generate a function and add to the accumulator if it is not there already.
-  ; Return the appropriate label, or t if t is not a primop.
-  (define (primop-triv t)
-    (match t
-      [binop #:when (dict-has-key? binops binop)
-        (if (dict-has-key? label-dict binop)
-            (dict-ref label-dict binop)
-            (generate-binop binop))]
-      [unop #:when (dict-has-key? unops unop)
-        (if (dict-has-key? label-dict unop)
-            (dict-ref label-dict unop)
-            (generate-unop unop))]
-      [_ t])) ; everything else
-      
-  (primop-p p))
 
 ; =============== M6 Passes ================
 
