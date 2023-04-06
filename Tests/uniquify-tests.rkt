@@ -227,5 +227,76 @@
     )
 )
 
+(test-case "uniquify 15 - prim-f test"
+    (check-match
+      (uniquify 
+          '(module (define x (lambda (y z) *))
+                   (define a (lambda (b c) +))
+                   (define a (lambda (b c) -))
+                   (define a (lambda (b c) <))
+                   (define a (lambda (b c) <=))
+                   (define a (lambda (b c) >))
+                   (define a (lambda (b c) >=))
+                   (define a (lambda (b c) eq?))
+                   (define a (lambda (b c) fixnum?))
+                   (define a (lambda (b c) boolean?))
+                   (define a (lambda (b c) empty?))
+                   (define a (lambda (b c) void?))
+                   (define a (lambda (b c) ascii-char?))
+                   (define a (lambda (b c) error?))
+                   (define a (lambda (b c) not))
+                   (define a (lambda (b c) pair?))
+                   (define a (lambda (b c) vector?))
+                   (define a (lambda (b c) cons))
+                   (define a (lambda (b c) car))
+                   (define a (lambda (b c) cdr))
+                   (define a (lambda (b c) make-vector))
+                   (define a (lambda (b c) vector-length))
+                   (define a (lambda (b c) vector-set!))
+                   (define a (lambda (b c) vector-ref))
+                *
+            )
+      )
+
+     `(module
+            (define ,L.x.4 (lambda (,y.2 ,z.1) *))
+            (define ,L.a.27 (lambda (,b.4 ,c.3) +))
+            (define ,L.a.27 (lambda (,b.6 ,c.5) -))
+            (define ,L.a.27 (lambda (,b.8 ,c.7) <))
+            (define ,L.a.27 (lambda (,b.10 ,c.9) <=))
+            (define ,L.a.27 (lambda (,b.12 ,c.11) >))
+            (define ,L.a.27 (lambda (,b.14 ,c.13) >=))
+            (define ,L.a.27 (lambda (,b.16 ,c.15) eq?))
+            (define ,L.a.27 (lambda (,b.18 ,c.17) fixnum?))
+            (define ,L.a.27 (lambda (,b.20 ,c.19) boolean?))
+            (define ,L.a.27 (lambda (,b.22 ,c.21) empty?))
+            (define ,L.a.27 (lambda (,b.24 ,c.23) void?))
+            (define ,L.a.27 (lambda (,b.26 ,c.25) ascii-char?))
+            (define ,L.a.27 (lambda (,b.28 ,c.27) error?))
+            (define ,L.a.27 (lambda (,b.30 ,c.29) not))
+            (define ,L.a.27 (lambda (,b.32 ,c.31) pair?))
+            (define ,L.a.27 (lambda (,b.34 ,c.33) vector?))
+            (define ,L.a.27 (lambda (,b.36 ,c.35) cons))
+            (define ,L.a.27 (lambda (,b.38 ,c.37) car))
+            (define ,L.a.27 (lambda (,b.40 ,c.39) cdr))
+            (define ,L.a.27 (lambda (,b.42 ,c.41) make-vector))
+            (define ,L.a.27 (lambda (,b.44 ,c.43) vector-length))
+            (define ,L.a.27 (lambda (,b.46 ,c.45) vector-set!))
+            (define ,L.a.27 (lambda (,b.48 ,c.47) vector-ref))
+            *)
+    )
+)
+
+(test-case "uniquify 13 - prim-f and nested lets"
+    (check-match
+(uniquify '(module (let ((x empty?)) (let ((y (let ((z eq?)) z))) (let ((z (let ((y 2)) (call void? ascii-char?)))) (if (let ((x >)) (call x vector-set!)) 9 cons))))))
+
+     `(module
+        (let ((,x.1 empty?))
+            (let ((,y.2 (let ((,z.3 eq?)) ,z.3)))
+            (let ((,z.4 (let ((,y.5 2)) (call void? ascii-char?))))
+                (if (let ((,x.6 >)) (call ,x.6 vector-set!)) 9 cons)))))
+    )
+)
 
 
