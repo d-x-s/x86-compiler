@@ -187,3 +187,16 @@
          "mov QWORD [rbp - 16], -1\nmov r10, 0\nmov rax, 10\nadd rax, 1024\nimul rbx, rcx\nsub rbx, QWORD [rbp - 16]\nand rbx, rcx\nor rbx, rcx\nxor rbx, rcx\nsar rbx, rcx\nL.x.1:\nadd rax, QWORD [rbp - 16]\ncmp rax, r10\njg L.x.1\n"
     )
 )
+
+(test-case "generate-x64 15 - new address formats"
+    (check-equal?
+      (generate-x64
+           '(begin 
+            (set! (rbp - 16) -1) 
+            (set! (rax + 10) -1) 
+            (set! (rax + rbx) -1) 
+            (jump-if > L.x.1)))
+
+         "mov QWORD [rbp - 16], -1\nmov QWORD [rax + 10], -1\nmov QWORD [rax + rbx], -1\njg L.x.1\n"
+    )
+)
