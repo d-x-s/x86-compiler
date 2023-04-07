@@ -390,9 +390,3 @@
             (+ (* (arithmetic-shift-right (if (not (!= 14 6)) 440 448) 3) 8) 5))
         30))))
 
-; (test-case "specrep  - "
-;     (check-match
-;         (specify-representation
-;             `())
-
-;      `()))
