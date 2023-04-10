@@ -507,8 +507,8 @@
   (specify-p p))
 
 
-; Input:   exprs-bits-lang-v7
-; Output:  values-bits-lang-v7
+; Input:   exprs-bits-lang-v8
+; Output:  values-bits-lang-v8
 ; Purpose: Performs the monadic form transformation, unnesting all non-trivial operators and operands 
 ;          to binops, and calls making data flow explicit and simple to implement imperatively.
 ;          All operands are evaluated from left to right.
@@ -533,8 +533,10 @@
       [`(let ([,aloc ,value] ...) ,pred)
        `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
              ,(remop-pr pred))]
-      [`(,relop ,values ...)
-       (handle-vals `(,relop) values '())]
+      [`(begin ,effects ... ,pred)
+       `(begin ,@(map remop-eff effects) ,(remop-pr pred))]
+      [`(,relop ,val1 ,val2)
+       (handle-vals `(,relop) `(,val1 ,val2) '())]
       [_ pr])) ; bool
 
   (define (remop-bind b)
@@ -553,6 +555,10 @@
        (append base (reverse processedLst))]
       [(cons p pRest) #:when (not (list? p)) ; head is atomic
        (handle-vals base pRest (cons p processedLst))]
+      [`(,p) #:when (equal? base '(mset!))
+        ; special case: third value of mset! is not atomic
+        (define res (remop-v p))
+        (append base (reverse (cons res processedLst)))]
       [(cons p pRest)
        (define tmp (fresh))
        (define headRes (remop-v p))
@@ -562,16 +568,29 @@
   ; Return an instruction.
   (define (remop-v v)
     (match v
-      [`(call ,triv ,values ...)
-        (handle-vals `(call ,triv) values '())]
+      [`(mref ,val1 ,val2)
+        (handle-vals '(mref) `(,val1 ,val2) '())]
+      [`(alloc ,val)
+        (handle-vals '(alloc) `(,val) '())]
+      [`(call ,value ,values ...)
+        (handle-vals '(call) (cons value values) '())]
       [`(let ([,aloc ,value] ...) ,val) 
        `(let (,@(map remop-bind (map list aloc value))) ; zip the aloc and value lists
              ,(remop-v val))]
       [`(if ,pred ,val1 ,val2)
        `(if ,(remop-pr pred) ,(remop-v val1) ,(remop-v val2))]
-      [`(,binop ,values ...)
-        (handle-vals `(,binop) values '())]
+      [`(begin ,effects ... ,value)
+       `(begin ,@(map remop-eff effects) ,(remop-v value))]
+      [`(,binop ,val1 ,val2)
+        (handle-vals `(,binop) `(,val1 ,val2) '())]
       [_ v])) ; int, aloc, or label
+
+  (define (remop-eff e)
+    (match e
+      [`(mset! ,val1 ,val2 ,val3)
+        (handle-vals '(mset!) `(,val1 ,val2 ,val3) '())]
+      [`(begin ,effects ...)
+       `(begin ,@(map remop-eff effects))]))
   
   (remop-p p))
 
