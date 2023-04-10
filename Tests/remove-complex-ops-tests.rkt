@@ -224,3 +224,73 @@
                     (let ((z.24 (call L.-.2 x.20 n.23)))
                     (let ((y.25 (call L.fact.8 z.24))) (call L.*.4 x.20 y.25))))))))
         (call L.fact.8 40))))
+
+; M8 Tests
+
+(test-case "remop 13 - call non-atomic value"
+    (check-match
+        (remove-complex-opera*
+            `(module (call (let ([x.1 1] [x.2 (call x.1 (+ 1 2))]) x.1) 
+                            1 2 (+ 3 (- 3 4)))))
+
+     `(module
+        (let ((tmp.42
+                (let ((x.1 1) (x.2 (let ((tmp.43 (+ 1 2))) (call x.1 tmp.43)))) x.1)))
+            (let ((tmp.44 (let ((tmp.45 (- 3 4))) (+ 3 tmp.45))))
+            (call tmp.42 1 2 tmp.44))))))
+
+(test-case "remop 14 - value is mref"
+    (check-match
+        (remove-complex-opera*
+            `(module (mref (call x.1) (if (true) x.1 x.2))))
+
+     `(module
+        (let ((tmp.46 (call x.1)))
+            (let ((tmp.47 (if (true) x.1 x.2))) (mref tmp.46 tmp.47))))))
+
+(test-case "remop 15 - value is alloc"
+    (check-match
+        (remove-complex-opera*
+            `(module (alloc (+ 1 2))))
+
+     `(module (let ((tmp.48 (+ 1 2))) (alloc tmp.48)))))
+
+(test-case "remop 16 - value is begin effects"
+    (check-match
+        (remove-complex-opera*
+            `(module (begin (mset! (call L.s.1 (+ 1 2)) (call L.s.2 (+ 1 2)) (call L.s.3 (+ 1 2)))
+                            (begin (mset! (call L.s.1 (+ 1 2)) 1 2)
+                                   (mset! z.1 z.2 z.3))
+                            (+ (call x.1) (call x.2)))))
+
+     `(module
+        (begin
+            (let ((tmp.49 (let ((tmp.50 (+ 1 2))) (call L.s.1 tmp.50))))
+            (let ((tmp.51 (let ((tmp.52 (+ 1 2))) (call L.s.2 tmp.52))))
+                (mset! tmp.49 tmp.51 (let ((tmp.53 (+ 1 2))) (call L.s.3 tmp.53)))))
+            (begin
+            (let ((tmp.54 (let ((tmp.55 (+ 1 2))) (call L.s.1 tmp.55))))
+                (mset! tmp.54 1 2))
+            (mset! z.1 z.2 z.3))
+            (let ((tmp.56 (call x.1))) (let ((tmp.57 (call x.2))) (+ tmp.56 tmp.57)))))))
+
+(test-case "remop 17 - pred is begin"
+    (check-match
+        (remove-complex-opera*
+            `(module (if (begin (mset! (call L.s.1 (+ 1 2)) x.2 (call L.s.2 (+ 1 2)))
+                                (begin (mset! (call L.s.1 (+ 1 2)) 1 2)
+                                       (mset! z.1 z.2 z.3))
+                                (true)) 
+                         1 2)))
+
+     `(module
+        (if (begin
+                (let ((tmp.58 (let ((tmp.59 (+ 1 2))) (call L.s.1 tmp.59))))
+                (mset! tmp.58 x.2 (let ((tmp.60 (+ 1 2))) (call L.s.2 tmp.60))))
+                (begin
+                    (let ((tmp.61 (let ((tmp.62 (+ 1 2))) (call L.s.1 tmp.62))))
+                        (mset! tmp.61 1 2))
+                    (mset! z.1 z.2 z.3))
+                (true))
+            1
+            2))))
