@@ -1629,10 +1629,9 @@
   (uniquify-p p '()))
 
 
-; Input:   values-bits-lang-v7
-; Output:  imp-mf-lang-v7
-; Purpose: Compiles Values-bits-lang v7 to Imp-mf-lang v7 by picking a 
-;          particular order to implement let expressions using set!.
+; Input:   values-bits-lang-v8
+; Output:  imp-mf-lang-v8
+; Purpose: Picks a particular order to implement let expressions using set!.
 (define (sequentialize-let p)
   
   (define (seq-p p)
@@ -1655,6 +1654,8 @@
        `(if ,(seq-pr pred) ,(seq-t tail1) ,(seq-t tail2))]
       [`(call ,triv ,opand ...)
        t]
+      [`(begin ,effects ... ,tail)
+       `(begin ,@(map seq-eff effects) ,(seq-t tail))]
       [value
         (seq-v value)]))
     
@@ -1667,6 +1668,8 @@
       [`(let ([,aloc ,value] ...) ,pred)
        `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
                ,(seq-pr pred))]
+      [`(begin ,effects ... ,pred)
+       `(begin ,@(map seq-eff effects) ,(seq-pr pred))]
       [_ pr])) ; relop or bool
 
   ; Return an instruction, given a pair of an aloc and its value.
@@ -1683,12 +1686,24 @@
     (match v
       [`(let ([,aloc ,value] ...) ,val) 
        `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
-               ,@(seq-v val))]
+               ,(seq-v val))]
       [`(if ,pred ,val1 ,val2)
        `(if ,(seq-pr pred) ,(seq-v val1) ,(seq-v val2))]
       [`(call ,triv ,opand ...)
        v]
-      [_ v])) ; triv or binop
+      [`(begin ,effects ... ,value)
+       `(begin ,@(map seq-eff effects) ,(seq-v value))]
+      [_ v])) ; triv, binop, mref, or alloc
+
+  (define (seq-eff e)
+    (match e
+      [`(mset! ,aloc ,opand ,value) 
+       `(mset! ,aloc ,opand ,(seq-v value))]
+      [`(let ([,aloc ,value] ...) ,effect) 
+       `(begin ,@(map seq-bind (map list aloc value)) ; zip the aloc and value lists
+               ,(seq-eff effect))]
+      [`(begin ,effects ...)
+       `(begin ,@(map seq-eff effects))]))
 
   (seq-p p))
 

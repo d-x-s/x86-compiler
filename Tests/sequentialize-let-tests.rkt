@@ -232,3 +232,89 @@
             `(module (bitwise-and 2 3)))
         
         `(module (bitwise-and 2 3))))
+
+; M8 Tests
+
+(test-case "sequentialize 21 - tail is begin, value is begin"
+   (check-equal?
+        (sequentialize-let
+            `(module (begin 
+                        (mset! y.1 z.1 18)
+                        (mset! y.1 5 (+ 1 2))
+                        (mset! y.1 5 (alloc x.1)) 
+                        (mset! y.1 5 (mref x.1 2))
+                        (mset! y.1 5 (let ([y.1 200] [y.2 300]) x.5))
+                        (mset! y.1 5 (begin (mset! y.1 5 (if (> 1 2) 1 2)) x.5))
+                        L.start.1)))
+        
+        `(module
+            (begin
+                (mset! y.1 z.1 18)
+                (mset! y.1 5 (+ 1 2))
+                (mset! y.1 5 (alloc x.1))
+                (mset! y.1 5 (mref x.1 2))
+                (mset! y.1 5 (begin (set! y.1 200) (set! y.2 300) x.5))
+                (mset! y.1 5 (begin (mset! y.1 5 (if (> 1 2) 1 2)) x.5))
+                L.start.1))))
+
+(test-case "sequentialize 22 - effect is begin, effect is let"
+   (check-equal?
+        (sequentialize-let
+            `(module (begin
+                        (mset! y.1 5 (begin (mset! y.1 5 (if (> 1 2) 1 2)) x.5))
+                        (begin 
+                            (mset! y.1 5 (mref x.1 2))
+                            (mset! y.1 5 (let ([y.1 200] [y.2 300]) x.5)))
+                        (let ([y.1 1] [y.2 (mref x.1 5)] [y.3 (alloc y.7)])
+                             (mset! y.1 5 (mref x.1 2)))
+                        L.start.1)))
+        
+        `(module
+            (begin
+                (mset! y.1 5 (begin (mset! y.1 5 (if (> 1 2) 1 2)) x.5))
+                (begin
+                (mset! y.1 5 (mref x.1 2))
+                (mset! y.1 5 (begin (set! y.1 200) (set! y.2 300) x.5)))
+                (begin
+                (set! y.1 1)
+                (set! y.2 (mref x.1 5))
+                (set! y.3 (alloc y.7))
+                (mset! y.1 5 (mref x.1 2)))
+                L.start.1))))
+
+(test-case "sequentialize 23 - pred is begin"
+   (check-equal?
+        (sequentialize-let
+            `(module 
+                (if (let ((x.1 (alloc 8)) (y.1 (alloc 16)) (z.1 0)) 
+                         (begin 
+                            (mset! x.1 0 (let ((tmp.135 (let ((t.1 32)) (let ((tmp.136 (+ t.1 8))) (+ t.1 tmp.136))))) 
+                                              (alloc tmp.135))) 
+                            (mset! y.1 z.1 18) 
+                            (let ((tmp.137 (+ z.1 8))) (mset! y.1 tmp.137 40)) 
+                            (let ((tmp.138 (mref y.1 z.1))) 
+                                 (let ((tmp.139 (let ((tmp.140 (+ z.1 8))) (mref y.1 tmp.140)))) (= tmp.138 tmp.139))))) 
+                    8 16)))
+        
+        `(module
+            (if (begin
+                    (set! x.1 (alloc 8))
+                    (set! y.1 (alloc 16))
+                    (set! z.1 0)
+                    (begin
+                    (mset! x.1 0
+                    (begin
+                        (set! tmp.135
+                        (begin
+                            (set! t.1 32)
+                            (begin (set! tmp.136 (+ t.1 8)) (+ t.1 tmp.136))))
+                        (alloc tmp.135)))
+                    (mset! y.1 z.1 18)
+                    (begin (set! tmp.137 (+ z.1 8)) (mset! y.1 tmp.137 40))
+                    (begin
+                        (set! tmp.138 (mref y.1 z.1))
+                        (begin
+                        (set! tmp.139
+                            (begin (set! tmp.140 (+ z.1 8)) (mref y.1 tmp.140)))
+                        (= tmp.138 tmp.139)))))
+                8 16))))
