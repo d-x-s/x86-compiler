@@ -1919,6 +1919,10 @@
   ; Returns a list of instructions
   (define (sel-ins-v v aloc)
     (match v
+      [`(mref ,loc ,opand)
+       `((set! ,aloc (mref ,loc ,opand)))]
+      [`(alloc ,opand)
+       `((set! ,aloc (alloc ,opand)))]
       [`(,binop ,opand1 ,opand2)
        `((set! ,aloc ,opand1)
          (set! ,aloc (,binop ,aloc ,opand2)))]
@@ -1964,7 +1968,9 @@
         (define tailRes (sel-ins-t tail))
         (if (equal? (length tailRes) 1)
            `((return-point ,label ,@(sel-ins-t tail)))
-           `((return-point ,label (begin ,@(sel-ins-t tail)))))]))
+           `((return-point ,label (begin ,@(sel-ins-t tail)))))]
+      [`(mset! ,loc ,opand ,triv)
+       `((mset! ,loc ,opand ,triv))]))
 
   (sel-ins-p p))
 
