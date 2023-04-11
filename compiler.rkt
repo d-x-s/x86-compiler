@@ -450,21 +450,14 @@
   (primop-p p))
 
 
-; Input:   exprs-unsafe-data-lang-v7
-; Output:  exprs-bits-lang-v7
+; Input:   exprs-unsafe-data-lang-v8
+; Output:  exprs-bits-lang-v8
 ; Purpose: Compiles immediate data and primitive operations into their implementations as 
 ;          ptrs and primitive bitwise operations on ptrs.
 (define (specify-representation p)
   
   (define binops #hash((unsafe-fx* . *) (unsafe-fx+ . +) (unsafe-fx- . -) (eq? . =) 
                        (unsafe-fx< . <) (unsafe-fx<= . <=) (unsafe-fx> . >) (unsafe-fx>= . >=)))
-  (define unops  #hash((fixnum? . fixnum) (boolean? . boolean) 
-                       (empty? . empty) (void? . void) 
-                       (ascii-char? . ascii-char) (error? . error) 
-                       (not . not)))
-
-  (define (primop? p)
-    (or (dict-has-key? binops p) (dict-has-key? unops p)))
 
   (define (specify-p p)
     (match p
@@ -484,10 +477,19 @@
        `(let ,(map specify-assign assigns) ,(specify-v value))]
       [`(if ,value1 ,value2 ,value3)
        `(if ,(specify-pred value1) ,(specify-v value2) ,(specify-v value3))]
-      [`(,primop ,values ...) #:when (primop? primop)
+      [`(begin ,effects ... ,value)
+       `(begin ,@(map specify-e effects) ,(specify-v value))]
+      [`(,primop ,values ...) #:when (not (or (equal? primop 'error) (equal? primop 'void)))
         (specify-primop primop values)]
       [triv
         (specify-triv triv)]))
+
+  (define (specify-e e)
+    (match e
+      [`(begin ,effects ...)
+       `(begin ,@(map specify-e effects))]
+      [`(,primop ,values ...)
+        (specify-primop primop values)]))
 
   ; Given an aloc and a value, return the same pair but with the processed value.
   (define (specify-assign a)
@@ -495,6 +497,7 @@
       [`(,aloc ,value)
        `(,aloc ,(specify-v value))]))
 
+  ; Handles a value in pred position
   (define (specify-pred p)
     (match p
       [`(not ,pred)
@@ -528,12 +531,47 @@
       ['ascii-char? `(if (= (bitwise-and ,@(map specify-v v) ,(current-ascii-char-mask)) ,(current-ascii-char-tag)) ,(current-true-ptr) ,(current-false-ptr))]
       ['error?      `(if (= (bitwise-and ,@(map specify-v v) ,(current-error-mask)) ,(current-error-tag)) ,(current-true-ptr) ,(current-false-ptr))]
       ['not         `(if (!= ,@(map specify-v v) ,(current-false-ptr)) ,(current-false-ptr) ,(current-true-ptr))]
-      ['unsafe-fx* 
-        (if (int61? (first (map specify-v v)))
-            `(* ,(arithmetic-shift (first (map specify-v v)) (- (current-fixnum-shift))) ,(second (map specify-v v)))
-            (if (int61? (second (map specify-v v)))
-              `(* ,(first (map specify-v v)) ,(arithmetic-shift (second (map specify-v v)) (- (current-fixnum-shift))))
-              `(* ,(first (map specify-v v)) (arithmetic-shift-right ,(second (map specify-v v)) ,(current-fixnum-shift)))))]
+      ['pair?       `(if (= (bitwise-and ,@(map specify-v v) ,(current-pair-mask)) ,(current-pair-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['vector?     `(if (= (bitwise-and ,@(map specify-v v) ,(current-vector-mask)) ,(current-vector-tag)) ,(current-true-ptr) ,(current-false-ptr))]
+      ['cons
+        (define tmp (fresh))
+        (define val1 (specify-v (first v)))
+        (define val2 (specify-v (second v)))
+       `(let ((,tmp (+ (alloc ,(current-pair-size)) ,(current-pair-tag)))) (begin (mset! ,tmp -1 ,val1) (mset! ,tmp ,(- (current-word-size-bytes) 1) ,val2) ,tmp))]
+      ['unsafe-car   `(mref ,@(map specify-v v) ,(car-offset))]
+      ['unsafe-cdr   `(mref ,@(map specify-v v) ,(cdr-offset))]
+      ['unsafe-make-vector
+        (define tmp (fresh))
+        (define valRes (specify-v (first v)))
+        (define allocParam (if (number? valRes) 
+                               (if (int61? (first v)) (+ valRes 8) (+ valRes 2))
+                              `(* (+ 1 (arithmetic-shift-right ,valRes ,(current-vector-shift))) ,(current-word-size-bytes))))
+       `(let ([,tmp (+ (alloc ,allocParam) ,(current-vector-tag))])
+            (begin (mset! ,tmp -3 ,valRes) ,tmp))]
+      ['unsafe-vector-length `(mref ,(specify-v (first v)) ,(+ -3 (current-vector-length-displacement)))]
+      ['unsafe-vector-set!
+        (define val1Res (specify-v (first v)))
+        (define val2Res (specify-v (second v)))
+        (define val3Res (specify-v (third v)))
+       `(mset! ,val1Res
+               ,(if (number? val2Res)
+                    (if (int61? (second v)) (+ val2Res 5) (- val2Res 1))
+                   `(+ (* (arithmetic-shift-right ,val2Res ,(current-vector-shift)) ,(current-word-size-bytes)) 5))
+               ,val3Res)]
+      ['unsafe-vector-ref
+        (define val1Res (specify-v (first v)))
+        (define val2Res (specify-v (second v)))
+       `(mref ,val1Res
+              ,(if (number? val2Res)
+                    (+ val2Res 5)
+                  `(+ (* (arithmetic-shift-right ,val2Res ,(current-vector-shift)) ,(current-word-size-bytes)) 5)))]
+      ['unsafe-fx*
+        (define vals (map specify-v v))
+        (if (int61? (first vals))
+            `(* ,(arithmetic-shift (first vals) (- (current-fixnum-shift))) ,(second vals))
+            (if (int61? (second vals))
+              `(* ,(first vals) ,(arithmetic-shift (second vals) (- (current-fixnum-shift))))
+              `(* ,(first vals) (arithmetic-shift-right ,(second vals) ,(current-fixnum-shift)))))]
       [binop
         (if (or (equal? binop 'unsafe-fx+) (equal? binop 'unsafe-fx-))
            `(,(dict-ref binops binop) ,@(map specify-v v))
