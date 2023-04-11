@@ -289,3 +289,34 @@
                 (set! y.59 x.58)
                 (set! y.59 (arithmetic-shift-right y.59 -1))
                 (jump x.0 rbp rdi)))))
+
+; M8 Tests
+
+(test-case "select 16 - mset! operation"
+   (check-equal?
+        (select-instructions
+            `(module ((new-frames ())) 
+                     (begin 
+                        (mset! rax 10 L.done.1)
+                        (jump x.0 rbp rdi))))
+        
+        `(module 
+            ((new-frames ())) 
+            (begin (mset! rax 10 L.done.1) (jump x.0 rbp rdi)))
+    )
+)
+
+(test-case "select 16 - new value cases"
+   (check-equal?
+        (select-instructions
+            `(module ((new-frames ())) 
+                     (begin 
+                        (set! rax (mref rax 10))
+                        (set! rbx (alloc 11))
+                        (jump x.0 rbp rdi))))
+        
+        `(module
+            ((new-frames ()))
+            (begin (set! rax (mref rax 10)) (set! rbx (alloc 11)) (jump x.0 rbp rdi)))
+    )
+)
