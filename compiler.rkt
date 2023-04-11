@@ -86,6 +86,12 @@
 ;    values
 ;    values))
 
+; ================= Global Variables =================
+
+(define fbp (current-frame-base-pointer-register))
+
+(define hbp (current-heap-base-pointer-register))
+
 ; ================= Helpers =================
 
 ; return true if the value is in the list, false otherwise
@@ -131,11 +137,42 @@
 
 ; =============== M8 Passes ================
 
-; Input:   
-; Output:  
-; Purpose: 
+; Input: paren-x64-mops-v8
+; Output: paren-x64-mops-v8
+; Purpose: Compiles mops to instructios on pointers with index and displacement-mode operands.
 (define (implement-mops p)
-  p)
+
+  (define (mop-p p) 
+    (match p
+      [`(begin ,ss ...)
+       `(begin ,@(map mop-s ss))
+      ]
+    )
+  )
+
+  (define (mop-s s)
+    (match s
+      [`(with-label ,label ,s)
+       `(with-label ,label ,(mop-s s))
+      ]
+      [`(set! ,reg1 (mref ,reg2 ,index))
+       `(set! ,reg1 (,reg2 + ,index))
+      ]
+      [`(mset! ,reg1 ,index ,int32)
+        #:when (int32? int32)
+       `(set! (,reg1 + ,index) ,int32)
+      ]
+      [`(mset! ,reg1 ,index ,trg)
+      #:when (or (register? trg) (label? trg))
+       `(set! (,reg1 + ,index) ,trg)
+      ]
+
+      [_ s]
+    )
+  )
+
+  (mop-p p)
+)
 
 
 ; Input: asm-alloc-lang-v8
@@ -148,8 +185,6 @@
 ;       (set! ,loc ,hbp)
 ;       (set! ,hbp (+ ,hbp ,index)))
 (define (expose-allocation-pointer p)
-
-  (define hbp (current-heap-base-pointer-register))
 
   (define (expose-alloc-p p)
     (match p
