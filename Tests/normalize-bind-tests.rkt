@@ -236,3 +236,98 @@
             `(module (bitwise-ior 1 2)))
         
         `(module (bitwise-ior 1 2))))
+
+; M8 Tests
+
+(test-case "normalize 20 - value is mref"
+   (check-equal?
+        (normalize-bind
+            `(module (mref x.1 x.2)))
+        
+        `(module (mref x.1 x.2))))
+
+(test-case "normalize 21 - value is alloc"
+   (check-equal?
+        (normalize-bind
+            `(module (alloc x.1)))
+        
+        `(module (alloc x.1))))
+
+(test-case "normalize 22 - effect is mset"
+   (check-equal?
+        (normalize-bind
+            `(module (begin 
+                        (mset! x.1 5 (+ 1 2))
+                        (mset! x.1 5 (mref x.1 2))
+                        (mset! x.1 5 (alloc 5))
+                        (mset! x.1 5 (begin 
+                                        (mset! x.1 5 0) 
+                                        (mset! x.1 x.2 0) 
+                                        (mset! x.2 x.3 (begin 
+                                                            (mset! x.1 5 L.start.1)
+                                                            (mset! x.1 5 (call L.s.1 x.1 1 2)) 5)) 6))
+                        (mset! x.1 5 (if (not (> x.37 12)) 
+                            (if (if (begin (set! z.39 x.37) (< y.38 z.39)) 
+                                    (true) (false)) 
+                                10 12) 
+                            (+ x.37 y.38)))
+
+                        2)))
+        
+        `(module
+            (begin
+                (begin (set! tmp.1 (+ 1 2)) (mset! x.1 5 tmp.1))
+                (begin (set! tmp.2 (mref x.1 2)) (mset! x.1 5 tmp.2))
+                (begin (set! tmp.3 (alloc 5)) (mset! x.1 5 tmp.3))
+                (begin
+                (mset! x.1 5 0)
+                (mset! x.1 x.2 0)
+                (begin
+                    (mset! x.1 5 L.start.1)
+                    (begin (set! tmp.4 (call L.s.1 x.1 1 2)) (mset! x.1 5 tmp.4))
+                    (mset! x.2 x.3 5))
+                (mset! x.1 5 6))
+                (if (not (> x.37 12))
+                (if (if (begin (set! z.39 x.37) (< y.38 z.39)) (true) (false))
+                    (mset! x.1 5 10)
+                    (mset! x.1 5 12))
+                (begin (set! tmp.5 (+ x.37 y.38)) (mset! x.1 5 tmp.5)))
+                2))))
+
+(test-case "normalize 23 - effect is set"
+   (check-equal?
+        (normalize-bind
+            `(module (begin 
+                        (set! x.1 (+ 1 2))
+                        (set! x.1 (mref x.1 2))
+                        (set! x.1 (alloc 5))
+                        (set! x.1 (begin 
+                                        (set! x.1 0) 
+                                        (set! x.1 0) 
+                                        (set! x.2 (begin 
+                                                            (set! x.1 L.start.1)
+                                                            (set! x.1 (call L.s.1 x.1 1 2)) 5)) 6))
+                        (set! x.1 (if (not (> x.37 12)) 
+                            (if (if (begin (set! z.39 x.37) (< y.38 z.39)) 
+                                    (true) (false)) 
+                                10 12) 
+                            (+ x.37 y.38)))
+
+                        2)))
+        
+        `(module
+            (begin
+                (set! x.1 (+ 1 2))
+                (set! x.1 (mref x.1 2))
+                (set! x.1 (alloc 5))
+                (begin
+                (set! x.1 0)
+                (set! x.1 0)
+                (begin (set! x.1 L.start.1) (set! x.1 (call L.s.1 x.1 1 2)) (set! x.2 5))
+                (set! x.1 6))
+                (if (not (> x.37 12))
+                (if (if (begin (set! z.39 x.37) (< y.38 z.39)) (true) (false))
+                    (set! x.1 10)
+                    (set! x.1 12))
+                (set! x.1 (+ x.37 y.38)))
+                2))))

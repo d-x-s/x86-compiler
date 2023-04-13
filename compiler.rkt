@@ -1863,10 +1863,10 @@
   (seq-p p))
 
 
-; Input:   imp-mf-lang-v7
-; Output:  proc-imp-cmf-lang-v7
-; Purpose: Compiles Imp-mf-lang v7 to Proc-imp-cmf-lang v7, pushing set! under 
-;          begin so that the right-hand-side of each set! is simple value-producing operation.
+; Input:   imp-mf-lang-v8
+; Output:  proc-imp-cmf-lang-v8
+; Purpose: Pushes set! and mset! under begin and if so that the right-hand-side 
+;          of each is simple value-producing operand.
 (define (normalize-bind p)
 
   (define (n-bind-p p)
@@ -1900,7 +1900,7 @@
        `(if ,(n-bind-pr pred) ,(n-bind-v value1) ,(n-bind-v value2))]
       [`(call ,triv ,opand ...)
         v]
-      [_ v])) ; triv or binop
+      [_ v])) ; triv, binop, mref, or alloc
 
   ; Return an instruction
   (define (n-bind-pr pr)
@@ -1920,8 +1920,19 @@
         `(begin ,@(map n-bind-e eff) ,(n-bind-e `(set! ,aloc ,(n-bind-v val))))]
       [`(set! ,aloc (if ,pred ,val1 ,val2)) ; normalize so that if is above set.
         `(if ,(n-bind-pr pred) ,(n-bind-e `(set! ,aloc ,(n-bind-v val1))) ,(n-bind-e `(set! ,aloc ,(n-bind-v val2))))]
-      [`(set! ,aloc ,trivOrBinop) 
-        `(set! ,aloc ,trivOrBinop)]
+      [`(set! ,aloc ,value) 
+        e]
+
+      [`(mset! ,aloc ,opand (begin ,eff ... ,val)) ; normalize so that begin is above set.
+        `(begin ,@(map n-bind-e eff) ,(n-bind-e `(mset! ,aloc ,opand ,(n-bind-v val))))]
+      [`(mset! ,aloc ,opand (if ,pred ,val1 ,val2)) ; normalize so that if is above set.
+        `(if ,(n-bind-pr pred) ,(n-bind-e `(mset! ,aloc ,opand ,(n-bind-v val1))) ,(n-bind-e `(mset! ,aloc ,opand ,(n-bind-v val2))))]
+      [`(mset! ,aloc ,opand ,value) #:when (list? value)
+        (define tmp (fresh))
+       `(begin (set! ,tmp ,(n-bind-v value)) (mset! ,aloc ,opand ,tmp))]
+      [`(mset! ,aloc ,opand ,value)
+        e]
+
       [`(if ,pred ,eff1 ,eff2)
        `(if ,(n-bind-pr pred) ,(n-bind-e eff1) ,(n-bind-e eff2))]
       [`(begin ,eff ...)
