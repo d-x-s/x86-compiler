@@ -2221,8 +2221,6 @@
 ; Purpose: Compile nested-asm-lang-fvars-v8 to nested-asm-lang-v8 by reifying fvars into displacement mode operands.
 (define (implement-fvars p)
   
-  (define fbp (current-frame-base-pointer-register))
-
   (define (fvars-p p)
     (match p
       [`(module ,defines ... ,tail)
