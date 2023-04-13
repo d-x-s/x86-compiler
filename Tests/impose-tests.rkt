@@ -188,3 +188,24 @@
       (begin
         (set! tmp-ra.10 r15)
         (begin (set! rax (bitwise-xor 1 2)) (jump tmp-ra.10 rbp rax))))))
+
+; M8 Tests
+
+(test-case "impose 10 - effect is mset"
+  (check-equal?
+    (impose-calling-conventions
+      '(module (begin
+                  (mset! x.1 5 5)
+                  (mset! x.1 x.2 x.3)
+                  (mset! x.1 5 L.start.1)
+                  5)))
+
+    '(module
+      ((new-frames ()))
+      (begin
+        (set! tmp-ra.11 r15)
+        (begin
+          (mset! x.1 5 5)
+          (mset! x.1 x.2 x.3)
+          (mset! x.1 5 L.start.1)
+          (begin (set! rax 5) (jump tmp-ra.11 rbp rax)))))))

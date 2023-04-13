@@ -937,9 +937,9 @@
 
 ; =============== M5 Passes ================
 
-; Input:   proc-imp-cmf-lang-v7
-; Output:  imp-cmf-lang-v7
-; Purpose: Compiles Proc-imp-cmf-lang v7 to Imp-cmf-lang v7 by imposing calling conventions on all calls 
+; Input:   proc-imp-cmf-lang-v8
+; Output:  imp-cmf-lang-v8
+; Purpose: Compiles Proc-imp-cmf-lang v8 to Imp-cmf-lang v8 by imposing calling conventions on all calls 
 ;          (both tail and non-tail calls), and entry points. The registers used to passing parameters are 
 ;          defined by current-parameter-registers, and the registers used for returning are defined by 
 ;          current-return-address-register and current-return-value-register.
@@ -1009,6 +1009,8 @@
           (set! ,aloc ,crv))]
       [`(set! ,aloc ,value)
         `(set! ,aloc ,value)]
+      [`(mset! ,aloc ,opand ,triv)
+        e]
       [`(begin ,effects ... )
         `(begin ,@(map (curry impose-e tmp) effects))]
       [`(if ,pred ,effect1 ,effect2)
@@ -1941,10 +1943,10 @@
   (n-bind-p p))
 
 
-; Input:   imp-cmf-lang-v7
-; Output:  asm-pred-lang-v7
-; Purpose: Compiles Imp-cmf-lang v7 to Asm-pred-lang v7, selecting appropriate sequences of
-;          abstract assembly instructions to implement the operations of the source language.
+; Input:   imp-cmf-lang-v8
+; Output:  asm-alloc-lang-v8
+; Purpose: Selects appropriate sequences of abstract assembly instructions to 
+;          implement the operations of the source language.
 (define (select-instructions p)
 
   (define (sel-ins-p p)
