@@ -2258,61 +2258,121 @@
   (patch-p p))
 
 
-; Input:   nested-asm-lang-fvars-v7
-; Output:  nested-asm-lang-v7
-; Purpose: Compile nested-asm-lang-fvars-v7 to nested-asm-lang-v7 by reifying fvars into displacement mode operands.
+; Input:   nested-asm-lang-fvars-v8
+; Output:  nested-asm-lang-v8
+; Purpose: Compile nested-asm-lang-fvars-v8 to nested-asm-lang-v8 by reifying fvars into displacement mode operands.
 (define (implement-fvars p)
-  (define (f-program->p p)
+  
+  (define fbp (current-frame-base-pointer-register))
+
+  (define (fvars-p p)
     (match p
       [`(module ,defines ... ,tail)
-       `(module ,@(map fvars-defines defines) ,(implement-t tail))]))
+       `(module ,@(map fvars-defines defines) ,(fvars-t tail 0))]))
   
   (define (fvars-defines d)
     (match d
       [`(define ,label ,tail)
-        `(define ,label ,(implement-t tail))]))
+       `(define ,label ,(fvars-t tail 0))]))
 
-  (define (fvar->addr fvar)
-    ; Convert an fvar into a statement of the form (currentfbp - offset)
+  ; Convert an fvar into a statement of the form (currentfbp - offset)
+  ; Does nothing if input is not an fvar.
+  ; offset: the current offset to fbp
+  (define (fvar->addr fvar offset)
     (if (fvar? fvar)
-      (list (current-frame-base-pointer-register) `- (* (fvar->index fvar) (current-word-size-bytes)))
-      fvar))
-  (define (implement-t t)
-    ; Given a statement, convert addresses into fvars.
+        `(,fbp 
+            - 
+          ,(+ (* (fvar->index fvar) (current-word-size-bytes)) offset))
+        fvar))
+
+  ; Return an instruction
+  (define (fvars-t t offset)
     (match t
       [`(jump ,trg)
-        `(jump ,(fvar->addr trg))]
+        `(jump ,(fvar->addr trg offset))]
       [`(begin ,effects ... ,tail)
-        `(begin ,@(map implement-e effects) ,(implement-t tail))]
-      [`(if ,pred ,tail1 ,tail2)
-        `(if ,(implement-pred pred) ,(implement-t tail1) ,(implement-t tail2))]))
+        (define-values (effRes e-offset)
+          (for/fold ([effRes '()] ; list of processed effects
+                     [currOffset offset])
+                    ([e effects])
+                    (define-values (e-ins e-off)
+                                   (fvars-e e currOffset))
+                    (values (append effRes `(,e-ins)) e-off)))
 
-  (define (implement-pred pred)
+        (define tailRes (fvars-t tail e-offset))
+
+       `(begin ,@effRes ,tailRes)]
+      [`(if ,pred ,tail1 ,tail2)
+        (define tailRes1 (fvars-t tail1 offset))
+        (define tailRes2 (fvars-t tail2 offset))
+       `(if ,(fvars-pred pred offset) ,tailRes1 ,tailRes2)]))
+
+  ; Return an instruction
+  (define (fvars-pred pred offset)
     (match pred
       [`(not ,pred)
-        `(not ,(implement-pred pred))]
+       `(not ,(fvars-pred pred offset))]
       [`(begin ,effects ... ,pred)
-        `(begin ,@(map implement-e effects) ,(implement-pred pred))]
-      [`(if ,pred1 ,pred2 ,pred3)
-        `(if ,(implement-pred pred1) ,(implement-pred pred2) ,(implement-pred pred3))]
-      [`(,relop ,loc ,opand)
-        `(,relop ,(fvar->addr loc) ,(fvar->addr opand))]
-      [_ pred]))
+        (define-values (effRes e-offset)
+          (for/fold ([effRes '()] ; list of processed effects
+                     [currOffset offset])
+                    ([e effects])
+                    (define-values (e-ins e-off)
+                                   (fvars-e e currOffset))
+                    (values (append effRes `(,e-ins)) e-off)))
 
-  (define (implement-e e)
+        (define predRes (fvars-pred pred e-offset))
+
+       `(begin ,@effRes ,predRes)]
+      [`(if ,pred1 ,pred2 ,pred3)
+       `(if ,(fvars-pred pred1 offset) ,(fvars-pred pred2 offset) ,(fvars-pred pred3 offset))]
+      [`(,relop ,loc ,opand)
+       `(,relop ,(fvar->addr loc offset) ,(fvar->addr opand offset))]
+      [_ pred])) ; bool
+
+  ; Return (values new-ins new-fbp-offset)
+  (define (fvars-e e offset)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,ind))
+        (values
+          `(set! ,(fvar->addr loc_1 offset) (mref ,(fvar->addr loc_2 offset) ,(fvar->addr ind offset)))
+          offset)]
+      [`(set! ,loc_1 (,binop ,loc_1 ,opand)) #:when (and (equal? loc_1 fbp) (number? opand))
+        (values e ((binop->op binop) offset opand))] ; update offset
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
-        `(set! ,(fvar->addr loc_1) (,binop ,(fvar->addr loc_1) ,(fvar->addr opand)))]
-      [`(set! ,loc ,triv)
-        `(set! ,(fvar->addr loc) ,(fvar->addr triv))]
+        (values
+          `(set! ,(fvar->addr loc_1 offset) (,binop ,(fvar->addr loc_1 offset) ,(fvar->addr opand offset)))
+          offset)]
+      [`(set! ,loc ,triv)  ; Don't change offset even if loc is fbp
+        (values `(set! ,(fvar->addr loc offset) ,(fvar->addr triv offset)) offset)]
+      [`(mset! ,loc ,index ,triv)
+        (values 
+          `(mset! ,(fvar->addr loc offset) ,(fvar->addr index offset) ,(fvar->addr triv offset))
+          offset)]
       [`(begin ,effects ... )
-        `(begin ,@(map implement-e effects))]
+        (define-values (effRes e-offset)
+          (for/fold ([effRes '()] ; list of processed effects
+                     [currOffset offset])
+                    ([e effects])
+                    (define-values (e-ins e-off)
+                                   (fvars-e e currOffset))
+                    (values (append effRes `(,e-ins)) e-off)))
+
+        (values `(begin ,@effRes) e-offset)]
       [`(if ,pred ,effect1 ,effect2)
-        `(if ,(implement-pred pred) ,(implement-e effect1) ,(implement-e effect2))]
+        (define-values (e1Res e1-off) (fvars-e effect1 offset))
+        (define-values (e2Res e2-off) (fvars-e effect2 offset)) ; the resulting e1-off and e2-off should be the equal
+        (values `(if ,(fvars-pred pred offset) ,e1Res ,e2Res) e1-off)]
       [`(return-point ,label ,tail)
-        `(return-point ,label ,(implement-t tail))]))
+        (values `(return-point ,label ,(fvars-t tail offset)) offset)]))
+  
+  (define (binop->op binop)
+    (match binop
+      ['* *]
+      ['+ +]
+      ['- -]))
        
-  (f-program->p p))
+  (fvars-p p))
 
 
 ; Input:   paren-x64-v7
