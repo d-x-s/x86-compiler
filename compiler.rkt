@@ -137,46 +137,33 @@
 
 ; =============== M8 Passes ================
 
-; Input: paren-x64-mops-v8
-; Output: paren-x64-mops-v8
+; Input:   paren-x64-mops-v8
+; Output:  paren-x64-mops-v8
 ; Purpose: Compiles mops to instructios on pointers with index and displacement-mode operands.
 (define (implement-mops p)
 
   (define (mop-p p) 
     (match p
       [`(begin ,ss ...)
-       `(begin ,@(map mop-s ss))
-      ]
-    )
-  )
+       `(begin ,@(map mop-s ss))]))
 
   (define (mop-s s)
     (match s
       [`(with-label ,label ,s)
-       `(with-label ,label ,(mop-s s))
-      ]
+       `(with-label ,label ,(mop-s s))]
       [`(set! ,reg1 (mref ,reg2 ,index))
-       `(set! ,reg1 (,reg2 + ,index))
-      ]
-      [`(mset! ,reg1 ,index ,int32)
-        #:when (int32? int32)
-       `(set! (,reg1 + ,index) ,int32)
-      ]
-      [`(mset! ,reg1 ,index ,trg)
-      #:when (or (register? trg) (label? trg))
-       `(set! (,reg1 + ,index) ,trg)
-      ]
+       `(set! ,reg1 (,reg2 + ,index))]
+      [`(mset! ,reg1 ,index ,int32) #:when (int32? int32)
+       `(set! (,reg1 + ,index) ,int32)]
+      [`(mset! ,reg1 ,index ,trg) #:when (or (register? trg) (label? trg))
+       `(set! (,reg1 + ,index) ,trg)]
+      [_ s]))
 
-      [_ s]
-    )
-  )
-
-  (mop-p p)
-)
+  (mop-p p))
 
 
-; Input: asm-alloc-lang-v8
-; Output: asm-pred-lang-v8
+; Input:   asm-alloc-lang-v8
+; Output:  asm-pred-lang-v8
 ; Purpose: Implements the allocation primitive in terms of pointer arithmetic on the current-heap-base-pointer-register.
 ; Transformation: 
 ;   `set!, loc (alloc, index)) 
@@ -189,77 +176,48 @@
   (define (expose-alloc-p p)
     (match p
       [`(module ,info ,ds ... ,tail)
-       `(module ,info ,@(map expose-alloc-define ds) ,(expose-alloc-tail tail))
-      ]
-    )
-  )
+       `(module ,info ,@(map expose-alloc-define ds) ,(expose-alloc-tail tail))]))
 
   (define (expose-alloc-define d)
     (match d
       [`(define ,label ,info ,tail)
-       `(define ,label ,info ,(expose-alloc-tail tail))
-      ]
-    )
-  )
+       `(define ,label ,info ,(expose-alloc-tail tail))]))
 
   (define (expose-alloc-tail t)
     (match t
       [`(begin ,fx ... ,tail)
        `(begin ,@(map expose-alloc-effect fx) ,(expose-alloc-tail tail))]
-      
       [`(if ,pred ,tail1 ,tail2)
        `(if ,(expose-alloc-pred pred) ,(expose-alloc-tail tail1) ,(expose-alloc-tail tail2))]
-
       [_ t]))
 
   (define (expose-alloc-effect e)
     (match e
       [`(begin ,fx ...)
-       `(begin ,@(map expose-alloc-effect fx) )
-      ]
-
+       `(begin ,@(map expose-alloc-effect fx))]
       [`(if ,pred ,effect1 ,effect2)
        `(if ,(expose-alloc-pred pred)
             ,(expose-alloc-effect effect1)
-            ,(expose-alloc-effect effect2))
-      ]
-
+            ,(expose-alloc-effect effect2))]
       [`(return-point ,label ,tail)
-       `(return-point ,label ,(expose-alloc-tail tail))
-      ]
-
+       `(return-point ,label ,(expose-alloc-tail tail))]
       [`(set! ,loc (,alloc ,index))
-       `(begin (set! ,loc ,hbp) (set! ,hbp (+ ,hbp , index)))
-      ]
-
-      [_ e]
-    )
-  )
+       `(begin (set! ,loc ,hbp) (set! ,hbp (+ ,hbp , index)))]
+      [_ e]))
 
   (define (expose-alloc-pred p)
     (match p
       [`(not ,pred)
-       `(not ,(expose-alloc-pred pred))
-      ]
-
+       `(not ,(expose-alloc-pred pred))]
       [`(begin ,fx ... ,pred)
-       `(begin ,@(map expose-alloc-effect fx) ,(expose-alloc-pred pred))
-      ]
-
+       `(begin ,@(map expose-alloc-effect fx) ,(expose-alloc-pred pred))]
       [`(if ,pred1 ,pred2 ,pred3)
        `(if (expose-alloc-pred pred1)
             (expose-alloc-pred pred2)
-            (expose-alloc-pred pred3)
-        )
-      ]
+            (expose-alloc-pred pred3))]
+      [_ p]))
 
-      [_ p]
-    )
-  )
-
-  (expose-alloc-p p)
-
-)
+  (expose-alloc-p p))
 
 ; =============== M7 Passes ================
 
