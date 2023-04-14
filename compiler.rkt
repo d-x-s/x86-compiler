@@ -2061,9 +2061,9 @@
   (replace-loc-p p))
 
 
-; Input:   asm-pred-lang-v7
-; Output:  asm-pred-lang-v7/locals
-; Purpose: Compiles Asm-pred-lang v7 to Asm-pred-lang v7/locals, analysing which abstract locations 
+; Input:   asm-pred-lang-v8
+; Output:  asm-pred-lang-v8/locals
+; Purpose: Compiles Asm-pred-lang v8 to Asm-pred-lang v8/locals, analysing which abstract locations 
 ;          are used in each block, and decorating each block and the module with the set of variables 
 ;          in an info? field.
 (define (uncover-locals p)
@@ -2071,70 +2071,72 @@
   (define (uloc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
-       `(module ,(info-set info 'locals (uloc-t tail '())) ,@(map uloc-def defines) ,tail)]))
+        (define tailRes (set->list (list->set (uloc-t tail))))
+       `(module ,(info-set info 'locals tailRes) ,@(map uloc-def defines) ,tail)]))
 
   (define (uloc-def def)
     (match def
       [`(define ,label ,info ,tail)
-       `(define ,label ,(info-set info 'locals (uloc-t tail '())) ,tail)]))
+        (define tailRes (set->list (list->set (uloc-t tail))))
+       `(define ,label ,(info-set info 'locals tailRes) ,tail)]))
   
-  ; return a set of alocs.
-  (define (uloc-t t acc)
+  ; return a list (not set) of alocs.
+  (define (uloc-t t)
     (match t
-      [`(begin ,effect ... ,tail)
-        (uloc-t 
-          tail 
-          (foldl (lambda (elem rest) (set-add rest elem)) 
-            acc 
-            (foldl append '() (map uloc-e effect))))]
+      [`(begin ,effects ... ,tail)
+        (define effRes (foldl append '() (map uloc-e effects)))
+        (append effRes (uloc-t tail))]
       [`(if ,pred ,tail1 ,tail2)
-        (set-union 
+        (append 
           (uloc-pred pred)
-          (uloc-t tail1 acc)
-          (uloc-t tail2 acc))]
+          (uloc-t tail1)
+          (uloc-t tail2))]
       [`(jump ,trg ,loc ...) ; alocs in jump params are not added to locals set.
-        (if (aloc? trg) (set-add acc trg) acc)]))
+        (if (aloc? trg) 
+           `(,trg) 
+           '())]))
   
-  ; return: set of all alocs found in effect
+  ; return: list of all alocs found in effect
   (define (uloc-e e)
-    (match e  
+    (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+        (find-alocs `(,loc_1 ,loc_2 ,index))]
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
-        (aloc-truth loc_1 opand)]
+        (find-alocs `(,loc_1 ,opand))]
       [`(set! ,loc ,triv)
-        (aloc-truth loc triv)]  
+        (find-alocs `(,loc ,triv))]
+      [`(mset! ,loc ,index ,triv)
+        (find-alocs `(,loc ,index ,triv))]
       [`(if ,pred ,effect1 ,effect2)
-        (set-union
+        (append
           (uloc-pred pred)
           (uloc-e effect1)
           (uloc-e effect2))]
       [`(begin ,effects ...)
         (foldl append '() (map uloc-e effects))]
       [`(return-point ,label ,tail)
-        (uloc-t tail '())]))
+        (uloc-t tail)]))
 
   (define (uloc-pred p)
     (match p
-      [`(begin ,effect ... ,pred)
-        (set-union
-          (uloc-pred pred)
-          (foldl set-union '() (map uloc-e effect)))]
+      [`(begin ,effects ... ,pred)
+        (append
+          (foldl append '() (map uloc-e effects))
+          (uloc-pred pred))]
       [`(if ,pred1 ,pred2 ,pred3)
-        (set-union
+        (append
           (uloc-pred pred1)
           (uloc-pred pred2)
           (uloc-pred pred3))]
       [`(not ,pred)
         (uloc-pred pred)]
       [`(,relop ,loc ,opand)
-        (aloc-truth loc opand)]
-      [_ `()])) ;bool
+        (find-alocs `(,loc ,opand))]
+      [_ '()])) ;bool
 
-  (define (aloc-truth a1 a2)
-     (cond
-        [(and (aloc? a1) (aloc? a2)) `(,a2 ,a1)]
-        [(aloc? a1) `(,a1)]
-        [(aloc? a2) `(,a2)]
-        [else `()]))
+  ; Given a list, return all the alocs in that list.
+  (define (find-alocs lst)
+     (filter aloc? lst))
 
   (uloc-p p))
 
