@@ -675,7 +675,7 @@
 
 ; M6 Tests
 
-(test-case "undead 14 - extend binops"
+(test-case "undead 24 - extend binops"
    (check-equal?
         (undead-analysis
             `(module ((new-frames (())) (locals (x.1 x.3 p.1)))
@@ -690,3 +690,72 @@
             (call-undead ())
             (undead-out ((x.3 p.1 x.1) (x.1) ())))
             (begin (set! x.1 42) (set! x.3 (bitwise-ior x.3 p.1)) (jump x.1)))))
+
+; M8 Tests
+
+(test-case "undead 25 - effect is mref"
+   (check-equal?
+        (undead-analysis
+            `(module
+                ((new-frames (())) (locals (y.1 x.1 x.2 x.3)))
+                (begin
+                    (set! x.1 (mref fv1 5))
+                    (set! r14 (mref fv2 rbx))
+                    (set! fv3 (mref x.2 fv4))
+                    (set! x.3 (mref x.2 y.1))
+                    (set! x.1 (mref x.3 y.1))
+                    (jump rax))))
+
+        `(module
+            ((new-frames (()))
+            (locals (y.1 x.1 x.2 x.3))
+            (call-undead ())
+            (undead-out
+                ((fv2 rbx fv4 x.2 y.1 rax)
+                (fv4 x.2 y.1 rax)
+                (x.2 y.1 rax)
+                (x.3 y.1 rax)
+                (rax)
+                ())))
+            (begin
+                (set! x.1 (mref fv1 5))
+                (set! r14 (mref fv2 rbx))
+                (set! fv3 (mref x.2 fv4))
+                (set! x.3 (mref x.2 y.1))
+                (set! x.1 (mref x.3 y.1))
+                (jump rax)))))
+
+(test-case "undead 26 - effect is mset"
+   (check-equal?
+        (undead-analysis
+            `(module
+                ((new-frames (())) (locals (y.1 x.1 x.3 y.3 y.2)))
+                (begin
+                    (set! r14 L.s.1)
+                    (mset! y.2 fv4 L.s.1)
+                    (mset! fv1 r14 6)
+                    (mset! y.1 x.1 r15)
+                    (mset! rsp fv2 fv3)
+                    (mset! y.3 5 x.3)
+                    (jump rax))))
+
+        `(module
+            ((new-frames (()))
+            (locals (y.1 x.1 x.3 y.3 y.2))
+            (call-undead ())
+            (undead-out
+                ((fv4 y.2 r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (fv3 fv2 rsp x.3 y.3 rax)
+                (x.3 y.3 rax)
+                (rax)
+                ())))
+            (begin
+                (set! r14 L.s.1)
+                (mset! y.2 fv4 L.s.1)
+                (mset! fv1 r14 6)
+                (mset! y.1 x.1 r15)
+                (mset! rsp fv2 fv3)
+                (mset! y.3 5 x.3)
+                (jump rax)))))

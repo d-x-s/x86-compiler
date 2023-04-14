@@ -1329,9 +1329,9 @@
 
 ; =============== M3 Passes ================
 
-; Input:   asm-pred-lang-v7/locals
-; Output:  asm-pred-lang-v7/undead
-; Purpose: Performs undead analysis, compiling Asm-pred-lang v7/locals to Asm-pred-lang v7/undead 
+; Input:   asm-pred-lang-v8/locals
+; Output:  asm-pred-lang-v8/undead
+; Purpose: Performs undead analysis, compiling Asm-pred-lang v8/locals to Asm-pred-lang v8/undead 
 ;          by decorating programs with their undead-set trees.
 (define (undead-analysis p)
 
@@ -1389,13 +1389,6 @@
   ; i.e. (<tree for pred> <set for next effect>)
   (define (undead-pred undead-out pr)
     (match pr
-      [`(,relop ,loc ,opand) #:when (relop? relop)
-        (define add-loc (set-add undead-out loc))
-        (if (number? opand)
-          (values undead-out add-loc)
-          (values undead-out (set-add add-loc opand)))]
-      [`(,bool) #:when (and (member bool '(true false)) #t)
-        (values undead-out undead-out)]
       [`(not ,pred)
         (undead-pred undead-out pred)]
       [`(if ,pred1 ,pred2 ,pred3)
@@ -1413,7 +1406,14 @@
                                     (undead-effect nextIn e))
                      (values (cons new-ust ust) undead-in)))
 
-        (values ust undead-o)]))
+        (values ust undead-o)]
+      [`(,relop ,loc ,opand)
+        (define add-loc (set-add undead-out loc))
+        (if (number? opand)
+            (values undead-out add-loc)
+            (values undead-out (set-add add-loc opand)))] ; reg, fvar, aloc
+      [`(,bool)
+        (values undead-out undead-out)]))
   
   ; Calculate the undead input for a single effect e,
   ; given the output, undead-out.
@@ -1421,6 +1421,11 @@
   ; i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
+      [`(set! ,loc1 (mref ,loc2 ,opand))
+        (let ([newSet (if (number? opand)
+                          (set-add (set-remove undead-out loc1) loc2)
+                          (set-add (set-remove (set-add undead-out opand) loc1) loc2))])
+          (values undead-out newSet))]
       [`(set! ,loc (,binop ,loc ,opand))
         (let ([newSet (if (number? opand)
                           (set-add undead-out loc)
@@ -1431,6 +1436,15 @@
                           (set-remove undead-out loc)
                           (set-remove (set-add undead-out triv) loc))])
           (values undead-out newSet))]
+      [`(mset! ,loc ,index ,triv)
+        (define set1 (set-add undead-out loc))
+        (define set2 (if (number? index)
+                         set1
+                         (set-add set1 index)))
+        (define newSet (if (or (number? triv) (label? triv))
+                         set2
+                         (set-add set2 triv)))
+        (values undead-out newSet)]
       [`(begin ,effects ...)        
         (define-values (ust undead-o)
           (for/foldr ([ust `()]  ; ust represents the undead-set-tree for this begin.
