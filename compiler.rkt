@@ -2158,8 +2158,8 @@
   (uloc-p p))
 
 
-; Input:   para-asm-lang-v7
-; Output:  paren-x64-v7
+; Input:   para-asm-lang-v8
+; Output:  paren-x64-mops-v8
 ; Purpose: Compile the Para-asm-lang v7 to Paren-x64 v7 by patching instructions that have 
 ;          no x64 analogue into to a sequence of instructions and an auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
@@ -2178,6 +2178,63 @@
 
   (define (patch-effect e)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+        (cond [(and (address? loc_1) (address? loc_2) (or (and (not (int32? index)) (int64? index)) (address? index)))
+                `((set! ,i-reg1 ,loc_2)
+                  (set! ,i-reg2 ,index)
+                  (set! ,i-reg1 (mref ,i-reg1 ,i-reg2))
+                  (set! ,loc_1 ,i-reg1))]
+              [(and (address? loc_1) (address? loc_2))
+                `((set! ,i-reg1 ,loc_2)
+                  (set! ,i-reg1 (mref ,i-reg1 ,index))
+                  (set! ,loc_1 ,i-reg1))]
+              [(and (address? loc_1) (or (and (not (int32? index)) (int64? index)) (address? index)))
+                `((set! ,i-reg1 ,index)
+                  (set! ,i-reg1 (mref ,loc_2 ,i-reg1))
+                  (set! ,loc_1 ,i-reg1))]
+              [(address? loc_1)
+                `((set! ,i-reg1 (mref ,loc_2 ,index))
+                  (set! ,loc_1 ,i-reg1))]
+              [(and (address? loc_2) (or (and (not (int32? index)) (int64? index)) (address? index)))
+                `((set! ,i-reg1 ,loc_2)
+                  (set! ,i-reg2 ,index)
+                  (set! ,loc_1 (mref ,i-reg1 ,i-reg2)))]
+              [(address? loc_2)
+                `((set! ,i-reg1 ,loc_2)
+                  (set! ,loc_1 (mref ,i-reg1 ,index)))]
+              [(or (and (not (int32? index)) (int64? index)) (address? index))
+                `((set! ,i-reg1 ,index)
+                  (set! ,loc_1 (mref ,loc_2 ,i-reg1)))]
+              [else e])]
+      [`(mset! ,loc_1 ,index ,triv)
+        (cond [(and (address? loc_1) (or (and (not (int32? index)) (int64? index)) (address? index)) (or (and (not (int32? triv)) (int64? triv)) (address? triv) (label? triv)))
+                `((set! ,i-reg1 ,loc_1)
+                  (set! ,i-reg2 ,index)
+                  (set! ,i-reg1 (+ ,i-reg1 ,i-reg2))
+                  (set! ,i-reg2 ,triv)
+                  (mset! ,i-reg1 0 ,i-reg2))]
+              [(and (address? loc_1) (or (and (not (int32? index)) (int64? index)) (address? index)))
+                `((set! ,i-reg1 ,loc_1)
+                  (set! ,i-reg2 ,index)
+                  (mset! ,i-reg1 ,i-reg2 ,triv))]
+              [(and (address? loc_1) (or (and (not (int32? triv)) (int64? triv)) (address? triv) (label? triv)))
+                `((set! ,i-reg1 ,triv)
+                  (set! ,i-reg2 ,loc_1)
+                  (mset! ,i-reg2 ,index ,i-reg1))]
+              [(and (or (and (not (int32? index)) (int64? index)) (address? index)) (or (and (not (int32? triv)) (int64? triv)) (address? triv) (label? triv)))
+                `((set! ,i-reg1 ,triv)
+                  (set! ,i-reg2 ,index)
+                  (mset! ,loc_1 ,i-reg2 ,i-reg1))]
+              [(or (and (not (int32? index)) (int64? index)) (address? index))
+                `((set! ,i-reg1 ,index)
+                  (mset! ,loc_1 ,i-reg1 ,triv))]
+              [(or (and (not (int32? triv)) (int64? triv)) (address? triv) (label? triv))
+                `((set! ,i-reg1 ,triv)
+                  (mset! ,loc_1 ,index ,i-reg1))]
+              [(address? loc_1)
+                `((set! ,i-reg1 ,loc_1)
+                  (mset! ,i-reg1 ,index ,triv))]
+              [else e])]
       [`(set! ,addr1 ,addr2) #:when (and (address? addr1) (address? addr2))
           `((set! ,i-reg1 ,addr2)
             (set! ,addr1 ,i-reg1))]

@@ -321,3 +321,119 @@
           (set! rbp (arithmetic-shift-right rbp 16))
           (set! r10 (rbp - 0))
           (jump r10))))
+
+(test-case "patch 10 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! (rbp - 8) (mref (rbp - 16)  9223372036854775807))))
+
+      '(begin
+        (set! r10 (rbp - 16))
+        (set! r11 9223372036854775807)
+        (set! r10 (mref r10 r11))
+        (set! (rbp - 8) r10))))
+
+(test-case "patch 11 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! (rbp - 8) (mref (rbp - 16)  rax))))
+
+      '(begin (set! r10 (rbp - 16)) (set! r10 (mref r10 rax)) (set! (rbp - 8) r10))))
+
+
+(test-case "patch 12 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! (rbp - 8) (mref rax (rbp - 16)))))
+
+      '(begin 
+        (set! r10 (rbp - 16)) 
+        (set! r10 (mref rax r10)) 
+        (set! (rbp - 8) r10))))
+
+(test-case "patch 13 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! (rbp - 8) (mref rax 5))))
+
+      '(begin 
+          (set! r10 (mref rax 5)) 
+          (set! (rbp - 8) r10))))
+
+(test-case "patch 14 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! rax (mref (rbp - 16) 9223372036854775807))))
+
+      '(begin
+        (set! r10 (rbp - 16))
+        (set! r11 9223372036854775807)
+        (set! rax (mref r10 r11)))))
+
+(test-case "patch 15 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! rax (mref (rbp - 16) rcx))))
+
+      '(begin (set! r10 (rbp - 16)) (set! rax (mref r10 rcx)))))
+
+(test-case "patch 16 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! rax (mref rcx (rbp - 16)))))
+
+      '(begin (set! r10 (rbp - 16)) (set! rax (mref rcx r10)))))
+
+(test-case "patch 17 - mref"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (set! rax (mref rcx 5))))
+
+      '(begin (set! rax (mref rcx 5)))))
+
+(test-case "patch 17 - mset check all combinations"
+  (check-equal?
+    (patch-instructions 
+          '(begin 
+              (mset! (rbp - 8) 9223372036854775807 (rbp - 16))
+              (mset! (rbp - 8) (rbp - 16) L.tmp.1)
+              (mset! (rbp - 8) rcx 9223372036854775807)
+              (mset! rax (rbp - 8) 9223372036854775807)
+              (mset! rax (rbp - 8) L.tmp.3)
+              (mset! rax rcx 9223372036854775807)
+              (mset! (rbp - 8) rcx 7)
+              (mset! rax rcx 5)))
+
+      '(begin
+          (set! r10 (rbp - 8))
+          (set! r11 9223372036854775807)
+          (set! r10 (+ r10 r11))
+          (set! r11 (rbp - 16))
+          (mset! r10 0 r11)
+          (set! r10 (rbp - 8))
+          (set! r11 (rbp - 16))
+          (set! r10 (+ r10 r11))
+          (set! r11 L.tmp.1)
+          (mset! r10 0 r11)
+          (set! r10 9223372036854775807)
+          (set! r11 (rbp - 8))
+          (mset! r11 rcx r10)
+          (set! r10 9223372036854775807)
+          (set! r11 (rbp - 8))
+          (mset! rax r11 r10)
+          (set! r10 L.tmp.3)
+          (set! r11 (rbp - 8))
+          (mset! rax r11 r10)
+          (set! r10 9223372036854775807)
+          (mset! rax rcx r10)
+          (set! r10 (rbp - 8))
+          (mset! r10 rcx 7)
+          (mset! rax rcx 5))))
