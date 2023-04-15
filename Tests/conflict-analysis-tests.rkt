@@ -730,3 +730,116 @@
                 (set! x.1 42)
                 (set! w.2 46)
                 (begin (set! p.1 -1) (set! t.6 (bitwise-xor t.6 w.2)) (jump t.6))))))
+
+; M8 Tests
+
+(test-case "conflict 16 - effect is mref"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((new-frames (()))
+                (locals (y.1 x.1 x.2 x.3))
+                (call-undead ())
+                (undead-out
+                    ((fv2 rbx fv4 x.2 y.1 rax)
+                    (fv4 x.2 y.1 rax)
+                    (x.2 y.1 rax)
+                    (x.3 y.1 rax)
+                    (rax)
+                    ())))
+                (begin
+                    (set! x.1 (mref fv1 5))
+                    (set! r14 (mref fv2 rbx))
+                    (set! fv3 (mref x.2 fv4))
+                    (set! x.3 (mref x.2 y.1))
+                    (set! x.1 (mref x.3 y.1))
+                    (jump rax))))
+        
+        `(module
+            ((new-frames (()))
+            (locals (y.1 x.1 x.2 x.3))
+            (call-undead ())
+            (undead-out
+                ((fv2 rbx fv4 x.2 y.1 rax)
+                (fv4 x.2 y.1 rax)
+                (x.2 y.1 rax)
+                (x.3 y.1 rax)
+                (rax)
+                ()))
+            (conflicts
+                ((x.3 (rax y.1))
+                (x.2 (fv3 r14 x.1))
+                (x.1 (rax y.1 x.2 fv4 rbx fv2))
+                (y.1 (x.3 fv3 r14 x.1))
+                (fv2 (x.1))
+                (rbx (x.1))
+                (fv4 (r14 x.1))
+                (rax (x.3 fv3 r14 x.1))
+                (r14 (rax y.1 x.2 fv4))
+                (fv3 (rax y.1 x.2)))))
+            (begin
+                (set! x.1 (mref fv1 5))
+                (set! r14 (mref fv2 rbx))
+                (set! fv3 (mref x.2 fv4))
+                (set! x.3 (mref x.2 y.1))
+                (set! x.1 (mref x.3 y.1))
+                (jump rax)))))
+
+(test-case "conflict 17 - effect is mset"
+   (check-equal?
+        (conflict-analysis
+            `(module
+                ((new-frames (()))
+                (locals (y.1 x.1 x.3 y.3 y.2))
+                (call-undead ())
+                (undead-out
+                    ((fv4 y.2 r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                    (r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                    (r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                    (fv3 fv2 rsp x.3 y.3 rax)
+                    (x.3 y.3 rax)
+                    (rax)
+                    ())))
+                (begin
+                    (set! r14 L.s.1)
+                    (mset! y.2 fv4 L.s.1)
+                    (mset! fv1 r14 6)
+                    (mset! y.1 x.1 r15)
+                    (mset! rsp fv2 fv3)
+                    (mset! y.3 5 x.3)
+                    (jump rax))))
+        
+        `(module
+            ((new-frames (()))
+            (locals (y.1 x.1 x.3 y.3 y.2))
+            (call-undead ())
+            (undead-out
+                ((fv4 y.2 r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (r14 fv1 r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (r15 x.1 y.1 fv3 fv2 rsp x.3 y.3 rax)
+                (fv3 fv2 rsp x.3 y.3 rax)
+                (x.3 y.3 rax)
+                (rax)
+                ()))
+            (conflicts
+                ((y.2 (r14))
+                (y.3 (r14))
+                (x.3 (r14))
+                (x.1 (r14))
+                (y.1 (r14))
+                (r14 (rax y.3 x.3 rsp fv2 fv3 y.1 x.1 r15 fv1 y.2 fv4))
+                (fv4 (r14))
+                (fv1 (r14))
+                (r15 (r14))
+                (fv3 (r14))
+                (fv2 (r14))
+                (rsp (r14))
+                (rax (r14)))))
+            (begin
+                (set! r14 L.s.1)
+                (mset! y.2 fv4 L.s.1)
+                (mset! fv1 r14 6)
+                (mset! y.1 x.1 r15)
+                (mset! rsp fv2 fv3)
+                (mset! y.3 5 x.3)
+                (jump rax)))))

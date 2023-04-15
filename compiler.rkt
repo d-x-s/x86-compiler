@@ -1471,10 +1471,10 @@
   (undead-p p))
 
 
-; Input:   asm-pred-lang-v7/undead
-; Output:  asm-pred-lang-v7/conflicts
-; Purpose: Performs conflict analysis, compiling Asm-pred-lang v7/undead to 
-;          Asm-pred-lang v7/conflicts by decorating programs with their conflict graph.
+; Input:   asm-pred-lang-v8/undead
+; Output:  asm-pred-lang-v8/conflicts
+; Purpose: Performs conflict analysis, compiling Asm-pred-lang v8/undead to 
+;          Asm-pred-lang v8/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
   ; Find the entries of lst that are not in excludeLst. The first entry of 
@@ -1505,7 +1505,7 @@
                 ,tail)]))
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
-  ; graph   : a graph of the conflicts found so far.
+  ; graph  : a graph of the conflicts found so far.
   ; Return a graph.
   (define (c-analysis-t undead graph t)
     (match t
@@ -1524,7 +1524,7 @@
         graph]))
 
   ; undead : a nested list of lists of abstract locations such as x.1. 
-  ; graph   : a graph of the conflicts found so far.
+  ; graph  : a graph of the conflicts found so far.
   ; Return a graph.
   (define (c-analysis-pr undead graph pr)
     (match pr
@@ -1544,14 +1544,18 @@
       [_ graph])) ; bool or relop
 
   ; undead : the entry in the list of undead relating to the current effect
-  ; graph   : a graph of the conflicts found so far.
+  ; graph  : a graph of the conflicts found so far.
   ; Return a graph.
   (define (c-analysis-e undead graph e)
     (match e
+      [`(set! ,loc1 (mref ,loc2 ,index))
+        (update-conflicts `(,loc1) undead graph)]
       [`(set! ,loc1 ,loc2) #:when (or (aloc? loc2) (register? loc2) (fvar? loc2))
         (update-conflicts `(,loc1 ,loc2) undead graph)]
       [`(set! ,loc ,other) ; other is binop, number, or label
         (update-conflicts `(,loc) undead graph)]
+      [`(mset! ,loc ,index ,triv)
+        graph]
       [`(begin ,effects ...)
         (for/fold ([g graph])  ; pair effects with entries in the undead list and update graph recursively.
                   ([eff effects] [currUndead undead])
