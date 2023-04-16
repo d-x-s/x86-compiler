@@ -1152,8 +1152,8 @@
   (optimize-p p))
 
 
-; Input:   nested-asm-lang-v7
-; Output:  block-pred-lang-v7
+; Input:   nested-asm-lang-v8
+; Output:  block-pred-lang-v8
 ; Purpose: Compile the Nested-asm-lang v7 to Block-pred-lang v7,
 ;          eliminating all nested expressions by generating fresh basic blocks and jumps.
 (define (expose-basic-blocks p)
@@ -1216,8 +1216,6 @@
   ; Returns a list of instructions.
   (define (expose-e e effRest tail)
     (match e
-      [`(set! ,loc ,trivOrBinop)
-        (cons e (expose-effects effRest tail))]
       [`(begin ,effects ...) ; flatten nested effects
         (expose-effects (append effects effRest) tail)]
       [`(if ,pred ,effect1 ,effect2)
@@ -1240,7 +1238,9 @@
         (define tailBody (expose-t rtail))
 
         (add-new-block! label restResult) ; give the label to the next block
-        tailBody])) ; return the processed tail to be appended to the current block
+        tailBody] ; return the processed tail to be appended to the current block
+      [_ ; set, mset
+        (cons e (expose-effects effRest tail))])) 
 
   ; Given a pred, return an instruction.
   ; Add blocks for recursive preds.
