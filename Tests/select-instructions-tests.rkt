@@ -102,15 +102,14 @@
                 (jump fv9) 
                 (jump x.7)))))
 
-; Note: this test differs from interrogator result in that it flattens begins in (begin effects ... pred).
-(test-case "select 7 - pred is begin"
+(test-case "select 7 - pred is begin" ; do not flatten begins in pred
    (check-equal?
         (select-instructions
             `(module ((new-frames ())) 
                      (if (begin 
                             (set! x.1 2) 
                             (set! x.2 (+ 1 2)) 
-                            (begin (set! y.2 2)) 
+                            (begin (set! y.2 2) (set! y.2 3) (begin (set! y.2 4) ))
                             (true)) 
                          (jump fv9)
                          (jump x.7))))
@@ -119,9 +118,8 @@
             ((new-frames ()))
             (if (begin
                     (set! x.1 2)
-                    (set! x.2 1) 
-                    (set! x.2 (+ x.2 2))
-                    (set! y.2 2)
+                    (begin (set! x.2 1) (set! x.2 (+ x.2 2)))
+                    (begin (set! y.2 2) (set! y.2 3) (set! y.2 4))
                     (true))
                 (jump fv9)
                 (jump x.7)))))
