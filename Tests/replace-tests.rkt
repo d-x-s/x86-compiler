@@ -214,3 +214,49 @@
     '(module
       (define L.start.1 (begin (set! rcx (bitwise-and rcx 2)) (jump rax)))
       (jump rax))))
+
+; M8 Tests
+
+(test-case "replace 13 - mset"
+  (check-equal?
+    (replace-locations
+      '(module
+        ((locals (x.1 x.3 y.1 y.2 y.3)) 
+         (assignment ((x.1 rsp) (x.3 rbx) (y.1 rcx) (y.2 rdx) (y.3 rsi))))
+        (begin
+          (mset! rsp 5 L.s.1)
+          (mset! fv1 r14 6)
+          (mset! y.1 x.1 r15)
+          (mset! y.2 fv2 fv3)
+          (mset! y.3 fv4 x.3)
+          (jump L.s.1))))
+    
+    '(module
+      (begin
+        (mset! rsp 5 L.s.1)
+        (mset! fv1 r14 6)
+        (mset! rcx rsp r15)
+        (mset! rdx fv2 fv3)
+        (mset! rsi fv4 rbx)
+        (jump L.s.1)))))
+
+(test-case "replace 14 - mref"
+  (check-equal?
+    (replace-locations
+      '(module
+        ((locals (x.1 x.2 x.3 y.1)) 
+         (assignment ((x.1 rsp) (x.2 rbx) (x.3 rcx) (y.1 rdx))))
+        (begin
+          (set! x.1 (mref fv1 5))
+          (set! r14 (mref fv2 rbx))
+          (set! fv3 (mref x.2 fv4))
+          (set! x.3 (mref x.2 y.1))
+          (jump L.s.1))))
+    
+    '(module
+      (begin
+        (set! rsp (mref fv1 5))
+        (set! r14 (mref fv2 rbx))
+        (set! fv3 (mref rbx fv4))
+        (set! rcx (mref rbx rdx))
+        (jump L.s.1)))))

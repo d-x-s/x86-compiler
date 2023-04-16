@@ -437,3 +437,25 @@
      `(module
         (define L.__main.74
             (begin (set! rax 10) (set! r12 (bitwise-ior r12 rdx)) (jump r8))))))
+
+; M8 Tests
+
+(test-case "expose-basic-blocks 20 - mset, mref"
+    (check-match
+        (expose-basic-blocks
+            `(module 
+                (begin 
+                    (set! rax 10)
+                    (mset! rsp 0 5)
+                    (set! (rbp - 8) (mref rbx 0))
+                    (set! r12 (bitwise-ior r12 rdx))
+                    (jump r8))))
+
+     `(module
+        (define L.__main.75
+            (begin
+            (set! rax 10)
+            (mset! rsp 0 5)
+            (set! (rbp - 8) (mref rbx 0))
+            (set! r12 (bitwise-ior r12 rdx))
+            (jump r8))))))

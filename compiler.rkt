@@ -628,9 +628,9 @@
 
 ; =============== M6 Passes ================
 
-; Input: asm-pred-lang-v7/conflicts
-; Output: asm-pred-lang-v7/pre-framed
-; Purpose: Compiles Asm-pred-lang-v7/conflicts to Asm-pred-lang-v7/pre-framed by pre-assigning all 
+; Input: asm-pred-lang-v8/conflicts
+; Output: asm-pred-lang-v8/pre-framed
+; Purpose: Compiles Asm-pred-lang-v8/conflicts to Asm-pred-lang-v8/pre-framed by pre-assigning all 
 ;          variables in the call-undead sets to frame variables.
 (define (assign-call-undead-variables p)
 
@@ -811,9 +811,9 @@
   (allocate-p p))
 
 
-; Input:   asm-pred-lang-v7/spilled
-; Output:  asm-pred-lang-v7/assignments
-; Purpose: Compiles Asm-pred-lang-v7/spilled to Asm-pred-lang-v7/assignments 
+; Input:   asm-pred-lang-v8/spilled
+; Output:  asm-pred-lang-v8/assignments
+; Purpose: Compiles Asm-pred-lang-v8/spilled to Asm-pred-lang-v8/assignments 
 ;          by allocating all abstract locations in the locals set to free frame variables.
 (define (assign-frame-variables p)
 
@@ -991,9 +991,9 @@
 
 ; =============== M4 Passes ================
 
-; Input:   Nested-asm-lang-fvars v6
-; Output:  Nested-asm-lang-fvars v6
-; Purpose: Optimize Nested-asm-lang-fvars v6 programs by analyzing and simplifying predicates.
+; Input:   Nested-asm-lang-fvars-v8
+; Output:  Nested-asm-lang-fvars-v8
+; Purpose: Optimize Nested-asm-lang-fvars v8 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
   
   ; key-and-value-wise intersection of h0 with h1 and h2.
@@ -1050,6 +1050,8 @@
   ; Return (values new-eff new-env)
   (define (optimize-e e env)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+        (values e env)] ; do nothing
       [`(set! ,loc_1 (,binop ,loc_1 ,triv))
         (define (interp-binop binop)
           (match binop
@@ -1071,6 +1073,8 @@
                             (dict-set env loc (dict-ref env triv)) 
                             (dict-set env loc triv)))
         (values `(set! ,loc ,triv) new-env)]
+      [`(mset! ,loc ,index ,triv)
+        (values e env)] ; do nothing
       [`(begin ,effects ...)
         (define-values (effRes new-env)
           (for/fold ([acc '()] ; list of processed effects
@@ -1148,8 +1152,8 @@
   (optimize-p p))
 
 
-; Input:   nested-asm-lang-v7
-; Output:  block-pred-lang-v7
+; Input:   nested-asm-lang-v8
+; Output:  block-pred-lang-v8
 ; Purpose: Compile the Nested-asm-lang v7 to Block-pred-lang v7,
 ;          eliminating all nested expressions by generating fresh basic blocks and jumps.
 (define (expose-basic-blocks p)
@@ -1212,8 +1216,6 @@
   ; Returns a list of instructions.
   (define (expose-e e effRest tail)
     (match e
-      [`(set! ,loc ,trivOrBinop)
-        (cons e (expose-effects effRest tail))]
       [`(begin ,effects ...) ; flatten nested effects
         (expose-effects (append effects effRest) tail)]
       [`(if ,pred ,effect1 ,effect2)
@@ -1236,7 +1238,9 @@
         (define tailBody (expose-t rtail))
 
         (add-new-block! label restResult) ; give the label to the next block
-        tailBody])) ; return the processed tail to be appended to the current block
+        tailBody] ; return the processed tail to be appended to the current block
+      [_ ; set, mset
+        (cons e (expose-effects effRest tail))])) 
 
   ; Given a pred, return an instruction.
   ; Add blocks for recursive preds.
@@ -1260,8 +1264,8 @@
   (expose-p p))
   
 
-; Input:   block-pred-lang-v7
-; Output:  block-asm-lang-v7
+; Input:   block-pred-lang-v8
+; Output:  block-asm-lang-v8
 ; Purpose: Compile the Block-pred-lang v7 to Block-asm-lang v7 by manipulating the 
 ;          branches of if statements to resolve branches.
 (define (resolve-predicates p)
@@ -1291,9 +1295,9 @@
   (resolve-p p))
 
 
-; Input:   block-asm-lang-v7
-; Output:  para-asm-lang-v7
-; Purpose: Compile Block-asm-lang v7 to Para-asm-lang v7 by flattening basic blocks into labeled instructions.
+; Input:   block-asm-lang-v8
+; Output:  para-asm-lang-v8
+; Purpose: Compile Block-asm-lang v8 to Para-asm-lang v8 by flattening basic blocks into labeled instructions.
 (define (flatten-program p)
 
   (define (flatten-p p)
@@ -1569,10 +1573,10 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v7/framed
-; Output:   asm-pred-lang-v7/spilled
+; Input:    asm-pred-lang-v8/framed
+; Output:   asm-pred-lang-v8/spilled
 ; Purpose:  Performs graph-colouring register allocation, 
-;           compiling Asm-pred-lang v7/framed to Asm-pred-lang v7/spilled by decorating programs with their register assignments.
+;           compiling Asm-pred-lang v8/framed to Asm-pred-lang v8/spilled by decorating programs with their register assignments.
 (define (assign-registers p)
   ; a list consisting of '(rsp rbx rcx rdx rsi rdi r8 r9 r13 r14 r15)
   (define car (current-assignable-registers))
@@ -1656,9 +1660,9 @@
   (assign-p p))
 
 
-; Input:   exprs-lang-v7
-; Output:  exprs-unique-lang-v7
-; Purpose: Compiles Values-lang v6 to Values-unique-lang v6 by resolving top-level lexical identifiers 
+; Input:   exprs-lang-v8
+; Output:  exprs-unique-lang-v8
+; Purpose: Compiles exprs-lang-v8 to exprs-unique-lang-v8 by resolving top-level lexical identifiers 
 ;          into unique labels, and all other lexical identifiers into unique abstract locations.
 (define (uniquify p) 
 
@@ -2016,8 +2020,8 @@
   (sel-ins-p p))
 
 
-; Input:   asm-pred-lang-v7/assignments
-; Output:  nested-asm-lang-v7
+; Input:   asm-pred-lang-v8/assignments
+; Output:  nested-asm-lang-fvars-v8
 ; Purpose: Replaces all abstract location with physical locations using the assignment described in the 
 ;          assignment info field, and dropping any register-allocation-related metadata from the program.
 (define (replace-locations p)
@@ -2025,17 +2029,17 @@
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
-       `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail info))]))
+       `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail (info-ref info 'assignment)))]))
 
   (define (replace-loc-def d)
     (match d
       [`(define ,label ,info ,tail)
-       `(define ,label ,(replace-loc-t tail info))]))
+       `(define ,label ,(replace-loc-t tail (info-ref info 'assignment)))]))
   
   ; given an abstract location 'aloc' return its replacement as defined
   ; in the list of assignments 'as'.
   (define (get-repl aloc as)
-    (info-ref (info-ref as 'assignment) aloc))
+    (info-ref as aloc))
   
   ; return a tail with locations replaced.
   (define (replace-loc-t t as)
@@ -2049,10 +2053,14 @@
 
   (define (replace-loc-e as e)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+       `(set! ,(replace-loc loc_1 as) (mref ,(replace-loc loc_2 as) ,(replace-loc index as)))]
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
         `(set! ,(replace-loc loc_1 as) (,binop ,(replace-loc loc_1 as) ,(replace-loc opand as)))]
       [`(set! ,loc ,triv)
         `(set! ,(replace-loc loc as) ,(replace-loc triv as))]
+      [`(mset! ,loc ,index ,triv)
+       `(mset! ,(replace-loc loc as) ,(replace-loc index as) ,(replace-loc triv as))]
       [`(begin ,effects ...)
         `(begin ,@(map (curry replace-loc-e as) effects))]
       [`(if ,pred ,effect1 ,effect2)
@@ -2407,7 +2415,7 @@
   (fvars-p p))
 
 
-; Input:   paren-x64-v7
+; Input:   paren-x64-v8
 ; Output:  x64-instructions
 ; Purpose: Compile the Paren-x64 v6 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
