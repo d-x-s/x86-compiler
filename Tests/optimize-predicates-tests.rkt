@@ -284,3 +284,37 @@
             (return-point L.two.2 (begin (set! r14 1) (set! fv1 1) (jump L.one.1)))
             (if (= r14 1) (set! r15 1) (set! r15 0))
             (jump r15)))))
+
+; M8 Tests
+
+(test-case "optimize-predicates 13 - mset"
+    (check-match
+        (optimize-predicates
+            `(module
+                (begin
+                    (mset! rsp 0 5)
+                    (if (> rsp 5)
+                        (jump L.s.1)
+                        (jump L.s.2)))))
+
+     `(module 
+        (begin 
+            (mset! rsp 0 5) 
+            (if (> rsp 5) (jump L.s.1) (jump L.s.2))))))
+
+(test-case "optimize-predicates 14 - mref"
+    (check-match
+        (optimize-predicates
+            `(module
+                (begin
+                    (set! fv1 0)
+                    (set! rsp (mref fv1 0))
+                    (if (> rsp 5)
+                        (jump L.s.1)
+                        (jump L.s.2)))))
+
+     `(module
+        (begin
+            (set! fv1 0)
+            (set! rsp (mref fv1 0))
+            (if (> rsp 5) (jump L.s.1) (jump L.s.2))))))

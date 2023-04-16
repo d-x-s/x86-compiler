@@ -991,9 +991,9 @@
 
 ; =============== M4 Passes ================
 
-; Input:   Nested-asm-lang-fvars v6
-; Output:  Nested-asm-lang-fvars v6
-; Purpose: Optimize Nested-asm-lang-fvars v6 programs by analyzing and simplifying predicates.
+; Input:   Nested-asm-lang-fvars-v8
+; Output:  Nested-asm-lang-fvars-v8
+; Purpose: Optimize Nested-asm-lang-fvars v8 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
   
   ; key-and-value-wise intersection of h0 with h1 and h2.
@@ -1050,6 +1050,8 @@
   ; Return (values new-eff new-env)
   (define (optimize-e e env)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+        (values e env)] ; do nothing
       [`(set! ,loc_1 (,binop ,loc_1 ,triv))
         (define (interp-binop binop)
           (match binop
@@ -1071,6 +1073,8 @@
                             (dict-set env loc (dict-ref env triv)) 
                             (dict-set env loc triv)))
         (values `(set! ,loc ,triv) new-env)]
+      [`(mset! ,loc ,index ,triv)
+        (values e env)] ; do nothing
       [`(begin ,effects ...)
         (define-values (effRes new-env)
           (for/fold ([acc '()] ; list of processed effects
