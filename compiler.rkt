@@ -908,7 +908,6 @@
   (define crv (current-return-value-register))
   (define cprLen (length cpr))
   (define new-frames `())
-  (define new-framesL `())
   
   (define (impose-p p)
     (match p
@@ -923,9 +922,8 @@
       [`(define ,label (lambda (,alocs ...) ,tail))
         (define tmpL (fresh 'tmp-ra))
         (let* ([i-tail `(begin (set! ,tmpL ,cra) (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) 
-                              ,(impose-t tail tmpL)))]
-               [framesL new-framesL])
-       `(define ,label ((new-frames ,framesL)) ,i-tail))]))
+                              ,(impose-t tail tmpL)))])
+       `(define ,label ((new-frames ,new-frames)) ,i-tail))]))
 
   (define (impose-t t tmp)
     (match t
@@ -955,14 +953,17 @@
   (define (impose-e tmp e)
     (match e
       [`(set! ,aloc (call ,triv ,opands ...))
-        (set! new-frames (append new-frames '(())))
+        (define frame-list (make-frame-list (length opands)))
+        (if (> (length opands) cprLen)
+          (set! new-frames (append new-frames `(,(take-right frame-list (- (length opands) cprLen)))))
+          (set! new-frames (append new-frames `(()))))
         (define rp-label (fresh-label 'rp))
         `(begin
          (return-point ,rp-label
             (begin
-              ,@(set-block opands)
+              ,@(map set-opands (reverse opands) (reverse frame-list))
               (set! ,cra ,rp-label)
-              ,(create-jump triv (length opands))))
+              (jump ,triv ,cfbp ,cra ,@frame-list)))
           (set! ,aloc ,crv))]
       [`(set! ,aloc ,value)
         `(set! ,aloc ,value)]
@@ -976,6 +977,11 @@
   (define (make-para-list len)
     (if (> len cprLen)
         (append cpr (build-list (- len cprLen) (lambda (x) (make-fvar x))))
+        (take cpr len)))
+  
+  (define (make-frame-list len)
+    (if (> len cprLen)
+        (append cpr (build-list (- len cprLen)  (lambda (x) (fresh 'nfv))))
         (take cpr len)))
 
   (define (set-block opands)
