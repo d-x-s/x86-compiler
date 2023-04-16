@@ -94,8 +94,8 @@
 
 ; ================= Helpers =================
 
-; Input:
-; Output:
+; Input: list of symbols, and a symbol
+; Output: true or false
 ; Purpose: return true if the value is in the list, false otherwise
 (define (is-in-list list value)
   (cond
@@ -103,8 +103,8 @@
     [(equal? (first list) value) #t]
     [else (is-in-list (rest list) value)]))
 
-; Input:
-; Output:
+; Input: list of symbols
+; Output: list of symbols
 ; Purpose: splice things when an instruction is replaced by multiple instructions.
 (define (splice-mapped-list list)
   (foldr
@@ -112,14 +112,14 @@
             '()
              list))
 
-; Input:
-; Output:
+; Input: a dictionary and a symbol (key)
+; Output: symbol
 ; Purpose: since dict-ref returns a list, extracts the first element of that list given a dict-ref with key
 (define (extract-dict i key)
   (first (dict-ref i key)))
 
-; Input:
-; Output:
+; Input: (Para-asm-lang-v8 addr)
+; Output: true or false
 ; Purpose: return true if the value is an address, otherwise false
 (define (address? addr)
   (and (list? addr)
@@ -133,8 +133,8 @@
                 (equal? '+ (second addr))
                 (register? (third addr))))))
 
-; Input:
-; Output:
+; Input: symbol
+; Output: true or false
 ; Purpose: return true if value is relop, false otherwise
 (define (relop? relop)
   (or (equal? relop '<=)
@@ -148,20 +148,20 @@
 ; =============== M8 Passes ================
 
 ; Input:   paren-x64-mops-v8
-; Output:  paren-x64-mops-v8
-; Purpose: Compiles mops to instructios on pointers with index and displacement-mode operands.
+; Output:  paren-x64-v8
+; Purpose: Compiles mops to instructions on pointers with index and displacement-mode operands.
 (define (implement-mops p)
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (paren-x64-mops-v8 p)
+  ; Output: (paren-x64-mops-v8 p)
+  ; Purpose: given a sequence of statements, compile mops to instructions on pointers on each
   (define (mop-p p) 
     (match p
       [`(begin ,ss ...)
        `(begin ,@(map mop-s ss))]))
 
-  ; Input:
-  ; Output:
+  ; Input: (paren-x64-mops-v8 s)
+  ; Output: (paren-x64-v8 s)
   ; Purpose: 
   (define (mop-s s)
     (match s
@@ -173,7 +173,7 @@
        `(set! (,reg1 + ,index) ,int32)]
       [`(mset! ,reg1 ,index ,trg) #:when (or (register? trg) (label? trg))
        `(set! (,reg1 + ,index) ,trg)]
-      [_ s]))
+      [_ s])) ; all other statements unchanged, handled the same
 
   (mop-p p))
 
@@ -189,36 +189,36 @@
 ;       (set! ,hbp (+ ,hbp ,index)))
 (define (expose-allocation-pointer p)
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (asm-alloc-lang-v8 p)
+  ; Output: (asm-pred-lang-v8 p)
+  ; Purpose: destructures the module and splices in the exposed define blocks and exposed tail 
   (define (expose-alloc-p p)
     (match p
       [`(module ,info ,ds ... ,tail)
        `(module ,info ,@(map expose-alloc-define ds) ,(expose-alloc-tail tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (asm-alloc-lang-v8 d)
+  ; Output: (asm-pred-lang-v8 d)
+  ; Purpose: destructures a define block and exposes the tail
   (define (expose-alloc-define d)
     (match d
       [`(define ,label ,info ,tail)
        `(define ,label ,info ,(expose-alloc-tail tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (asm-alloc-lang-v8 t)
+  ; Output: (asm-pred-lang-v8 t)
+  ; Purpose: exposes a single tail
   (define (expose-alloc-tail t)
     (match t
       [`(begin ,fx ... ,tail)
        `(begin ,@(map expose-alloc-effect fx) ,(expose-alloc-tail tail))]
       [`(if ,pred ,tail1 ,tail2)
        `(if ,(expose-alloc-pred pred) ,(expose-alloc-tail tail1) ,(expose-alloc-tail tail2))]
-      [_ t]))
+      [_ t])) ; jumps are unchanged
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (asm-alloc-lang-v8 e)
+  ; Output: (asm-pred-lang-v8 e)
+  ; Purpose: exposes a single effect
   (define (expose-alloc-effect e)
     (match e
       [`(begin ,fx ...)
@@ -231,11 +231,11 @@
        `(return-point ,label ,(expose-alloc-tail tail))]
       [`(set! ,loc (,alloc ,index))
        `(begin (set! ,loc ,hbp) (set! ,hbp (+ ,hbp , index)))]
-      [_ e]))
+      [_ e])) ; all other cases unchanged
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (asm-alloc-lang-v8 pred)
+  ; Output: (asm-pred-lang-v8 pred)
+  ; Purpose: exposes a single predicate
   (define (expose-alloc-pred p)
     (match p
       [`(not ,pred)
@@ -262,8 +262,6 @@
   (define fn-count 5) ; number of functions added (not including hardcoded ones). Starts at 5.
   (define label-dict (make-hash)) ; mapping between primops and labels
 
-  ; Input:
-  ; Output:
   ; Purpose: map binops and unops to numbers (for binop, doubles as error code)
   (define binops #hash((* . 1) (+ . 2) (- . 3) (< . 4) 
                        (<= . 5) (> . 6) (>= . 7) (eq? . 18)
@@ -273,8 +271,8 @@
                        (pair? . 43) (vector? . 44) (car . 35) (cdr . 36) 
                        (vector-length . 29)))
   
-  ; Input:
-  ; Output:
+  ; Input: (exprs-unique-lang-v8 binop)
+  ; Output: (exprs-unsafe-data-lang-v8 label)
   ; Purpose: binop function generator. Create the function and add it to label-dict and fn-acc (returns a label)
   (define (generate-binop binop)
     ; each (binop . x) has errorcode = x and function (lambda (tmp.a tmp.b) ...) where
@@ -297,8 +295,8 @@
     (dict-set! label-dict binop new-label)
     new-label)
   
-  ; Input:
-  ; Output:
+  ; Input: (exprs-unique-lang-v8 unop)
+  ; Output: (exprs-unsafe-data-lang-v8 label)
   ; Purpose: unop function generator. Create the function and add it to label-dict and fn-acc (returns a label)
   (define (generate-unop unop)
     (define id (dict-ref unops unop))
@@ -315,8 +313,8 @@
     (dict-set! label-dict unop new-label)
     new-label)
 
-  ; Input: 
-  ; Output:
+  ; Input: n/a
+  ; Output: (exprs-unsafe-data-lang-v8 label)
   ; Purpose: Generate make-vector function and add the two functions needed for 
   ;          make-vector, make-init-vector and vector-init-loop. Returns a label.
   (define (generate-make-vec)
@@ -341,8 +339,8 @@
     (dict-set! label-dict 'make-vector new-label)
     new-label)
 
-  ; Input:
-  ; Output:
+  ; Input: n/a
+  ; Output: (exprs-unsafe-data-lang-v8 label)
   ; Purpose: Generate vector-set! function and add the unsafe-vector-set! function needed. Returns a label.
   (define (generate-vec-set)
     (define new-label (format-symbol "L.vector-set!.~a" fn-count))
@@ -366,8 +364,8 @@
     new-label)
 
 
-  ; Input:
-  ; Output:
+  ; Input: n/a
+  ; Output: (exprs-unsafe-data-lang-v8 label)
   ; Purpose: Generate vector-ref function and add the unsafe-vector-ref! function needed.
   ;          Returns a label.
   (define (generate-vec-ref)
@@ -391,9 +389,9 @@
     (dict-set! label-dict 'vector-ref new-label)
     new-label)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (exprs-unique-lang-v8 p)
+  ; Output: (exprs-unsafe-data-lang-v8 p)
+  ; Purpose: destructures the module and splices in the processed elements
   (define (primop-p p)
     (match p
       [`(module ,defines ... ,value)
@@ -401,17 +399,17 @@
         (define valRes (primop-v value))
        `(module ,@fn-acc ,@definesRes ,valRes)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (exprs-unique-lang-v8 d)
+  ; Output: (exprs-unsafe-data-lang-v8 d)
+  ; Purpose: implements safe primops on a single define
   (define (primop-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,value))
        `(define ,label (lambda ,aloc ,(primop-v value)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unique-lang-v8 value)
+  ; Output: (exprs-unsafe-data-lang-v8 value)
+  ; Purpose: implements safe primops on a single value
   (define (primop-v v)
     (match v
       [`(call ,val ,values ...)
@@ -427,8 +425,8 @@
       [triv 
         (primop-triv triv)]))
   
-  ; Input:
-  ; Output:
+  ; Input: (exprs-unique-lang-v8 triv)
+  ; Output: (exprs-unsafe-data-lang-v8 triv)
   ; Purpose: Generate a function and add to the accumulator if it is not there already.
   ;          Return the appropriate label, or t if t is not a primop.
   (define (primop-triv t)
@@ -2843,9 +2841,10 @@
       #:when (and (register? reg) (register? triv))
       (string-append x64 "mov " (symbol->string reg) ", "(symbol->string triv) "\n")]
 
+      ; @Piazza 249: use mov rather than lea
       [`(set! ,reg ,triv)
       #:when (and (register? reg) (label? triv))
-      (string-append x64 "lea " (symbol->string reg) ", " (trg->ins triv) "\n")]
+      (string-append x64 "mov " (symbol->string reg) ", " (trg->ins triv) "\n")]
 
       [`(set! ,reg ,triv)
       #:when (and (register? reg) (int64? triv))
