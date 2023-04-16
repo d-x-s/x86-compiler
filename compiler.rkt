@@ -628,9 +628,9 @@
 
 ; =============== M6 Passes ================
 
-; Input: asm-pred-lang-v7/conflicts
-; Output: asm-pred-lang-v7/pre-framed
-; Purpose: Compiles Asm-pred-lang-v7/conflicts to Asm-pred-lang-v7/pre-framed by pre-assigning all 
+; Input: asm-pred-lang-v8/conflicts
+; Output: asm-pred-lang-v8/pre-framed
+; Purpose: Compiles Asm-pred-lang-v8/conflicts to Asm-pred-lang-v8/pre-framed by pre-assigning all 
 ;          variables in the call-undead sets to frame variables.
 (define (assign-call-undead-variables p)
 
@@ -811,9 +811,9 @@
   (allocate-p p))
 
 
-; Input:   asm-pred-lang-v7/spilled
-; Output:  asm-pred-lang-v7/assignments
-; Purpose: Compiles Asm-pred-lang-v7/spilled to Asm-pred-lang-v7/assignments 
+; Input:   asm-pred-lang-v8/spilled
+; Output:  asm-pred-lang-v8/assignments
+; Purpose: Compiles Asm-pred-lang-v8/spilled to Asm-pred-lang-v8/assignments 
 ;          by allocating all abstract locations in the locals set to free frame variables.
 (define (assign-frame-variables p)
 
@@ -1264,8 +1264,8 @@
   (expose-p p))
   
 
-; Input:   block-pred-lang-v7
-; Output:  block-asm-lang-v7
+; Input:   block-pred-lang-v8
+; Output:  block-asm-lang-v8
 ; Purpose: Compile the Block-pred-lang v7 to Block-asm-lang v7 by manipulating the 
 ;          branches of if statements to resolve branches.
 (define (resolve-predicates p)
@@ -1295,9 +1295,9 @@
   (resolve-p p))
 
 
-; Input:   block-asm-lang-v7
-; Output:  para-asm-lang-v7
-; Purpose: Compile Block-asm-lang v7 to Para-asm-lang v7 by flattening basic blocks into labeled instructions.
+; Input:   block-asm-lang-v8
+; Output:  para-asm-lang-v8
+; Purpose: Compile Block-asm-lang v8 to Para-asm-lang v8 by flattening basic blocks into labeled instructions.
 (define (flatten-program p)
 
   (define (flatten-p p)
@@ -1573,10 +1573,10 @@
   (c-analysis-p p))
 
  
-; Input:    asm-pred-lang-v7/framed
-; Output:   asm-pred-lang-v7/spilled
+; Input:    asm-pred-lang-v8/framed
+; Output:   asm-pred-lang-v8/spilled
 ; Purpose:  Performs graph-colouring register allocation, 
-;           compiling Asm-pred-lang v7/framed to Asm-pred-lang v7/spilled by decorating programs with their register assignments.
+;           compiling Asm-pred-lang v8/framed to Asm-pred-lang v8/spilled by decorating programs with their register assignments.
 (define (assign-registers p)
   ; a list consisting of '(rsp rbx rcx rdx rsi rdi r8 r9 r13 r14 r15)
   (define car (current-assignable-registers))
@@ -1660,9 +1660,9 @@
   (assign-p p))
 
 
-; Input:   exprs-lang-v7
-; Output:  exprs-unique-lang-v7
-; Purpose: Compiles Values-lang v6 to Values-unique-lang v6 by resolving top-level lexical identifiers 
+; Input:   exprs-lang-v8
+; Output:  exprs-unique-lang-v8
+; Purpose: Compiles exprs-lang-v8 to exprs-unique-lang-v8 by resolving top-level lexical identifiers 
 ;          into unique labels, and all other lexical identifiers into unique abstract locations.
 (define (uniquify p) 
 
@@ -2415,7 +2415,7 @@
   (fvars-p p))
 
 
-; Input:   paren-x64-v7
+; Input:   paren-x64-v8
 ; Output:  x64-instructions
 ; Purpose: Compile the Paren-x64 v6 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
