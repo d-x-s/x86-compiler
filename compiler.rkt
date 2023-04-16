@@ -914,12 +914,14 @@
       [`(module ,defines ... ,tail)
         (define tmp (fresh 'tmp-ra))
         (let* ([i-tail `(begin (set! ,tmp ,cra) ,(impose-t tail tmp))]
-               [frames new-frames])
-               `(module ((new-frames ,frames)) ,@(map impose-d defines) ,i-tail))]))
+               [frames new-frames]
+               [i-def (map impose-d defines)])
+               `(module ((new-frames ,frames)) ,@i-def ,i-tail))]))
 
   (define (impose-d d)
     (match d
       [`(define ,label (lambda (,alocs ...) ,tail))
+        (set! new-frames `())
         (define tmpL (fresh 'tmp-ra))
         (let* ([i-tail `(begin (set! ,tmpL ,cra) (begin ,@(map set-opands  (make-para-list (length alocs))  alocs) 
                               ,(impose-t tail tmpL)))])
