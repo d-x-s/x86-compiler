@@ -4,6 +4,37 @@
  cpsc411/compiler-lib
  rackunit "../compiler.rkt")
 
+ ; M8 Tests
+
+ (test-case "specrep 0 - stack smash"
+    (check-match
+        (specify-representation
+        '(module
+        (define L.+.5
+            (lambda (tmp.16 tmp.17)
+            (if (fixnum? tmp.17)
+                (if (fixnum? tmp.16) (unsafe-fx+ tmp.16 tmp.17) (error 2))
+                (error 2))))
+        (define L.F.4
+            (lambda (a.7 b.6 c.5 d.4 e.3 f.2 g.1)
+            (call L.+.5 10 (call L.G.5 a.7 b.6 c.5 d.4 e.3 f.2 g.1 8))))
+        (define L.G.5
+            (lambda (a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8)
+            (call L.H.6 a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8 9)))
+        (define L.H.6
+            (lambda (a.24 b.23 c.22 d.21 e.20 f.19 g.18 h.17 j.16)
+            (let ((r1.25 (call L.+.5 a.24 b.23)))
+                (let ((r2.26 (call L.+.5 r1.25 c.22)))
+                (let ((r3.27 (call L.+.5 r2.26 d.21)))
+                    (let ((r4.28 (call L.+.5 r3.27 e.20)))
+                    (let ((r5.29 (call L.+.5 r4.28 f.19)))
+                        (let ((r6.30 (call L.+.5 r5.29 g.18)))
+                        (let ((r7.31 (call L.+.5 r6.30 h.17)))
+                            (call L.+.5 r7.31 j.16))))))))))
+        (call L.F.4 1 2 3 4 5 6 7)))
+
+     `(module (call L.start.1 L.s.1 x.1 8 16 440 208 -16))))
+
 ; M7 Tests
 
 (test-case "specrep 1 - fixnums"

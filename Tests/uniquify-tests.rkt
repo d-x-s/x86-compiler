@@ -5,6 +5,49 @@
  rackunit "../compiler.rkt"
 )
 
+(test-case "uniquify 0 - stack smasher"
+    (check-match
+(uniquify '(module
+      (define F
+        (lambda (a b c d e f g)
+          (call + 10 (call G a b c d e f g 8))))
+      (define G
+        (lambda (a b c d e f g h)
+          (call H a b c d e f g h 9)))
+      (define H
+        (lambda (a b c d e f g h j)
+          (let ([r1 (call + a b)])
+            (let ([r2 (call + r1 c)])
+              (let ([r3 (call + r2 d)])
+                (let ([r4 (call + r3 e)])
+                  (let ([r5 (call + r4 f)])
+                    (let ([r6 (call + r5 g)])
+                      (let ([r7 (call + r6 h)])
+                        (call + r7 j))))))))))
+      (call F 1 2 3 4 5 6 7))
+)
+
+     `(module
+  (define ,L.F.4
+    (lambda (,a.7 ,b.6 ,c.5 ,d.4 ,e.3 ,f.2 ,g.1)
+      (call + 10 (call ,L.G.5 ,a.7 ,b.6 ,c.5 ,d.4 ,e.3 ,f.2 ,g.1 8))))
+  (define ,L.G.5
+    (lambda (,a.15 ,b.14 ,c.13 ,d.12 ,e.11 ,f.10 ,g.9 ,h.8)
+      (call ,L.H.6 ,a.15 ,b.14 ,c.13 ,d.12 ,e.11 ,f.10 ,g.9 ,h.8 9)))
+  (define ,L.H.6
+    (lambda (,a.24 ,b.23 ,c.22 ,d.21 ,e.20 ,f.19 ,g.18 ,h.17 ,j.16)
+      (let ((,r1.25 (,call + ,a.24 ,b.23)))
+        (let ((,r2.26 (call + ,r1.25 ,c.22)))
+          (let ((,r3.27 (call + ,r2.26 ,d.21)))
+            (let ((,r4.28 (call + ,r3.27 ,e.20)))
+              (let ((,r5.29 (call + ,r4.28 ,f.19)))
+                (let ((,r6.30 (call + ,r5.29 ,g.18)))
+                  (let ((,r7.31 (call + ,r6.30 ,h.17)))
+                    (call + ,r7.31 ,j.16))))))))))
+  (call ,L.F.4 1 2 3 4 5 6 7))
+    )
+)
+
 (test-case "uniquify 1 - trivial value"
     (check-match
      (uniquify 
@@ -139,7 +182,7 @@
         (define ,L.y.10 (lambda (,a.33 ,b.34) 10))
         (define ,L.name.11 (lambda (,a.35 ,b.36) 10))
         (define ,L.name.11 (lambda (,a.37 ,b.38) 10))
-        (call L.x.9 10 20 30 40 50))
+        (call ,L.x.9 10 20 30 40 50))
     )
 )
 
@@ -298,4 +341,5 @@
                 (if (let ((,x.6 >)) (call ,x.6 vector-set!)) 9 cons)))))
     )
 )
+
 

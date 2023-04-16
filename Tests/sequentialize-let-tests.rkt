@@ -4,6 +4,87 @@
  cpsc411/compiler-lib
  rackunit "../compiler.rkt")
 
+ (test-case "sequentialize 0 - stack smash"
+   (check-equal?
+    (sequentialize-let
+    '(module
+    (define L.+.5
+        (lambda (tmp.16 tmp.17)
+        (if (let ((tmp.1
+                    (if (let ((tmp.2 (bitwise-and tmp.17 7))) (= tmp.2 0)) 14 6)))
+                (!= tmp.1 6))
+            (if (let ((tmp.3
+                    (if (let ((tmp.4 (bitwise-and tmp.16 7))) (= tmp.4 0))
+                        14
+                        6)))
+                (!= tmp.3 6))
+            (+ tmp.16 tmp.17)
+            574)
+            574)))
+    (define L.F.4
+        (lambda (a.7 b.6 c.5 d.4 e.3 f.2 g.1)
+        (let ((tmp.5 (call L.G.5 a.7 b.6 c.5 d.4 e.3 f.2 g.1 64)))
+            (call L.+.5 80 tmp.5))))
+    (define L.G.5
+        (lambda (a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8)
+        (call L.H.6 a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8 72)))
+    (define L.H.6
+        (lambda (a.24 b.23 c.22 d.21 e.20 f.19 g.18 h.17 j.16)
+        (let ((r1.25 (call L.+.5 a.24 b.23)))
+            (let ((r2.26 (call L.+.5 r1.25 c.22)))
+            (let ((r3.27 (call L.+.5 r2.26 d.21)))
+                (let ((r4.28 (call L.+.5 r3.27 e.20)))
+                (let ((r5.29 (call L.+.5 r4.28 f.19)))
+                    (let ((r6.30 (call L.+.5 r5.29 g.18)))
+                    (let ((r7.31 (call L.+.5 r6.30 h.17)))
+                        (call L.+.5 r7.31 j.16))))))))))
+    (call L.F.4 8 16 24 32 40 48 56)))
+        
+        '(module
+            (define L.+.5
+                (lambda (tmp.16 tmp.17)
+                (if (begin
+                        (set! tmp.1
+                        (if (begin (set! tmp.2 (bitwise-and tmp.17 7)) (= tmp.2 0))
+                            14
+                            6))
+                        (!= tmp.1 6))
+                    (if (begin
+                        (set! tmp.3
+                            (if (begin (set! tmp.4 (bitwise-and tmp.16 7)) (= tmp.4 0))
+                            14
+                            6))
+                        (!= tmp.3 6))
+                    (+ tmp.16 tmp.17)
+                    574)
+                    574)))
+            (define L.F.4
+                (lambda (a.7 b.6 c.5 d.4 e.3 f.2 g.1)
+                (begin
+                    (set! tmp.5 (call L.G.5 a.7 b.6 c.5 d.4 e.3 f.2 g.1 64))
+                    (call L.+.5 80 tmp.5))))
+            (define L.G.5
+                (lambda (a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8)
+                (call L.H.6 a.15 b.14 c.13 d.12 e.11 f.10 g.9 h.8 72)))
+            (define L.H.6
+                (lambda (a.24 b.23 c.22 d.21 e.20 f.19 g.18 h.17 j.16)
+                (begin
+                    (set! r1.25 (call L.+.5 a.24 b.23))
+                    (begin
+                    (set! r2.26 (call L.+.5 r1.25 c.22))
+                    (begin
+                        (set! r3.27 (call L.+.5 r2.26 d.21))
+                        (begin
+                        (set! r4.28 (call L.+.5 r3.27 e.20))
+                        (begin
+                            (set! r5.29 (call L.+.5 r4.28 f.19))
+                            (begin
+                            (set! r6.30 (call L.+.5 r5.29 g.18))
+                            (begin
+                                (set! r7.31 (call L.+.5 r6.30 h.17))
+                                (call L.+.5 r7.31 j.16))))))))))
+            (call L.F.4 8 16 24 32 40 48 56))))
+
 (test-case "sequentialize 1 - tail is number"
    (check-equal?
         (sequentialize-let
