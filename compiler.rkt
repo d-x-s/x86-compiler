@@ -2311,11 +2311,22 @@
         (define getfresh (fresh))
        `(begin (set! ,getfresh ,opand1) 
                (,relop ,getfresh ,opand2))]
-      [`(begin ,effects ... ,pred) ; flatten nested begins here (currently different from interrogator)
-       `(begin ,@(splice-mapped-list (map sel-ins-e effects)) ,(sel-ins-pr pred))]
+      [`(begin ,effects ... ,pred) 
+      ;  ; flatten nested begins here (currently different from interrogator)
+      ;  `(begin ,@(splice-mapped-list (map sel-ins-e effects)) ,(sel-ins-pr pred))
+       `(begin ,@(splice-mapped-list (map wrap-sel-ins-e effects)) ,(sel-ins-pr pred))]
       [`(if ,preds ...)
        `(if ,@(map sel-ins-pr preds))]
       [_ pr])) ; bool
+
+  ; Special case for preds: do not flatten effects that are begins.
+  (define (wrap-sel-ins-e e)
+    (match e
+      [`(begin ,eff ...)
+       `((begin ,@(splice-mapped-list (map sel-ins-e eff))))] ; switch back to normal flattening
+      [`(set! ,loc (,binop ...))
+       `((begin ,@(sel-ins-v binop loc)))]
+      [_ (sel-ins-e e)]))
   
   ; Input: 
   ; Output: 
