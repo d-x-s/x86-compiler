@@ -2016,8 +2016,8 @@
   (sel-ins-p p))
 
 
-; Input:   asm-pred-lang-v7/assignments
-; Output:  nested-asm-lang-v7
+; Input:   asm-pred-lang-v8/assignments
+; Output:  nested-asm-lang-fvars-v8
 ; Purpose: Replaces all abstract location with physical locations using the assignment described in the 
 ;          assignment info field, and dropping any register-allocation-related metadata from the program.
 (define (replace-locations p)
@@ -2025,17 +2025,17 @@
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
-       `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail info))]))
+       `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail (info-ref info 'assignment)))]))
 
   (define (replace-loc-def d)
     (match d
       [`(define ,label ,info ,tail)
-       `(define ,label ,(replace-loc-t tail info))]))
+       `(define ,label ,(replace-loc-t tail (info-ref info 'assignment)))]))
   
   ; given an abstract location 'aloc' return its replacement as defined
   ; in the list of assignments 'as'.
   (define (get-repl aloc as)
-    (info-ref (info-ref as 'assignment) aloc))
+    (info-ref as aloc))
   
   ; return a tail with locations replaced.
   (define (replace-loc-t t as)
@@ -2049,10 +2049,14 @@
 
   (define (replace-loc-e as e)
     (match e
+      [`(set! ,loc_1 (mref ,loc_2 ,index))
+       `(set! ,(replace-loc loc_1 as) (mref ,(replace-loc loc_2 as) ,(replace-loc index as)))]
       [`(set! ,loc_1 (,binop ,loc_1 ,opand))
         `(set! ,(replace-loc loc_1 as) (,binop ,(replace-loc loc_1 as) ,(replace-loc opand as)))]
       [`(set! ,loc ,triv)
         `(set! ,(replace-loc loc as) ,(replace-loc triv as))]
+      [`(mset! ,loc ,index ,triv)
+       `(mset! ,(replace-loc loc as) ,(replace-loc index as) ,(replace-loc triv as))]
       [`(begin ,effects ...)
         `(begin ,@(map (curry replace-loc-e as) effects))]
       [`(if ,pred ,effect1 ,effect2)
