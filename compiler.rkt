@@ -465,25 +465,25 @@
   (define binops #hash((unsafe-fx* . *) (unsafe-fx+ . +) (unsafe-fx- . -) (eq? . =) 
                        (unsafe-fx< . <) (unsafe-fx<= . <=) (unsafe-fx> . >) (unsafe-fx>= . >=)))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unsafe-data-lang-v8 p)
+  ; Output: (exprs-bits-lang-v8 p)
+  ; Purpose: destructures module and splices in the transformed defines and value
   (define (specify-p p)
     (match p
       [`(module ,defines ... ,value)
        `(module ,@(map specify-d defines) ,(specify-v value))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unsafe-data-lang-v8 define)
+  ; Output: (exprs-bits-lang-v8 define)
+  ; Purpose: applies the specify representation transformation on a single define block
   (define (specify-d d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,value))
        `(define ,label (lambda ,aloc ,(specify-v value)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unsafe-data-lang-v8 value)
+  ; Output: (exprs-bits-lang-v8 value)
+  ; Purpose: transforms a single value, calling the appropriate functions in each case
   (define (specify-v v)
     (match v
       [`(call ,values ...)
@@ -499,8 +499,8 @@
       [triv
         (specify-triv triv)]))
 
-  ; Input:
-  ; Output:
+  ; Input: (exprs-unsafe-data-lang-v8 effect)
+  ; Output: (exprs-bits-lang-v8 effect)
   ; Purpose: 
   (define (specify-e e)
     (match e
@@ -509,16 +509,16 @@
       [`(,primop ,values ...)
         (specify-primop primop values)]))
 
-  ; Input:
-  ; Output:
+  ; Input: (aloc, value)
+  ; Output: (aloc, value) 
   ; Purpose: Given an aloc and a value, return the same pair but with the processed value.
   (define (specify-assign a)
     (match a
       [`(,aloc ,value)
        `(,aloc ,(specify-v value))]))
 
-  ; Input:
-  ; Output:
+  ; Input: (exprs-unsafe-data-lang-v8 pred)
+  ; Output: (exprs-bits-lang-v8 pred)
   ; Purpose: Handles a value in pred position
   (define (specify-pred p)
     (match p
@@ -530,9 +530,9 @@
        `(if ,(specify-pred pred) ,(specify-pred pred1) ,(specify-pred pred2))]
       [_ `(!= ,(specify-v p) ,(current-false-ptr))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unsafe-data-lang-v8 triv)
+  ; Output: (exprs-bits-lang-v8 triv)
+  ; Purpose: given a triv data type, apply the transformation corressponding to specify-representation
   (define (specify-triv t)
     (match t
       ['#t (current-true-ptr)]
@@ -547,9 +547,9 @@
         (bitwise-ior (arithmetic-shift fixnum (current-fixnum-shift)) (current-fixnum-tag))]
       [_ t])) ; label or aloc
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: (exprs-unsafe-data-lang-v8 p) and (exprs-unsafe-data-lang-v8 value)
+  ; Output: (exprs-unsafe-data-lang-v8 p)
+  ; Purpose: covers cases for each type of primop and provides the corresponding transformation
   (define (specify-primop p v)
     (match p
       ['fixnum?     `(if (= (bitwise-and ,@(map specify-v v) ,(current-fixnum-mask)) ,(current-fixnum-tag)) ,(current-true-ptr) ,(current-false-ptr))]
@@ -724,30 +724,30 @@
 
   (define fvar_cap 50)
 
-  ; Input:
-  ; Output:
+  ; Input: Number
+  ; Output: (List (asm-pred-lang-v8/pre-framed fvar))
   ; Purpose: generate a list of fvars from 0 to num
   (define (allocate-fvars num)
     (map make-fvar (range num)))
 
-  ; Input:
-  ; Output:
+  ; Input: (asm-pred-lang-v8/conflicts p)
+  ; Output: (asm-pred-lang-v8/pre-framed p)
   ; Purpose: splice the updated info block into the language
   (define (assign-call-undead-p p) 
     (match p
       [`(module ,info ,defs ... ,tail)
        `(module ,(assign-call-undead-info info) ,@(map (lambda (d) (assign-call-undead-block d)) defs) ,tail)]))
 
-  ; Input:
-  ; Output: 
+  ; Input: (asm-pred-lang-v8/conflicts define)
+  ; Output: (asm-pred-lang-v8/pre-framed define)
   ; Purpose: generates the assignment for a single block
   (define (assign-call-undead-block d)
     (match d
       [`(define ,label ,info ,tail)
        `(define ,label ,(assign-call-undead-info info) ,tail)]))
 
-  ; Input:
-  ; Output:
+  ; Input: (asm-pred-lang-v8/conflicts info)
+  ; Output: (asm-pred-lang-v8/pre-framed info)
   ; Purpose: update the info block with new assignments
   (define (assign-call-undead-info i)
     (let* ([locals      (first (dict-ref i 'locals))]
@@ -756,8 +756,10 @@
            [assignments (reverse (generate-assignments call-undead conflicts '()))])
           (dict-set (dict-set i 'locals (list (reverse (update-locals assignments locals)))) 'assignment (list assignments))))
 
-  ; Input:
-  ; Output:
+  ; Input: (asm-pred-lang-v8/conflicts call-undead set)
+  ;        (asm-pred-lang-v8/conflicts conflicts set)
+  ;        (asm-pred-lang-v8/conflicts assignments set)
+  ; Output: (List-of aloc)
   ; Purpose: generates assignment based on the alocs and their conflicts
   (define (generate-assignments call-undead conflicts assignments)
     (define fvars (allocate-fvars fvar_cap))
@@ -772,8 +774,12 @@
                 (append (list (assign-node node node-conflicts new-assignments fvars)) new-assignments)
                 new-assignments))))
 
-  ; Input:
-  ; Output:
+  ; Input: (asm-pred-lang-v8/conflicts aloc)
+  ;        (asm-pred-lang-v8/conflicts conflicts set)
+  ;        (asm-pred-lang-v8/conflicts assignments set)
+  ;        (List-of (asm-pred-lang-v8/conflicts conflicts aloc))
+  ;        (asm-pred-lang-v8/conflicts assignments set)
+  ; Output: (node, fvar) 
   ; Purpose: assigns a single aloc to a frame variable
   (define (assign-node node node-conflicts assignments fvars)
     (define fvar (first fvars))
@@ -781,7 +787,10 @@
       (assign-node node node-conflicts assignments (rest fvars))
       `(,node ,fvar)))
 
-  ; Input:
+  ; Input: (asm-pred-lang-v8/conflicts aloc)
+  ;        (asm-pred-lang-v8/conflicts conflicts set)
+  ;        (asm-pred-lang-v8/conflicts fvar)
+  ;        (asm-pred-lang-v8/conflicts assignments set)
   ; Output:
   ; Purpose: return true if:
   ;          a) the fvar we are trying to assign this node is in the node's conflict list OR...
@@ -794,8 +803,9 @@
           [(equal? a-fvar fvar) (is-in-list node-conflicts a-aloc)]
           [else #f]))
 
-  ; Input:
-  ; Output:
+  ; Input: (asm-pred-lang-v8/conflicts conflicts set)
+  ;        (asm-pred-lang-v8/conflicts locals set)
+  ; Output: (asm-pred-lang-v8/pre-framed locals set)
   ; Purpose: in the locals list, keep only the locals who have not been assigned yet
   (define (update-locals assignments locals)
     (define assignments-alocs (dict-keys assignments))
@@ -1172,8 +1182,8 @@
 ; Purpose: Optimize Nested-asm-lang-fvars v8 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
 
-  ; Input: 
-  ; Output:
+  ; Input: three different sets
+  ; Output: hash set
   ; Purpose: key-and-value-wise intersection of h0 with h1 and h2.
   (define (hash-intersects h0 h1 h2)
     (for/fold ([h #hash()])
@@ -1183,8 +1193,8 @@
                   (dict-set h k currVal)
                   h)))
 
-  ; Input:
-  ; Output: 
+  ; Input: two different sets
+  ; Output: hash set 
   ; Purpose: key-and-value-wise intersection of h1 and h2
   (define (hash-intersect h1 h2)
     (for/fold ([h #hash()])
@@ -1194,26 +1204,26 @@
                   (dict-set h k currVal)
                   h)))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: p
+  ; Output: optimized transformation of p
+  ; Purpose: destructure module and call approrpiate helpers
   (define (optimize-p p)
     (match p
       [`(module ,defines ... ,tail)
         (define-values (tailRes x) (optimize-t tail #hash()))
        `(module ,@(map optimize-def defines) ,tailRes)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: d
+  ; Output: optimized transformation of d
+  ; Purpose: destructure define block and call appropriate helpers
   (define (optimize-def d)
     (match d
       [`(define ,label ,tail)
         (define-values (tailRes x) (optimize-t tail #hash()))
        `(define ,label ,tailRes)]))
   
-  ; Input: 
-  ; Output:
+  ; Input: tail and environment
+  ; Output: (values new-eff new-env)
   ; Purpose: Return (values new-eff new-env)
   (define (optimize-t t env)
     (match t
@@ -1235,8 +1245,8 @@
         (define-values (t2 x2) (optimize-t tail2 env))
         (values (optimize-pred pred t1 t2 env) env)]))
 
-  ; Input:
-  ; Output:
+  ; Input: effect and environment
+  ; Output: (values new-eff new-env)
   ; Purpose: Return (values new-eff new-env)
   (define (optimize-e e env)
     (match e
@@ -1283,12 +1293,12 @@
         (values `(return-point ,label ,tailRes) 
                  (hash-intersect env new-env))]))
 
-  ; Input: 
-  ; Output: 
+  ; Input: t1 : the already-processed true option
+  ;        t2 : the already-processed false option
+  ;        env : the environment of the pred
+  ; Output: optimized pred
   ; Purpose: Process a pred.
-  ;          t1 : the already-processed true option
-  ;          t2 : the already-processed false option
-  ;          env : the environment of the pred
+  ;        
   (define (optimize-pred p t1 t2 env)
     (match p
       [`(begin ,effects ... ,pred)
@@ -1315,11 +1325,10 @@
       [`(true)
         t1]))
   
-  ; Input:
-  ; Output:
+  ; Input: expr: a relop expression (,relop ,loc ,opand)
+  ; Output: optimized relop
   ; Purpose: Given a relop, return the branch that should replace it, otherwise return the original
   ;          if-statement.
-  ;          expr: a relop expression (,relop ,loc ,opand)
   (define (optimize-relop expr t1 t2 env)
       (define (interp-relop relop)
         (match relop
@@ -1515,34 +1524,34 @@
 ; Purpose: Compile Block-asm-lang v8 to Para-asm-lang v8 by flattening basic blocks into labeled instructions.
 (define (flatten-program p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: p
+  ; Output: flattened p
+  ; Purpose: destructure the module and splice in the flattened program
   (define (flatten-p p)
     (match p
      [`(module ,bs ...)
       `(begin ,@(flatten-bs bs))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: list of blocks
+  ; Output: flattened list of blocks
+  ; Purpose: flattens a list of blocks
   (define (flatten-bs bs)
     (for/fold ([flt '()])
               ([b   bs])
               (flatten-b b flt)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: a block
+  ; Output: flattened block
+  ; Purpose: flattens a single block
   (define (flatten-b b acc)
     (match b
       [`(define ,label ,tail)
         (let ([ft (flatten-t tail)])
              (append acc `((with-label ,label ,(first ft))) (rest ft)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: a tail
+  ; Output: flattened tail
+  ; Purpose: flattens a single tail
   (define (flatten-t t)
      (match t
       [`(jump ,trg)
@@ -1875,8 +1884,6 @@
                   new-assignments
                  (append (list assigned-node) new-assignments)))))
 
-  ; Input: 
-  ; Output:
   ; Purpose: assigns a single aloc to a register
   (define (assign-node node node-conflicts assignments registers)
     (cond [(empty? registers) #f]
@@ -1890,8 +1897,6 @@
               (assign-node node node-conflicts assignments (rest registers))
              `(,node ,(first registers)))]))
 
-  ; Input:
-  ; Output: 
   ; Purpose: return false if this node is incompatible with all registers, otherwise assign it
   (define (try-assign-register node node-conflicts registers)
     (cond [(empty? registers) #f]
@@ -1901,8 +1906,6 @@
                (try-assign-register node node-conflicts (rest registers))
                `(,node ,register))]))
   
-  ; Input:
-  ; Output:
   ; Purpose: return true if:
   ;          a) the fvar we are trying to assign this node is in the node's conflict list OR...
   ;          b) some other assignment already uses this register, and the nodes conflict with each other
@@ -1914,8 +1917,6 @@
           [(equal? a-reg register) (is-in-list node-conflicts a-aloc)]
           [else #f]))
 
-  ; Input:
-  ; Output: 
   ; Purpose: in the locals list, keep only the locals who have not been assigned yet
   (define (update-locals assignments locals)
     (define assignments-alocs (dict-keys assignments))
@@ -1932,8 +1933,8 @@
 
   (define label-binds-box (box '()))
 
-  ; Input:
-  ; Output:
+  ; Input: program and binding dictionary
+  ; Output: uniquified program
   ; Purpose: destructures the module statement and calls the appropriate uniquify recursive functions
   (define (uniquify-p p dict-acc)
     (match p
@@ -1942,8 +1943,8 @@
        `(module ,@(map (lambda (d) (uniquify-define d dict-acc)) uniquified-labels)
                 ,(uniquify-value v dict-acc))]))
 
-  ; Input:
-  ; Output:
+  ; Input: define block and define binding dictionary
+  ; Output: define block
   ; Purpose: generate unique labels for the define statements blocks
   (define (uniquify-define-labels def def-binds)
     (match def
@@ -1954,8 +1955,8 @@
             (set-box! label-binds-box (dict-set label-binds x (fresh-label x))))
        `(define ,(dict-ref (unbox label-binds-box) x) (lambda (,@xs) ,value))]))
   
-  ; Input:
-  ; Output: 
+  ; Input: define block and define binding dictionary
+  ; Output: define block
   ; Purpose: generate unique alocs for the variables in the define statement bodies
   (define (uniquify-define def def-binds)
     (match def
@@ -1965,8 +1966,8 @@
                 (lambda ,(map (lambda (x) (try-lookup x new-def-binds)) xs) 
                         ,(uniquify-value t new-def-binds)))]))
 
-  ; Input:
-  ; Output:
+  ; Input: a value and a binding dictionary
+  ; Output: a uniquified value
   ; Purpose: recursively uniquify a single value
   (define (uniquify-value t binds)
     (match t 
@@ -1986,8 +1987,8 @@
       
       [triv (update-bind triv binds)]))
 
-  ; Input:
-  ; Output:
+  ; Input: a symbol and a binding dictionary
+  ; Output: symbol
   ; Purpose: return the triv itself if it is an int64, otherwise look up the bind in the dictionary
   (define (update-bind x binds)
     (match x
@@ -1995,8 +1996,8 @@
       [(? name?) (try-lookup x binds)]
       [_ x]))
 
-  ; Input: 
-  ; Output:
+  ; Input: list of alocs and a binding dictionary
+  ; Output: updated binding dictionary
   ; Purpose: uses fresh to give a unique assignment to each name at the current scope
   (define (construct-binds xs binds)
     (for/fold ([new-binds binds])
