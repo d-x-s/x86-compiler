@@ -210,8 +210,7 @@
           (mset! x.1 5 L.start.1)
           (begin (set! rax 5) (jump tmp-ra.11 rbp rax)))))))
 
-
- (test-case "impose 11 - empty frame variables"
+(test-case "impose 11 - empty frame variables"
   (check-equal?
     (impose-calling-conventions
     '(module
@@ -261,7 +260,7 @@
             (jump L.+.5 rbp r15 rdi rsi))))))
   (begin (set! tmp-ra.2 r15) (begin (set! r15 tmp-ra.2) (jump L.F.4 rbp r15))))))
 
- (test-case "impose 12 - multiple frame variables"
+(test-case "impose 12 - multiple frame variables"
   (check-equal?
     (impose-calling-conventions
     '(module
@@ -309,7 +308,7 @@
             (jump L.+.5 rbp r15 rdi rsi))))))
   (begin (set! tmp-ra.4 r15) (begin (set! r15 tmp-ra.4) (jump L.F.4 rbp r15))))))
 
-   (test-case "impose 0 - stack smash"
+(test-case "impose 0 - stack smash"
   (check-equal?
     (impose-calling-conventions
     '(module
