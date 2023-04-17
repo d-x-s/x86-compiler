@@ -103,8 +103,8 @@
     [(equal? (first list) value) #t]
     [else (is-in-list (rest list) value)]))
 
-; Input: list of symbols
-; Output: list of symbols
+; Input: list of lists of instructions
+; Output: list of instructions
 ; Purpose: splice things when an instruction is replaced by multiple instructions.
 (define (splice-mapped-list list)
   (foldr
@@ -615,25 +615,25 @@
 ;          All operands are evaluated from left to right.
 (define (remove-complex-opera* p)
   
-  ; Input: 
-  ; Output: 
-  ; Purpose: 
+  ; Input:   exprs-bits-lang-v8
+  ; Output:  values-bits-lang-v8
+  ; Purpose: main function
   (define (remop-p p)
     (match p
       [`(module ,defines ... ,value)
        `(module ,@(map remop-def defines) ,(remop-v value))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label (lambda (aloc ...) value))
+  ; Output:  processed define
+  ; Purpose: remove complex operations in define value.
   (define (remop-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,value))
        `(define ,label (lambda ,aloc ,(remop-v value)))]))
   
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   pred
+  ; Output:  instruction
+  ; Purpose: remove complex operations in pred
   (define (remop-pr pr)
     (match pr
       [`(not ,pred)
@@ -649,21 +649,20 @@
        (handle-vals `(,relop) `(,val1 ,val2) '())]
       [_ pr])) ; bool
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   pair of (aloc value)
+  ; Output:  pair of (aloc value)
+  ; Purpose: given a let binding, process the value and return the updated pair
   (define (remop-bind b)
     (match b
       [`(,aloc ,value)
        `(,aloc ,(remop-v value))]))
   
-  ; Input:
-  ; Output:
+  ; Input:   base: the container for the base case. e.g. `(call ,triv) or `(+)
+  ;          processedLst: accumulator for the base case. Initialize as empty.
+  ; Output:  instruction
   ; Purpose: Process a list of values, doing recursive handling for complex values and constructing
   ;          a let-expression for each. Return the new instruction.
   ;          This function is used for both binops and call because they only differ in the base case.
-  ;          base: the container for the base case. e.g. `(call ,triv) or `(+)
-  ;          processedLst: accumulator for the base case. Initialize as empty.
   (define (handle-vals base lst processedLst)
     (match lst
       ['()
@@ -680,9 +679,9 @@
        (define tailRes (handle-vals base pRest (cons tmp processedLst)))
       `(let ([,tmp ,headRes]) ,tailRes)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction.
+  ; Input:   value
+  ; Output:  instruction
+  ; Purpose: remove complex operations in value
   (define (remop-v v)
     (match v
       [`(mref ,val1 ,val2)
@@ -702,9 +701,9 @@
         (handle-vals `(,binop) `(,val1 ,val2) '())]
       [_ v])) ; int, aloc, or label
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   effect
+  ; Output:  instruction
+  ; Purpose: remove complex operations in effect
   (define (remop-eff e)
     (match e
       [`(mset! ,val1 ,val2 ,val3)
@@ -815,8 +814,8 @@
   
   (define framesize 0)
 
-  ; Input: 
-  ; Output:  
+  ; Input:   call-undead list, list of assignments
+  ; Output:  number
   ; Purpose: Return the integer x corresponding to the largest frame value fvx in call-undead,
   ;          and if a call-undead is assigned, check its associated fvar.
   ;          if call-undead is empty, return -1.
@@ -830,8 +829,8 @@
                             -1
                             (map fvar->index (filter fvar? deref-undead))))
 
-  ; Input:
-  ; Output:
+  ; Input:   info block
+  ; Output:  nothing
   ; Purpose: The size of a frame n (in slots) for a given non-tail call is the maximum of:
   ;          - the number of locations in the call-undead, or
   ;          - one more than the index of the largest frame location in the call-undead set.
@@ -842,8 +841,8 @@
                        (max (length call-undead)
                             (+ 1 (find-largest-frame call-undead assignment))))))
   
-  ; Input:
-  ; Output:
+  ; Input:   info block
+  ; Output:  info block
   ; Purpose: Create a new assignment for every entry fr in new-frames. 
   ;          The assignment is (fr fvi) where the 'i's in assignment form an ascending sequence.
   ;          Remove the assigned variables from the locals set
@@ -869,9 +868,9 @@
     (define new-info (info-remove (info-remove (info-remove info 'new-frames) 'call-undead) 'undead-out))
     (info-set (info-set new-info 'locals (reverse new-loc)) 'assignment (map list (dict-keys new-as) (dict-values new-as))))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   asm-pred-lang-v8/pre-framed
+  ; Output:  asm-pred-lang-v8/framed
+  ; Purpose: main function
   (define (allocate-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
@@ -881,18 +880,18 @@
                 ,@defines-res
                 ,(allocate-t tail))]))
   
-  ; Input:
-  ; Output: 
-  ; Purpose: 
+  ; Input:   (define label info tail)
+  ; Output:  processed define
+  ; Purpose: allocate frames for define block
   (define (allocate-def d)
     (match d
       [`(define ,label ,info ,tail)
         (find-framesize! info)
        `(define ,label ,(update-info info) ,(allocate-t tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction.
+  ; Input:   tail
+  ; Output:  Return an instruction.
+  ; Purpose: Allocate frames for tail.
   (define (allocate-t t)
     (match t
       [`(begin ,effects ... ,tail)
@@ -902,9 +901,9 @@
       [`(jump ,trg ,loc ...) 
         t]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   pred
+  ; Output:  Return an instruction.
+  ; Purpose: Allocate frames for pred
   (define (allocate-pr pr)
     (match pr
       [`(not ,pred)
@@ -915,9 +914,9 @@
        `(if ,(allocate-pr pred1) ,(allocate-pr pred2) ,(allocate-pr pred3))]
       [_ pr])) ; bool or relop
 
-  ; Input:
-  ; Output:
-  ; Purpose: Returns an instruction
+  ; Input:   effect
+  ; Output:  Return an instruction.
+  ; Purpose: Allocate frames for effect
   (define (allocate-e e)
     (match e
       [`(begin ,effects ...)
@@ -1353,18 +1352,17 @@
   ; a list of basic blocks to return (a mutable variable)
   (define result-acc '())
   
-  ; Input:
-  ; Output:
+  ; Input:   label: the label to add to the block
+  ;          body: the list of instructions to add to the block.
+  ; Output:  nothing
   ; Purpose: Helper: adds a new basic block to the front of result-acc
-  ;           label: the label to add to the block
-  ;            body: the list of instructions to add to the block.
   (define (add-new-block! label body)
     (define corrected-body (if (equal? (length body) 1) (first body) `(begin ,@body)))
     (set! result-acc `((define ,label ,corrected-body) ,@result-acc)))
 
-  ; Input:
-  ; Output: 
-  ; Purpose:
+  ; Input:   nested-asm-lang-v8
+  ; Output:  block-pred-lang-v8
+  ; Purpose: main function
   (define (expose-p p)
     (match p
       [`(module ,defines ... ,tail)
@@ -1373,17 +1371,17 @@
         (add-new-block! (fresh-label '__main) tailRes)
        `(module ,@result-acc)]))
 
-  ; Input:
-  ; Output: 
-  ; Purpose:
+  ; Input:   (define label tail)
+  ; Output:  processed define statement
+  ; Purpose: Add blocks based on the tail of the define.
   (define (expose-def! d)
     (match d
       [`(define ,label ,tail)
         (define tailRes (expose-t tail))
         (add-new-block! label tailRes)]))
 
-  ; Input:
-  ; Output: 
+  ; Input:   tail
+  ; Output:  List of instructions
   ; Purpose: Given a tail, recursively generate blocks. 
   ;          Returns the tail block instructions to be used to make a block by the caller
   ;          of this function.
@@ -1401,8 +1399,8 @@
         (add-new-block! true_label tailBody1)
         `(,(expose-pred pred true_label false_label))]))
 
-  ; Input:
-  ; Output: 
+  ; Input:   list of effects, tail
+  ; Output:  list of instructions
   ; Purpose: Walk through a list of effects until a predicate or return-point
   ;          is encountered, then create a block and continue walking.
   ;          tail: the instruction at the end of the list of effects from whence this effect came
@@ -1414,8 +1412,8 @@
       [(cons effect effects)
        (expose-e effect effects tail)]))
 
-  ; Input:
-  ; Output: 
+  ; Input:   effect, list of effects, tail
+  ; Output:  list of instructions
   ; Purpose: Process an effect.
   ;          tail: the processed instruction at the end of the list of effects from whence this effect came
   ;          effRest: the rest of the parent effect list after the current effect
@@ -1448,8 +1446,8 @@
       [_ ; set, mset
         (cons e (expose-effects effRest tail))])) 
 
-  ; Input:
-  ; Output:
+  ; Input:   pred, true label, false label
+  ; Output:  instruction
   ; Purpose: Given a pred, return an instruction.
   ;          Add blocks for recursive preds.
   (define (expose-pred pr k-true k-false)
@@ -1567,8 +1565,8 @@
   ; stores abstract locations and frame variables in the undead-out sets of return-points.
   (define call-acc (mutable-set))
 
-  ; Input:
-  ; Output:
+  ; Input:   asm-pred-lang-v8/locals
+  ; Output:  asm-pred-lang-v8/undead
   ; Purpose: Decorate the program with the undead-out tree.
   (define (undead-p p) 
     (match p
@@ -1578,9 +1576,9 @@
                 ,@(map undead-def defines)
                 ,tail)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label info tail)
+  ; Output:  processed define
+  ; Purpose: find undead tree for define tail
   (define (undead-def d)
     (match d
       [`(define ,label ,info ,tail)
@@ -1590,11 +1588,10 @@
                 ,(info-set (info-set info `undead-out ust) 'call-undead (set->list call-acc))
                 ,tail)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Takes a tail and produces the undead-set tree from the effects
-  ;          Return: (values undead-set-tree? undead-set?)
+  ; Input:   tail
+  ; Output:  Return: (values undead-set-tree? undead-set?)
   ;          i.e. (<tree for tail> <set for next effect>)
+  ; Purpose: Takes a tail and produces the undead-set tree from the effects      
   (define (undead-tail t)
     (match t
       [`(begin ,effects ... ,tail)
@@ -1619,12 +1616,11 @@
             (values loc loc)
             (values loc (cons trg loc)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Given a pred, return the corresponding undead-out tree.
-  ;          Use a base undead-out consisting of the union of the undead-outs of the pred branches.
-  ;          Return: (values undead-set-tree? undead-set?)
+  ; Input:   pred
+  ; Output:  Return: (values undead-set-tree? undead-set?)
   ;          i.e. (<tree for pred> <set for next effect>)
+  ; Purpose: Given a pred, return the corresponding undead-out tree.
+  ;          Use a base undead-out consisting of the union of the undead-outs of the pred branches.     
   (define (undead-pred undead-out pr)
     (match pr
       [`(not ,pred)
@@ -1653,12 +1649,11 @@
       [`(,bool)
         (values undead-out undead-out)]))
   
-  ; Input:
-  ; Output:
+  ; Input:   effect
+  ; Output:  Return: (values undead-set-tree? undead-set?)
+  ;          i.e. (<tree for current effect> <set for next effect>)
   ; Purpose: Calculate the undead input for a single effect e,
   ;          given the output, undead-out.
-  ;          Return: (values undead-set-tree? undead-set?)
-  ;          i.e. (<tree for current effect> <set for next effect>)
   (define (undead-effect undead-out e)
     (match e
       [`(set! ,loc1 (mref ,loc2 ,opand))
@@ -1717,8 +1712,8 @@
 ;          Asm-pred-lang v8/conflicts by decorating programs with their conflict graph.
 (define (conflict-analysis p)
 
-  ; Input:
-  ; Output:
+  ; Input:   list of elements, undead-out list, conflicts graph
+  ; Output:  conflicts graph
   ; Purpose: Find the entries of lst that are not in excludeLst. The first entry of 
   ;          excludeLst is the primary loc with which to find conflicts.
   ;          Update the graph with the conflicts and return it.
@@ -1728,9 +1723,9 @@
                                   lst)])
               (add-edge g (first excludeLst) conflict)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   asm-pred-lang-v8/undead
+  ; Output:  asm-pred-lang-v8/conflicts
+  ; Purpose: main function
   (define (c-analysis-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
@@ -1740,9 +1735,9 @@
                 ,@(map c-analysis-def defines)
                 ,tail)]))
   
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label info tail)
+  ; Output:  processed define instruction
+  ; Purpose: find conflicts for the define tail
   (define (c-analysis-def d)
     (match d
       [`(define ,label ,info ,tail)
@@ -1752,11 +1747,10 @@
                 ,(info-set info 'conflicts (c-analysis-t undead (new-graph locals) tail))
                 ,tail)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: undead : a nested list of lists of abstract locations such as x.1. 
+  ; Input:   undead : a nested list of lists of abstract locations such as x.1. 
   ;          graph  : a graph of the conflicts found so far.
-  ;          Return a graph.
+  ; Output:  Return a graph.
+  ; Purpose: Find conflicts in a tail       
   (define (c-analysis-t undead graph t)
     (match t
       [`(begin ,effects ... ,tail)
@@ -1773,11 +1767,10 @@
       [`(jump ,trg ,loc ...) 
         graph]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: undead : a nested list of lists of abstract locations such as x.1. 
+  ; Input:   undead : a nested list of lists of abstract locations such as x.1. 
   ;          graph  : a graph of the conflicts found so far.
-  ;          Return a graph.
+  ; Output:  Return a graph.
+  ; Purpose: Find conflicts in a pred        
   (define (c-analysis-pr undead graph pr)
     (match pr
       [`(not ,pred)
@@ -1795,11 +1788,10 @@
                   (c-analysis-pr currUndead g p))]
       [_ graph])) ; bool or relop
 
-  ; Input:
-  ; Output: 
-  ; Purpose: undead : the entry in the list of undead relating to the current effect
+  ; Input:   undead : a nested list of lists of abstract locations such as x.1. 
   ;          graph  : a graph of the conflicts found so far.
-  ;          Return a graph.
+  ; Output:  Return a graph.
+  ; Purpose: Find conflicts in an effect
   (define (c-analysis-e undead graph e)
     (match e
       [`(set! ,loc1 (mref ,loc2 ,index))
@@ -2053,25 +2045,25 @@
 ; Purpose: Picks a particular order to implement let expressions using set!.
 (define (sequentialize-let p)
   
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   values-bits-lang-v8
+  ; Output:  imp-mf-lang-v8
+  ; Purpose: main function
   (define (seq-p p)
     (match p
       [`(module ,defines ... ,tail)
           `(module ,@(map seq-def defines) ,(seq-t tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label (lambda (aloc ...) tail))
+  ; Output:  processed define
+  ; Purpose: sequentialize let for define tail
   (define (seq-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
        `(define ,label (lambda ,aloc ,(seq-t tail)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   tail
+  ; Output:  Return an instruction
+  ; Purpose: sequentialize let for a tail
   (define (seq-t t)
     (match t
       [`(let ([,aloc ,value] ...) ,tail) 
@@ -2086,9 +2078,9 @@
       [value
         (seq-v value)]))
   
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   pred
+  ; Output:  Return an instruction
+  ; Purpose: sequentialize let for a pred
   (define (seq-pr pr)
     (match pr
       [`(not ,pred)
@@ -2102,9 +2094,9 @@
        `(begin ,@(map seq-eff effects) ,(seq-pr pred))]
       [_ pr])) ; relop or bool
 
-  ; Input:
-  ; Output: 
-  ; Purpose: Return an instruction, given a pair of an aloc and its value.
+  ; Input:   given a pair of (aloc value)
+  ; Output:  Return an instruction.
+  ; Purpose: create a set instruction from an aloc and it's bound value.
   (define (seq-bind b)
     (match b
       [`(,aloc1 (let ([,aloc ,value] ...) ,val))
@@ -2114,9 +2106,9 @@
       [`(,aloc ,value)
         `(set! ,aloc ,(seq-v value))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   value
+  ; Output:  Return an instruction
+  ; Purpose: sequentialize let for a value
   (define (seq-v v)
     (match v
       [`(let ([,aloc ,value] ...) ,val) 
@@ -2130,9 +2122,9 @@
        `(begin ,@(map seq-eff effects) ,(seq-v value))]
       [_ v])) ; triv, binop, mref, or alloc
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   effect
+  ; Output:  Return an instruction
+  ; Purpose: sequentialize let for an effect
   (define (seq-eff e)
     (match e
       [`(mset! ,aloc ,opand ,value) 
@@ -2152,25 +2144,25 @@
 ;          of each is simple value-producing operand.
 (define (normalize-bind p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   imp-mf-lang-v8
+  ; Output:  proc-imp-cmf-lang-v8
+  ; Purpose: main function
   (define (n-bind-p p)
     (match p
       [`(module ,defines ... ,tail)
           `(module ,@(map n-bind-def defines) ,(n-bind-t tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label (lambda (aloc ...) tail))
+  ; Output:  processed define
+  ; Purpose: normalize bind for define tail
   (define (n-bind-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
        `(define ,label (lambda ,aloc ,(n-bind-t tail)))]))
   
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   tail
+  ; Output:  Return an instruction
+  ; Purpose: normalize bind for tail
   (define (n-bind-t t)
     (match t
       [`(begin ,eff ... ,tail)
@@ -2182,9 +2174,9 @@
       [value
         (n-bind-v value)]))
   
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   value
+  ; Output:  Return an instruction
+  ; Purpose: normalize bind for value
   (define (n-bind-v v)
     (match v
       [`(begin ,eff ... ,val) 
@@ -2195,9 +2187,9 @@
         v]
       [_ v])) ; triv, binop, mref, or alloc
 
-  ; Input: 
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   pred
+  ; Output:  Return an instruction
+  ; Purpose: normalize bind for pred
   (define (n-bind-pr pr)
     (match pr
       [`(not ,pred)
@@ -2208,9 +2200,9 @@
        `(begin ,@(map n-bind-e eff) ,(n-bind-pr pred))]
       [_ pr])) ; relop or bool
   
-  ; Input:
-  ; Output:
-  ; Purpose: Return an instruction
+  ; Input:   effect
+  ; Output:  Return an instruction
+  ; Purpose: normalize bind for effect. begin is placed above set.
   (define (n-bind-e e)
     (match e
       [`(set! ,aloc (begin ,eff ... ,val)) ; normalize so that begin is above set.
@@ -2450,27 +2442,27 @@
 ;          in an info? field.
 (define (uncover-locals p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   asm-pred-lang-v8
+  ; Output:  asm-pred-lang-v8/locals
+  ; Purpose: main function
   (define (uloc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
         (define tailRes (set->list (list->set (uloc-t tail))))
        `(module ,(info-set info 'locals tailRes) ,@(map uloc-def defines) ,tail)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input:   (define label info tail)
+  ; Output:  processed define
+  ; Purpose: uncover locals for the define tail
   (define (uloc-def def)
     (match def
       [`(define ,label ,info ,tail)
         (define tailRes (set->list (list->set (uloc-t tail))))
        `(define ,label ,(info-set info 'locals tailRes) ,tail)]))
   
-  ; Input:
-  ; Output:
-  ; Purpose: return a list (not set) of alocs.
+  ; Input:   tail
+  ; Output:  return a list (not set) of alocs.
+  ; Purpose: uncover locals in a tail.
   (define (uloc-t t)
     (match t
       [`(begin ,effects ... ,tail)
@@ -2486,9 +2478,9 @@
            `(,trg) 
            '())]))
   
-  ; Input:
-  ; Output: 
-  ; Purpose: return, list of all alocs found in effect
+  ; Input:   effect
+  ; Output:  list of all alocs found in effect
+  ; Purpose: uncover locals in an effect.
   (define (uloc-e e)
     (match e
       [`(set! ,loc_1 (mref ,loc_2 ,index))
@@ -2509,9 +2501,9 @@
       [`(return-point ,label ,tail)
         (uloc-t tail)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input:   pred
+  ; Output:  list of alocs in pred
+  ; Purpose: uncover locals in a pred
   (define (uloc-pred p)
     (match p
       [`(begin ,effects ... ,pred)
@@ -2529,8 +2521,8 @@
         (find-alocs `(,loc ,opand))]
       [_ '()])) ;bool
 
-  ; Input:
-  ; Output:
+  ; Input:  list of elements
+  ; Output: list of alocs, or empty list
   ; Purpose: Given a list, return all the alocs in that list.
   (define (find-alocs lst)
      (filter aloc? lst))
