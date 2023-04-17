@@ -1999,7 +1999,7 @@
       (dict-set new-binds x (fresh x))))    
 
   ; Input:
-  ; Output:
+  ; Output: 
   ; Purpose: tries to lookup the associated key in a binding dictionary, prioritizng label binds first 
   (define (try-lookup x binds)
     (if (dict-has-key? (unbox label-binds-box) x)
@@ -2008,8 +2008,8 @@
             (dict-ref binds x)
              x)))
 
-  ; Input:
-  ; Output:
+  ; Input: Symbol
+  ; Output: Boolean
   ; Purpose: return true if prim-f according to M8, false otherwise                            
   (define (prim-f? b)
     (or (equal? b '*)
@@ -2053,9 +2053,9 @@
       [`(module ,defines ... ,tail)
           `(module ,@(map seq-def defines) ,(seq-t tail))]))
 
-  ; Input:   (define label (lambda (aloc ...) tail))
-  ; Output:  processed define
-  ; Purpose: sequentialize let for define tail
+  ; Input: define block
+  ; Output: define block
+  ; Purpose: Order let expressions in define block
   (define (seq-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
@@ -2152,9 +2152,9 @@
       [`(module ,defines ... ,tail)
           `(module ,@(map n-bind-def defines) ,(n-bind-t tail))]))
 
-  ; Input:   (define label (lambda (aloc ...) tail))
-  ; Output:  processed define
-  ; Purpose: normalize bind for define tail
+  ; Input: define block
+  ; Output: define block
+  ; Purpose: Normalizes define block
   (define (n-bind-def d)
     (match d
       [`(define ,label (lambda (,aloc ...) ,tail))
@@ -2236,9 +2236,9 @@
 ;          implement the operations of the source language.
 (define (select-instructions p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: p
+  ; Output: p
+  ; Purpose: Initialize program
   (define (sel-ins-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
@@ -2247,9 +2247,9 @@
            `(module ,info ,@(map sel-ins-def defines) ,@(sel-ins-t tail))
            `(module ,info ,@(map sel-ins-def defines) (begin ,@(sel-ins-t tail))))]))
   
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: define block
+  ; Output: define block
+  ; Purpose: Select instructions within define block
   (define (sel-ins-def d)
     (match d
       [`(define ,label ,info ,tail)
@@ -2258,8 +2258,8 @@
            `(define ,label ,info ,@(sel-ins-t tail))
            `(define ,label ,info (begin ,@(sel-ins-t tail))))]))
 
-  ; Input:
-  ; Output:
+  ; Input: tail
+  ; Output: tail
   ; Purpose: Return a list of instructions
   (define (sel-ins-t t)
     (match t
@@ -2277,8 +2277,8 @@
                              `((begin ,@tailRes2))))
        `((if ,(sel-ins-pr pred) ,@corrTail1 ,@corrTail2))]))
   
-  ; Input:
-  ; Output:
+  ; Input: value
+  ; Output: value
   ; Purpose: Returns a list of instructions
   (define (sel-ins-v v aloc)
     (match v
@@ -2292,8 +2292,8 @@
       [triv ; label, int, register, fvar, or aloc
         `((halt ,triv))]))
 
-  ; Input:
-  ; Output:
+  ; Input: pred
+  ; Output: pred
   ; Purpose: Returns an instruction
   (define (sel-ins-pr pr)
     (match pr
@@ -2320,8 +2320,8 @@
        `((begin ,@(sel-ins-v binop loc)))]
       [_ (sel-ins-e e)]))
   
-  ; Input: 
-  ; Output: 
+  ; Input: effect
+  ; Output: effect
   ; Purpose: Process an effect and return a list of instructions
   (define (sel-ins-e e)
     (match e
@@ -2359,31 +2359,31 @@
 ;          assignment info field, and dropping any register-allocation-related metadata from the program.
 (define (replace-locations p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: p
+  ; Output: p
+  ; Purpose: Initialize the program
   (define (replace-loc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
        `(module ,@(map replace-loc-def defines) ,(replace-loc-t tail (info-ref info 'assignment)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: define block
+  ; Output: define block
+  ; Purpose: return a define block with all alocs replaced with their assigment
   (define (replace-loc-def d)
     (match d
       [`(define ,label ,info ,tail)
        `(define ,label ,(replace-loc-t tail (info-ref info 'assignment)))]))
   
-  ; Input:
-  ; Output:
+  ; Input: aloc
+  ; Output: register
   ; Purpose: given an abstract location 'aloc' return its replacement as defined
   ;          in the list of assignments 'as'.
   (define (get-repl aloc as)
     (info-ref as aloc))
   
-  ; Input:
-  ; Output:
+  ; Input: tail
+  ; Output: tail
   ; Purpose: return a tail with locations replaced.
   (define (replace-loc-t t as)
     (match t
@@ -2394,9 +2394,9 @@
       [`(jump ,trg ,loc ...)
         `(jump ,(replace-loc trg as))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: effect
+  ; Output: effect
+  ; Purpose: Replace all alocs in effect with their assignment
   (define (replace-loc-e as e)
     (match e
       [`(set! ,loc_1 (mref ,loc_2 ,index))
@@ -2414,9 +2414,9 @@
       [`(return-point ,label ,tail)
         `(return-point ,label ,(replace-loc-t tail as))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: pred
+  ; Output: pred
+  ; Purpose: Replace all alocs in pred with their assignment
   (define (replace-loc-pred as p)
     (match p
       [`(if ,pred1 ,pred2 ,pred3)
@@ -2429,6 +2429,9 @@
         `(,relop ,(replace-loc loc as) ,(replace-loc opand as))]
       [_ p])) ; boolean
 
+  ; Input: loc
+  ; Output: loc
+  ; Purpose: Given a loc return its abstract location if it is an aloc and return loc otherwise
   (define (replace-loc loc as)
     (if (aloc? loc) (get-repl loc as) loc))
 
@@ -2444,16 +2447,16 @@
 
   ; Input:   asm-pred-lang-v8
   ; Output:  asm-pred-lang-v8/locals
-  ; Purpose: main function
+  ; Purpose: Populate info with abstract locations used in tail
   (define (uloc-p p)
     (match p
       [`(module ,info ,defines ... ,tail)
         (define tailRes (set->list (list->set (uloc-t tail))))
        `(module ,(info-set info 'locals tailRes) ,@(map uloc-def defines) ,tail)]))
 
-  ; Input:   (define label info tail)
-  ; Output:  processed define
-  ; Purpose: uncover locals for the define tail
+  ; Input: Define block
+  ; Output: Define block
+  ; Purpose: Populate info with abstract locations used in define block
   (define (uloc-def def)
     (match def
       [`(define ,label ,info ,tail)
@@ -2532,16 +2535,16 @@
 
 ; Input:   para-asm-lang-v8
 ; Output:  paren-x64-mops-v8
-; Purpose: Compile the Para-asm-lang v7 to Paren-x64 v7 by patching instructions that have 
+; Purpose: Compile the para-asm-lang-v8 to paren-x64-mops-v8 by patching instructions that have 
 ;          no x64 analogue into to a sequence of instructions and an auxiliary register from current-patch-instructions-registers.
 (define (patch-instructions p)
   (define i-reg1 (first (current-patch-instructions-registers)))
   (define i-reg2 (second (current-patch-instructions-registers)))
   (define ret-reg (current-return-value-register))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: para-asm-lang-v8 p
+  ; Output: paren-x64-mops-v8 p
+  ; Purpose: Initializes program by matching a para-asm-lang-v8 p statement
   (define (patch-p p)
     (match p
       [`(begin ,e ...)
@@ -2551,9 +2554,9 @@
             '()
             (map patch-effect e)))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: para-asm-lang-v8 effect
+  ; Output: paren-x64-mops-v8 effect
+  ; Purpose: Converts an effect to paren-x64-mops-v8
   (define (patch-effect e)
     (match e
       [`(set! ,loc_1 (mref ,loc_2 ,index))
@@ -2653,18 +2656,18 @@
             (with-label L.tmp.1 (set! ,i-reg1 ,i-reg1)))]
       [_ e]))  ; everything else
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: binop
+  ; Output: binop
+  ; Purpose: Convert binop to utilize current-patch-instructions-registers
   (define (patch-binop b)
     (match b
       [`(,binop ,addr ,val) #:when (address? addr)
        `(,binop ,i-reg1 ,val)]
       [_ b]))  ; everything else
 
-  ; Input:
-  ; Output:
-  ; Purpose:    
+  ; Input: relop
+  ; Output: relop
+  ; Purpose: Convert relop to its opposite   
   (define (patch-relop r)
     (cond [(equal? r '<) '>=]
           [(equal? r '<=) '>]
@@ -2681,24 +2684,24 @@
 ; Purpose: Compile nested-asm-lang-fvars-v8 to nested-asm-lang-v8 by reifying fvars into displacement mode operands.
 (define (implement-fvars p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (nested-asm-lang-fvars-v8 p)
+  ; Output: (nested-asm-lang-v8 p)
+  ; Purpose: Initializes the program; compiles the tail and define block
   (define (fvars-p p)
     (match p
       [`(module ,defines ... ,tail)
        `(module ,@(map fvars-defines defines) ,(fvars-t tail 0))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (nested-asm-lang-fvars-v8 define block)
+  ; Output: (nested-asm-lang-v8 define block)
+  ; Purpose: Compiles the define block 
   (define (fvars-defines d)
     (match d
       [`(define ,label ,tail)
        `(define ,label ,(fvars-t tail 0))]))
 
-  ; Input:
-  ; Output:
+  ; Input: loc
+  ; Output: address or fvar
   ; Purpose: Convert an fvar into a statement of the form (currentfbp - offset)
   ;          Does nothing if input is not an fvar.
   ;          offset: the current offset to fbp
@@ -2709,8 +2712,8 @@
           ,(+ (* (fvar->index fvar) (current-word-size-bytes)) offset))
         fvar))
 
-  ; Input:
-  ; Output:
+  ; Input: (nested-asm-lang-fvars-v8 t), offset
+  ; Output: (nested-asm-lang-v8 t), offset
   ; Purpose: Return an instruction
   (define (fvars-t t offset)
     (match t
@@ -2733,8 +2736,8 @@
         (define tailRes2 (fvars-t tail2 offset))
        `(if ,(fvars-pred pred offset) ,tailRes1 ,tailRes2)]))
 
-  ; Input:
-  ; Output:
+  ; Input: (nested-asm-lang-fvars-v8 pred), offset
+  ; Output: (nested-asm-lang-v8 pred), offset
   ; Purpose: Return an instruction
   (define (fvars-pred pred offset)
     (match pred
@@ -2758,8 +2761,8 @@
        `(,relop ,(fvar->addr loc offset) ,(fvar->addr opand offset))]
       [_ pred])) ; bool
 
-  ; Input:
-  ; Output:
+  ; Input: (nested-asm-lang-fvars-v8 e), offset
+  ; Output: (nested-asm-lang-v8 e), offset
   ; Purpose: Return (values new-ins new-fbp-offset)
   (define (fvars-e e offset)
     (match e
@@ -2796,9 +2799,9 @@
       [`(return-point ,label ,tail)
         (values `(return-point ,label ,(fvars-t tail offset)) offset)]))
   
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Binop
+  ; Purpose: Convert binop to be usable in arithmetic operations
   (define (binop->op binop)
     (match binop
       ['* *]
@@ -2813,9 +2816,9 @@
 ; Purpose: Compile the Paren-x64 v6 program into a valid sequence of x64 instructions, represented as a string.
 (define (generate-x64 p)
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (paren-x64-v8 p)
+  ; Output: (x64-instructions p)
+  ; Purpose: Initializes program by matching begin statement
   (define (program->x64 p)
     (match p
     [`(begin ,s ...)
@@ -2823,9 +2826,9 @@
                 ([str s]) 
                 (statement->x64 str acc))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: (paren-x64-v8 s)
+  ; Output: (x64-instructions s)
+  ; Purpose: Convert paren-x64-v8 statements into string form
   (define (statement->x64 s x64)
     (match s
       [`(set! ,addr ,int32)
@@ -2880,33 +2883,33 @@
       #:when (and (relop? relop) (label? label))
       (string-append x64 (jump-if-ins relop) " " (sanitize-label label) "\n")]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Boolean
+  ; Purpose: Return true if input is a loc and false otherwise
   (define (loc? loc)
     (or (register? loc) (address? loc)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Boolean
+  ; Purpose: Return true if input is a trg and false otherwise
   (define (trg? trg)
     (or (register? trg) (label? trg)))
   
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Boolean
+  ; Purpose: Return true if input is a triv and false otherwise
   (define (triv? triv)
     (or (trg? triv) (int64? triv)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Boolean
+  ; Purpose: Return true if input is an opand and false otherwise
   (define (opand? opand)
     (or (int64? opand) (register? opand)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: Boolean
+  ; Purpose: Return true if input is a binop and false otherwise
   (define (binop? b)
     (or (equal? b '*)
         (equal? b '+)
@@ -2916,25 +2919,25 @@
         (equal? b 'bitwise-xor)
         (equal? b 'arithmetic-shift-right)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: loc
+  ; Output: String
+  ; Purpose: Convert a loc to its string representation
   (define (loc->ins loc)
     (if (register? loc)
         (symbol->string loc)
         (addr->ins loc)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: trg
+  ; Output: String
+  ; Purpose: Convert a trg to its string representation
   (define (trg->ins trg)
     (if (register? trg)
         (symbol->string trg)
         (string-append "[rel " (sanitize-label trg) "]")))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Address
+  ; Output: String
+  ; Purpose: Convert an address to its string representation
   (define (addr->ins addr)
     (cond [(and (frame-base-pointer-register? (first addr))
                 (equal? '- (second addr))
@@ -2963,15 +2966,15 @@
               (symbol->string(third addr))
               "]")]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: String
+  ; Purpose: Convert a math instruction to its string representation
   (define (math->ins binop reg target)
       (string-append (binop->ins binop) " " (symbol->string reg) ", " (target->ins target)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: String
+  ; Purpose: Convert a binop to its string representation
   (define (binop->ins binop)
       (cond [(equal? '* binop)                      "imul"]
             [(equal? '+ binop)                      "add"]
@@ -2981,9 +2984,9 @@
             [(equal? 'bitwise-xor binop)            "xor"]
             [(equal? 'arithmetic-shift-right binop) "sar"]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Int32, Register, or Address
+  ; Output: String
+  ; Purpose: Helper function to convert a target instruction to its string representation
   (define (target->ins target)
     (cond [(int32? target)
            (number->string target)]
@@ -2992,23 +2995,23 @@
           [(address? target)
            (addr->ins target)]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:  
+  ; Input: Symbol
+  ; Output: String
+  ; Purpose: Convert a label to its string representation
   (define (label->ins label) 
     (string-append (sanitize-label label) ":"))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol or Number
+  ; Output: String
+  ; Purpose: Convert an opand to its string representation
   (define (opand->ins opand)
     (if (register? opand)
         (symbol->string opand)
         (number->string opand)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Symbol
+  ; Output: String
+  ; Purpose: Convert a relop from a symbol to a string
   (define (jump-if-ins relop)
     (cond [(equal? relop '< ) "jl" ]
           [(equal? relop '<=) "jle"]
