@@ -1047,9 +1047,9 @@
   (define cprLen (length cpr))
   (define new-frames `())
   
-  ; Input:
-  ; Output: 
-  ; Purpose: 
+  ; Input: proc-imp-cmf-lang-v8 p
+  ; Output: imp-cmf-lang-v8 p
+  ; Purpose: update define and tail block to have correct calling conventions
   (define (impose-p p)
     (match p
       [`(module ,defines ... ,tail)
@@ -1059,9 +1059,9 @@
                [i-def (map impose-d defines)])
                `(module ((new-frames ,frames)) ,@i-def ,i-tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose: 
+  ; Input: define block
+  ; Output: define block
+  ; Purpose: update the define block to have correct calling convention
   (define (impose-d d)
     (match d
       [`(define ,label (lambda (,alocs ...) ,tail))
@@ -1071,9 +1071,9 @@
                               ,(impose-t tail tmpL)))])
        `(define ,label ((new-frames ,new-frames)) ,i-tail))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: tail
+  ; Output: tail
+  ; Purpose: update tail to have correct calling convention
   (define (impose-t t tmp)
     (match t
       [`(call ,triv ,opands ...)
@@ -1089,9 +1089,9 @@
             (set! ,crv ,t)
             (jump ,tmp ,cfbp ,crv))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: pred
+  ; Output: pred
+  ; Purpose: update predicates to have correct calling convention
   (define (impose-pred pred tmp)
     (match pred
       [`(not ,pred)
@@ -1102,9 +1102,9 @@
         `(if ,(impose-pred pred1 tmp) ,(impose-pred pred2 tmp) ,(impose-pred pred3 tmp))]
       [_ pred]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: effect
+  ; Output: effect
+  ; Purpose: update effects to have correct calling convetion, recording new frame variables if necessary
   (define (impose-e tmp e)
     (match e
       [`(set! ,aloc (call ,triv ,opands ...))
@@ -1129,34 +1129,37 @@
       [`(if ,pred ,effect1 ,effect2)
         `(if ,(impose-pred pred tmp),(impose-e tmp effect1) ,(impose-e tmp effect2))]))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Integer
+  ; Output: List
+  ; Purpose: Given the length of a list of variables, create a list of current-parameter-registers to be assigned, and fvars if needed
   (define (make-para-list len)
     (if (> len cprLen)
         (append cpr (build-list (- len cprLen) (lambda (x) (make-fvar x))))
         (take cpr len)))
-  
+
+  ; Input: Integer
+  ; Output: List
+  ; Purpose: Given the length of a list of variables, create a list of current-parameter-registers to be assigned, and new-frame varaibles if needed
   (define (make-frame-list len)
     (if (> len cprLen)
         (append cpr (build-list (- len cprLen)  (lambda (x) (fresh 'nfv))))
         (take cpr len)))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: List of opands
+  ; Output: List
+  ; Purpose: Create a list of assignments for opands and current-parameter-registers
   (define (set-block opands)
     (map set-opands (reverse opands) (reverse (make-para-list (length opands)))))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: Opand and current-parameter-registers
+  ; Output: Instruction
+  ; Purpose: Helper function for set-block; assigns current-parameter-registers to an opand
   (define (set-opands o r)
     `(set! ,r ,o))
 
-  ; Input:
-  ; Output:
-  ; Purpose:
+  ; Input: triv and lenghth of opands
+  ; Output: Instruction
+  ; Purpose: Create jump statement for tail calls
   (define (create-jump t len)
     `(jump ,t ,cfbp ,cra ,@(make-para-list len)))  
 
@@ -1169,7 +1172,7 @@
 ; Purpose: Optimize Nested-asm-lang-fvars v8 programs by analyzing and simplifying predicates.
 (define (optimize-predicates p)
 
-  ; Input:
+  ; Input: 
   ; Output:
   ; Purpose: key-and-value-wise intersection of h0 with h1 and h2.
   (define (hash-intersects h0 h1 h2)
@@ -1824,24 +1827,24 @@
   ; a list consisting of '(rsp rbx rcx rdx rsi rdi r8 r9 r13 r14 r15)
   (define car (current-assignable-registers))
 
-  ; Input:
-  ; Output:
+  ; Input: asm-pred-lang-v8/framed p 
+  ; Output: asm-pred-lang-v8/spilled p
   ; Purpose: splice the updated info block into the language
   (define (assign-p p)
     (match p
       [`(module ,info ,def ... ,tail)
        `(module ,(assign-info info) ,@(map (lambda (d) (assign-block d)) def) ,tail)]))
 
-  ; Input:
-  ; Output:
+  ; Input: define block
+  ; Output: define block
   ; Purpose: generates the assignment for a single block
   (define (assign-block d)
     (match d
       [`(define ,label ,info ,tail)
        `(define ,label ,(assign-info info) ,tail)]))
   
-  ; Input:
-  ; Output: 
+  ; Input: info block
+  ; Output: info block
   ; Purpose: update the info block with new assignments
   ;          clean the conflicts so only conflicts declared in locals remain
   ;          then sort the conflicts
@@ -1853,8 +1856,10 @@
                     'assignment 
                    `((,@(extract-dict i 'assignment) ,@assignments)))))
 
-  ; Input:
-  ; Output:
+  ; Input:    locals: locals from info block
+  ;           conflicts: conflicts from info block
+  ;           assignments: assignments from info block
+  ; Output: Return assignments
   ; Purpose: generates assignments based on the alocs and their conflicts
   (define (generate-assignments locals conflicts assignments)
     (define registers (reverse car))
@@ -1870,7 +1875,7 @@
                   new-assignments
                  (append (list assigned-node) new-assignments)))))
 
-  ; Input:
+  ; Input: 
   ; Output:
   ; Purpose: assigns a single aloc to a register
   (define (assign-node node node-conflicts assignments registers)
@@ -1990,7 +1995,7 @@
       [(? name?) (try-lookup x binds)]
       [_ x]))
 
-  ; Input:
+  ; Input: 
   ; Output:
   ; Purpose: uses fresh to give a unique assignment to each name at the current scope
   (define (construct-binds xs binds)
@@ -1998,8 +2003,8 @@
               ([x xs])           
       (dict-set new-binds x (fresh x))))    
 
-  ; Input:
-  ; Output: 
+  ; Input: key
+  ; Output: bind
   ; Purpose: tries to lookup the associated key in a binding dictionary, prioritizng label binds first 
   (define (try-lookup x binds)
     (if (dict-has-key? (unbox label-binds-box) x)
